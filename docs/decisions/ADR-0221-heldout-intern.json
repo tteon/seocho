@@ -1,0 +1,226 @@
+{
+  "governed": {
+    "answered": 14,
+    "n": 21,
+    "coverage": 0.221,
+    "rows": [
+      {
+        "qid": "Medical-03cb5164",
+        "answered": true,
+        "coverage": 0.25
+      },
+      {
+        "qid": "Medical-04249246",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-0429f83c",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-042aa09a",
+        "answered": true,
+        "coverage": 1.0
+      },
+      {
+        "qid": "Medical-04a90969",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-04e27815",
+        "answered": true,
+        "coverage": 0.5
+      },
+      {
+        "qid": "Medical-0535a6b1",
+        "answered": true,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-01e3a9ea",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-020cc551",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-025c325c",
+        "answered": true,
+        "coverage": 0.5
+      },
+      {
+        "qid": "Medical-02d254bc",
+        "answered": true,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-032223d5",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-03451b65",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-04e9f25b",
+        "answered": true,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-03a82e56",
+        "answered": true,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-05f3bf13",
+        "answered": true,
+        "coverage": 0.6
+      },
+      {
+        "qid": "Medical-06ba718a",
+        "answered": true,
+        "coverage": 1.0
+      },
+      {
+        "qid": "Medical-081395a7",
+        "answered": true,
+        "coverage": 0.4
+      },
+      {
+        "qid": "Medical-088c7ad0",
+        "answered": true,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-0895dc9d",
+        "answered": true,
+        "coverage": 0.4
+      },
+      {
+        "qid": "Medical-09c3281f",
+        "answered": true,
+        "coverage": 0.0
+      }
+    ]
+  },
+  "governed-no-intern": {
+    "answered": 7,
+    "n": 21,
+    "coverage": 0.15,
+    "rows": [
+      {
+        "qid": "Medical-03cb5164",
+        "answered": true,
+        "coverage": 0.25
+      },
+      {
+        "qid": "Medical-04249246",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-0429f83c",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-042aa09a",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-04a90969",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-04e27815",
+        "answered": true,
+        "coverage": 1.0
+      },
+      {
+        "qid": "Medical-0535a6b1",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-01e3a9ea",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-020cc551",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-025c325c",
+        "answered": true,
+        "coverage": 0.5
+      },
+      {
+        "qid": "Medical-02d254bc",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-032223d5",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-03451b65",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-04e9f25b",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-03a82e56",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-05f3bf13",
+        "answered": true,
+        "coverage": 0.6
+      },
+      {
+        "qid": "Medical-06ba718a",
+        "answered": false,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-081395a7",
+        "answered": true,
+        "coverage": 0.8
+      },
+      {
+        "qid": "Medical-088c7ad0",
+        "answered": true,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-0895dc9d",
+        "answered": true,
+        "coverage": 0.0
+      },
+      {
+        "qid": "Medical-09c3281f",
+        "answered": false,
+        "coverage": 0.0
+      }
+    ]
+  }
+}

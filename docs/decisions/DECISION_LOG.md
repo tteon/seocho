@@ -1,5 +1,14 @@
 # Decision Log
 
+## 2026-08-21
+
+- Accepted `ADR-0219-rust-dozer-projection-daemon.md`
+  - `seochod` owns the local Unix-socket and Rust Bolt boundary for approved,
+    workspace-scoped DozerDB LPG projections; Python retains ontology/policy and
+    read/query control-plane responsibilities.
+  - APOC Extended `parallel2` is read-side only in the tested DozerDB deployment
+    because its parallel workers reject canonical writes.
+
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
@@ -1335,3 +1344,74 @@ Use this block for new entries:
   (alias not lifted) AND **stage-3** (anchor-slot picks the question's framing-clause
   book title). n=1 with no ceiling/floor control ⇒ not a class claim. Lowest-
   complexity fix: strip question framing clauses before anchor-slot extraction.
+
+- [Experimental] ADR-0214 ontology-modeling-drives-accuracy (seocho-5ny) — live on
+  MARA MiniMax-M2.7 + DozerDB, 8 stratified Qs, MARA-judged. Ontology modeling is
+  the top query-side accuracy lever: generic single-Entity **1/8** vs typed MODELED
+  **5/8**, silent_wrong **0** in all cells (SEOCHO fails loud). Ceiling (inject the
+  alias) → recovers, so failures were upstream not retrieval. A demand-driven
+  `propose_ontology(docs, questions)` prototype climbs **1→3→4/8** with zero
+  hand-authoring; after modeling is right the residual shifts to stage-1 extraction
+  coverage. Enabled by #592 (anchor de-framing) + #593 (real write counters).
+  Caveats: n small, single-path, judge unaudited. Follow-ups: productize proposer +
+  coverage-feedback surface, broaden to ≥20 Qs + text2cypher arm.
+- [Experimental] ADR-0215 multi-agent-handoff + SDK guardrails/context (seocho-5ny) —
+  hand-off mechanism code-verified: workspace_id baked into each sub-agent's tools
+  (scope can't leak via NL hand-off); no input_filter so full conversation crosses.
+  Live (MARA + Agents SDK 0.13.6): the hand-off loop did NOT converge
+  (MaxTurnsExceeded) — agent-mode query tool emitted malformed Cypher and spun; the
+  deterministic single-agent path stays reliable. Guardrails/context CAN and partly
+  DO ride the SDK: integrations/openai_agents.py already wraps SEOCHO's deterministic
+  ontology guardrail into tool_input_guardrail (+ GuardrailLedger); operating_layer
+  maps the pillars. Gap: factory-built agents don't wire it → the unguarded loop.
+  Follow-ups: wire guardrails onto factory agents, fix agent-mode Cypher, add
+  handoff input_filter / RunContextWrapper.
+
+- [Proposed] ADR-0216 agents-sdk-coupling-strategy (seocho-5ny) — strongly couple
+  SEOCHO to the OpenAI Agents SDK, but ONLY at the orchestration plane: the SDK
+  supplies loop/handoffs/guardrail-slots/tools/sessions/MCP/HITL/spans; SEOCHO
+  supplies the deterministic BODIES (planner-as-tool per ADR-0214, ontology/Cypher/
+  workspace guardrail per ADR-0215, graph-backed memory + workspace scope). Core
+  SDK is provider-agnostic (runs on MARA); tracing must stay vendor-neutral (no
+  OpenAI backend); Realtime/Voice is OpenAI-only (defer). Phase 0 = wire guardrails
+  onto factory agents + fix tracing + re-run hand-off (expect convergence).
+
+- [Accepted] ADR-0217 orchestration-adopt-not-build (seocho-5ny) — SEOCHO's moat is
+  the data plane; orchestration is consumed, not built. Spike proved the ADR-0215
+  non-convergence was LOOP CONTROL, not the framework: a single deterministic tool
+  (answer_from_graph) under a bounded hand-off converges where the autonomous
+  multi-tool loop hit MaxTurnsExceeded (shipped Phase 1 #607; Phase 0 guardrail
+  wiring #606). Agents SDK CAN be driven deterministically (input_filter, max_turns,
+  as_tool, or plain-Python control) so the state-machine desire is met now WITHOUT
+  LangGraph; LangGraph stays deferred behind seocho-ihg's MCP-first triple gate,
+  reconsidered only if a durable/branching/resumable StateGraph becomes required.
+  Orchestration kept a thin swappable adapter behind agent/factory + integrations.
+
+- [Experimental] ADR-0218 agentic-rag-bottleneck (seocho-5ny) — EnterpriseRAG e2e via
+  Agents SDK + MARA MiniMax-M2.7 + live DozerDB, traced to Tempo, agentic vs direct arm
+  (3 runs each). **Graph DB = ~0.1% of latency (NOT the bottleneck)**; LLM round-trips are
+  the entire cost; the **agentic layer adds >=1 removable orchestration turn/query (direct=0)
+  and holds the worst tail (177s spin)**. Implication: prefer the direct controlled query
+  agent for single-intent, Agent.as_tool over handoff, don't optimize the graph; faster
+  model / self-hosted vLLM attacks the floor. Shareable chart artifact. Caveats: n=3, high
+  variance, answer-quality is a separate axis (ADR-0214).
+
+- [Accepted] ADR-0220 arm-organ-medical-instrument (seocho-5ny) — pre-registered the
+  arm×organ A/B's pivot to GraphRAG-Bench medical after the erb procedural gold
+  produced a uniform null (wrong instrument): floor/ceiling controls mandatory
+  (closed-book floor 0.90 = memorized corpus, so organ effects are read from
+  deterministic mechanism metrics), six review-verified harness bugs fixed before
+  the run, governed-no-intern relabeled an index-time no-op control, and the clean
+  single-tenant run scoped as the task-parity control — load-bearing claims gated
+  on the adversarial probes.
+
+- [Accepted] ADR-0221 arm-organ-medical-results (seocho-5ny, seocho-e19, seocho-8qp,
+  seocho-zfe, seocho-svf) — measured results: read-time canonical resolution
+  quadruples answered questions (3→12/21; held-out replication 14/21 vs 7/21);
+  no-guardrail confabulates 5/21 vs governed 2/21; cross-tenant homonym probe shows
+  isolation is a MEANING boundary (no-workspace imports the other department's
+  referent into 2/3 answers, governed 0/3); mid-run ontology mutation collapses the
+  un-pinned arm (spurious rejections 1→4) while the pinned arm is immune; dual-index
+  3-tier shows no-identity-layer catastrophic fusion (degree-694 node) while a fair
+  name-keyed baseline matches canonical structure on a single-source corpus —
+  sharpening the intern claim to its three separately-evidenced parts.

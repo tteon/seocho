@@ -117,7 +117,7 @@ class FakeGraphStore:
         })
         return {"nodes_created": len(nodes), "relationships_created": len(relationships), "errors": []}
 
-    def query(self, cypher: str, *, params=None, database="neo4j") -> List[Dict[str, Any]]:
+    def query(self, cypher: str, *, params=None, database="neo4j", **kwargs) -> List[Dict[str, Any]]:
         self.queries.append(cypher)
         return [{"name": "TestCorp", "industry": "Tech"}]
 

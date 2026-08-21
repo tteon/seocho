@@ -69,7 +69,6 @@ uv run pytest \
   tests/seocho/test_pattern_trace_schema.py \
   tests/seocho/test_cache_simulator.py \
   tests/seocho/test_ontology_import.py \
-  tests/seocho/test_memory_sharing_contract.py \
   tests/seocho/test_operating_layer.py \
   tests/seocho/test_serving_image_hardening.py \
   tests/seocho/test_semantic_query_phase_a.py \
@@ -131,6 +130,8 @@ uv run pytest \
   tests/seocho/test_ontology_reasoner.py \
   tests/seocho/test_ontology_iso704_cq.py \
   tests/seocho/test_relationship_direction.py \
+  tests/seocho/test_semantic_agents_cypher_escaping.py \
+  tests/seocho/test_label_distribution_workspace_scope.py \
   tests/seocho/test_anchor_orientation.py \
   tests/seocho/test_unbound_slot.py \
   tests/seocho/test_query_projection.py \

@@ -70,7 +70,7 @@ Important:
 - `uv pip install seocho` is enough for remote HTTP client mode.
 - `uv pip install "seocho[local]"` is the simplest published-package path for `Seocho.local(...)`.
 - `Seocho.local(ontology)` defaults to embedded LadybugDB and MARA
-  (`mara/MiniMax-M2.5`), so a Neo4j/DozerDB server is optional for hello world;
+  (`mara/MiniMax-M2.7`), so a Neo4j/DozerDB server is optional for hello world;
   export `MARA_API_KEY` or pass another `llm="provider/model"`.
 - pass `graph="bolt://..."` or `Neo4jGraphStore(...)` when you want the production DozerDB/Neo4j path.
 - `uv sync --extra dev` (then `uv run …`) is the right path when you are editing the repo itself.

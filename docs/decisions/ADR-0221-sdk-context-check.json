@@ -1,0 +1,52 @@
+{
+  "A_context_aware": {
+    "dept_eng": {
+      "own_markers": [
+        "rollback",
+        "sre",
+        "outage"
+      ],
+      "other_markers": [],
+      "answer": "Atlas is a service owned by the **SRE team**.  \n\nRecently, Atlas experienced two notable incidents:\n\n1. **An Atlas rollback** \u2013 a deployment was reverted due to issues.  \n2. **A Ma"
+    },
+    "dept_sales": {
+      "own_markers": [
+        "renewal",
+        "contract",
+        "csm"
+      ],
+      "other_markers": [],
+      "answer": "Atlas refers to **Atlas Corp**, which is owned by the **CSM team**. The most recent event involving Atlas was its **Q1 contract renewal**."
+    }
+  },
+  "B_closure_concurrent": {
+    "dept_eng": {
+      "own_markers": [
+        "rollback",
+        "sre",
+        "outage"
+      ],
+      "other_markers": [],
+      "answer": "Atlas is a service owned by the **SRE (Site Reliability Engineering) team**.  \n\nRecently, Atlas experienced two notable incidents:\n\n1. **Atlas rollback** \u2013 a deployment was rolled "
+    },
+    "dept_sales": {
+      "own_markers": [
+        "renewal",
+        "contract",
+        "csm"
+      ],
+      "other_markers": [],
+      "answer": "Atlas refers to **Atlas Corp**, a corporate entity that is owned by the **CSM team**. The most recent notable event involving Atlas is its **Q1 contract renewal**."
+    }
+  },
+  "C_gap_context_ignored": {
+    "eng_markers": [
+      "rollback",
+      "sre",
+      "outage"
+    ],
+    "sales_markers": [],
+    "context_silently_ignored": true,
+    "answer": "Atlas is a service owned by the **SRE (Site Reliability Engineering) team**.  \n\nRecently, Atlas experienced two notable incidents:\n\n1. **Atlas rollback** \u2013 a deployment was rolled "
+  }
+}

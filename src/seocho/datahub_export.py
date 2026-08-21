@@ -30,14 +30,38 @@ the target ``datahub`` version when wiring live emit (Phase C).
 from __future__ import annotations
 
 import json
-import re
-from typing import Any, Dict, List, Optional
+import string
+from typing import Any, Dict, Iterable, List, Optional
 
 from .ontology import Ontology
 
+# Safe passthrough for URN ids: alphanumerics plus '.' and '-'. Deliberately
+# EXCLUDES '_', which is reserved as the escape sentinel below.
+_SLUG_SAFE = frozenset(string.ascii_letters + string.digits + ".-")
+
 
 def _slug(s: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_.-]", "_", str(s).strip())
+    """URN-safe, INJECTIVE encoding of an arbitrary identifier.
+
+    Output uses only ``[A-Za-z0-9.-]`` plus ``_`` as an escape sentinel: safe
+    characters pass through, and every other character (including a literal
+    ``_``) is escaped as ``_`` followed by two hex digits per UTF-8 byte. Because
+    ``_`` only ever appears as an escape prefix and no safe character produces
+    one, distinct inputs can never collide.
+
+    This fixes the silent glossary-term merge where the old replace-with-``_``
+    slug mapped e.g. ``"Total Revenue"`` and ``"Total_Revenue"`` to the same URN
+    (idempotent UPSERT keys on the URN, so a collision overwrote another term —
+    worst in the review queue the URNs exist to serve). Class labels without
+    ``_`` are unchanged; identifiers containing ``_`` or non-safe characters get
+    a new, collision-free URN."""
+    out = []
+    for ch in str(s).strip():
+        if ch in _SLUG_SAFE:
+            out.append(ch)
+        else:
+            out.extend(f"_{b:02x}" for b in ch.encode("utf-8"))
+    return "".join(out)
 
 
 def _node_urn(node_id: str) -> str:
@@ -46,6 +70,15 @@ def _node_urn(node_id: str) -> str:
 
 def _term_urn(term_id: str) -> str:
     return f"urn:li:glossaryTerm:{_slug(term_id)}"
+
+
+def package_term_urn_prefix(package_id: str) -> str:
+    """URN prefix shared by every glossary term SEOCHO emits for one package.
+
+    ``_slug`` encodes char-by-char and ``.`` is slug-safe, so the prefix is
+    stable regardless of what follows it — the pull side uses this to scope a
+    GMS-wide search to one ontology's terms."""
+    return f"urn:li:glossaryTerm:{_slug(str(package_id))}."
 
 
 def _mcp(entity_type: str, urn: str, aspect_name: str, aspect: Dict[str, Any]) -> Dict[str, Any]:
@@ -58,8 +91,23 @@ def _mcp(entity_type: str, urn: str, aspect_name: str, aspect: Dict[str, Any]) -
     }
 
 
-def ontology_to_glossary_mcps(ontology: Ontology) -> List[Dict[str, Any]]:
-    """Map an Ontology to DataHub glossary MCPs (pure; deterministic URNs)."""
+def ontology_to_glossary_mcps(
+    ontology: Ontology,
+    *,
+    preserve_definitions: Optional[Iterable[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Map an Ontology to DataHub glossary MCPs (pure; deterministic URNs).
+
+    ``preserve_definitions`` is the set of class labels whose glossaryTermInfo
+    aspect is now human-owned (a reviewer edited the definition in the DataHub
+    UI, pulled back via ``action="annotate"``). For those terms this skips the
+    glossaryTermInfo aspect entirely so a re-export does NOT clobber the human's
+    text — glossaryTermInfo is atomic, so definition and customProperties cannot
+    be updated independently, and definition ownership wins. The taxonomy
+    (glossaryRelatedTerms / is-a) stays SEOCHO-owned and is always emitted.
+    Pass the labels present in the last approved round-trip; omit for a first
+    export."""
+    preserved = {str(x) for x in (preserve_definitions or ())}
     pkg = ontology.package_id or ontology.name
     pkg_node_id = pkg
     rel_node_id = f"{pkg}.Relationships"
@@ -75,23 +123,24 @@ def ontology_to_glossary_mcps(ontology: Ontology) -> List[Dict[str, Any]]:
     # classes → terms
     for label, nd in ontology.nodes.items():
         term_id = f"{pkg}.{label}"
-        custom: Dict[str, str] = {"seocho_class": label, "ontology_version": str(ontology.version)}
-        aliases = [str(a) for a in (getattr(nd, "aliases", []) or [])]
-        if aliases:
-            custom["aliases"] = ", ".join(aliases)
-        if getattr(nd, "same_as", None):
-            custom["same_as"] = str(nd.same_as)
-        ik = nd.effective_identity_keys
-        if ik:
-            custom["identity_keys"] = ", ".join(ik)
-        mcps.append(_mcp("glossaryTerm", _term_urn(term_id), "glossaryTermInfo", {
-            "name": label,
-            "definition": (str(getattr(nd, "description", "") or "").strip() or f"{label} (no definition)"),
-            "termSource": "INTERNAL",
-            "parentNode": _node_urn(pkg_node_id),
-            "customProperties": custom,
-        }))
-        # broader (is-a) → glossaryRelatedTerms.isRelatedTerms
+        if label not in preserved:
+            custom: Dict[str, str] = {"seocho_class": label, "ontology_version": str(ontology.version)}
+            aliases = [str(a) for a in (getattr(nd, "aliases", []) or [])]
+            if aliases:
+                custom["aliases"] = ", ".join(aliases)
+            if getattr(nd, "same_as", None):
+                custom["same_as"] = str(nd.same_as)
+            ik = nd.effective_identity_keys
+            if ik:
+                custom["identity_keys"] = ", ".join(ik)
+            mcps.append(_mcp("glossaryTerm", _term_urn(term_id), "glossaryTermInfo", {
+                "name": label,
+                "definition": (str(getattr(nd, "description", "") or "").strip() or f"{label} (no definition)"),
+                "termSource": "INTERNAL",
+                "parentNode": _node_urn(pkg_node_id),
+                "customProperties": custom,
+            }))
+        # broader (is-a) → glossaryRelatedTerms.isRelatedTerms (always SEOCHO-owned)
         parents = [p for p in (getattr(nd, "broader", []) or []) if p in ontology.nodes]
         if parents:
             mcps.append(_mcp("glossaryTerm", _term_urn(term_id), "glossaryRelatedTerms", {
@@ -144,17 +193,39 @@ def emit_to_datahub(
     if dry_run or not gms_server:
         return {"emitted": False, "mode": "dry_run", "summary": export_summary(mcps), "mcps": mcps}
     try:
-        from datahub.emitter.mce_builder import make_glossary_term_urn  # noqa: F401
-        from datahub.emitter.mcp import MetadataChangeProposalWrapper  # noqa: F401
+        # NOTE: import exactly what we call. An earlier unused
+        # `mce_builder.make_glossary_term_urn` import silently disabled live
+        # emit on acryl-datahub 0.15 (the name no longer exists), because this
+        # except-block masks ImportError as "SDK not available".
         from datahub.emitter.rest_emitter import DatahubRestEmitter
+        from datahub.metadata.schema_classes import (
+            ChangeTypeClass,
+            GenericAspectClass,
+            MetadataChangeProposalClass,
+        )
     except Exception as exc:  # datahub not installed
         return {"emitted": False, "mode": "unavailable", "error": f"datahub SDK not available: {exc}",
                 "summary": export_summary(mcps), "mcps": mcps}
     emitter = DatahubRestEmitter(gms_server=gms_server, token=token)
     sent = 0
     for m in mcps:
-        emitter.emit_mcp(MetadataChangeProposalWrapper(
-            entityUrn=m["entityUrn"], aspectName=m["aspectName"], aspect=m["aspect"],
+        # Our MCPs are plain dicts; the SDK's typed Wrapper requires generated
+        # aspect objects (found live: passing a dict raises get_aspect_name).
+        # The generic-aspect proposal is the sanctioned dict path and keeps the
+        # boundary version-robust: GMS validates the JSON server-side.
+        emitter.emit_mcp(MetadataChangeProposalClass(
+            entityType=m["entityType"],
+            entityUrn=m["entityUrn"],
+            changeType=ChangeTypeClass.UPSERT,
+            aspectName=m["aspectName"],
+            aspect=GenericAspectClass(
+                contentType="application/json",
+                # ensure_ascii: Rest.li transports the bytes as a latin-1-ish
+                # string; a raw non-ASCII char (e.g. an em-dash in a definition)
+                # fails GMS param validation ("not a valid string representation
+                # of bytes"; found live). \uXXXX escapes decode fine server-side.
+                value=json.dumps(m["aspect"], ensure_ascii=True).encode("utf-8"),
+            ),
         ))
         sent += 1
     return {"emitted": True, "mode": "live", "sent": sent, "gms_server": gms_server,
@@ -216,23 +287,86 @@ def scorecard_to_structured_properties(
     """Map an ``OntologyScorecard.to_dict()`` onto DataHub structuredProperties on
     ``target_urn`` (e.g. the package glossaryNode): overall score, grade, blocking,
     and each dimension score under ``seocho.scorecard.*`` keys."""
+    # PDL PrimitivePropertyValue is a tagged union — a raw scalar fails GMS
+    # validation ("union type is not backed by a DataMap"; found live).
+    def _num(v: Any) -> Dict[str, Any]:
+        return {"double": float(v or 0.0)}
+
+    def _txt(v: Any) -> Dict[str, Any]:
+        return {"string": str(v or "")}
+
     props: List[Dict[str, Any]] = [
         {"propertyUrn": "urn:li:structuredProperty:seocho.scorecard.overall_score",
-         "values": [scorecard.get("overall_score")]},
+         "values": [_num(scorecard.get("overall_score"))]},
         {"propertyUrn": "urn:li:structuredProperty:seocho.scorecard.grade",
-         "values": [scorecard.get("grade")]},
+         "values": [_txt(scorecard.get("grade"))]},
+        # DataHub has no boolean dataType — blocking is a STRING property, so its
+        # value is stringified to match the definition emitted by
+        # scorecard_structured_property_definitions().
         {"propertyUrn": "urn:li:structuredProperty:seocho.scorecard.blocking",
-         "values": [bool(scorecard.get("blocking"))]},
+         "values": [_txt("true" if scorecard.get("blocking") else "false")]},
     ]
     for dim in scorecard.get("dimensions", []):
         name = dim.get("name")
         if name:
             props.append({
                 "propertyUrn": f"urn:li:structuredProperty:seocho.scorecard.{name}",
-                "values": [dim.get("score")],
+                "values": [_num(dim.get("score"))],
             })
     entity_type = "glossaryNode" if ":glossaryNode:" in target_urn else "dataset"
     return [_mcp(entity_type, target_urn, "structuredProperties", {"properties": props})]
+
+
+# Value types + entity types a scorecard structured property can carry.
+_DATATYPE_NUMBER = "urn:li:dataType:datahub.number"
+_DATATYPE_STRING = "urn:li:dataType:datahub.string"
+_SCORECARD_ENTITY_TYPES = [
+    "urn:li:entityType:datahub.glossaryNode",
+    "urn:li:entityType:datahub.dataset",
+]
+
+
+def _property_definition_mcp(qualified_name: str, *, value_type: str, display_name: str,
+                             description: str) -> Dict[str, Any]:
+    urn = f"urn:li:structuredProperty:{qualified_name}"
+    return _mcp("structuredProperty", urn, "propertyDefinition", {
+        "qualifiedName": qualified_name,
+        "displayName": display_name,
+        "valueType": value_type,
+        "cardinality": "SINGLE",
+        "entityTypes": list(_SCORECARD_ENTITY_TYPES),
+        "description": description,
+    })
+
+
+def scorecard_structured_property_definitions(
+    dimension_names: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """The ``propertyDefinition`` MCPs that MUST exist on a GMS before
+    ``scorecard_to_structured_properties`` values can be emitted — DataHub's
+    StructuredPropertiesValidator rejects assignments to undefined properties, so
+    live Phase-C emit fails without this bootstrap (seocho-v6w.2). Emit these
+    once per GMS (idempotent UPSERT by URN), then emit the values.
+
+    ``dimension_names`` declares the per-dimension score properties (e.g.
+    ``taxonomy_health``); omit for just the three fixed properties."""
+    mcps = [
+        _property_definition_mcp("seocho.scorecard.overall_score", value_type=_DATATYPE_NUMBER,
+                                 display_name="SEOCHO overall score",
+                                 description="SEOCHO ontology scorecard: weighted overall score [0,1]."),
+        _property_definition_mcp("seocho.scorecard.grade", value_type=_DATATYPE_STRING,
+                                 display_name="SEOCHO grade",
+                                 description="SEOCHO ontology scorecard: letter grade."),
+        _property_definition_mcp("seocho.scorecard.blocking", value_type=_DATATYPE_STRING,
+                                 display_name="SEOCHO blocking",
+                                 description="SEOCHO ontology scorecard: 'true' if a blocking weakness exists."),
+    ]
+    for name in (dimension_names or []):
+        mcps.append(_property_definition_mcp(
+            f"seocho.scorecard.{name}", value_type=_DATATYPE_NUMBER,
+            display_name=f"SEOCHO {name}",
+            description=f"SEOCHO ontology scorecard dimension '{name}' score [0,1]."))
+    return mcps
 
 
 def numeric_validation_to_assertions(
@@ -284,6 +418,11 @@ def datahub_glossary_to_mapping_spec(
     ``review_status`` / ``action`` / ``target`` / ``parent`` / ``description``.
     Only terms whose status matches ``only_status`` become mappings.
 
+    ``action="annotate"`` edits metadata on an EXISTING class — the common case
+    when a reviewer fills in or rewrites a term's definition in the DataHub UI;
+    it carries the edited ``description`` (and/or an added ``alias``) back onto a
+    class that already exists, where ``new_class`` would wrongly create one.
+
     (A live DataHub GraphQL source adapter that produces these records is a
     follow-up; this function defines the offline contract and is fully tested.)"""
     mappings: List[Dict[str, Any]] = []
@@ -296,10 +435,10 @@ def datahub_glossary_to_mapping_spec(
         if not name:
             continue
         action = str(rec.get("action") or "new_class").strip()
-        if action not in {"alias", "new_class", "same_as"}:
+        if action not in {"alias", "new_class", "same_as", "annotate"}:
             continue
         entry: Dict[str, Any] = {"surface": name, "action": action}
-        target = str(rec.get("target") or (name if action == "new_class" else "")).strip()
+        target = str(rec.get("target") or (name if action in ("new_class", "annotate") else "")).strip()
         if target:
             entry["target"] = target
         if action == "new_class":
@@ -309,5 +448,14 @@ def datahub_glossary_to_mapping_spec(
             desc = str(rec.get("description", "")).strip()
             if desc:
                 entry["description"] = desc
+        elif action == "annotate":
+            # description is present-but-possibly-empty: forward the key so an
+            # intentional clear is distinguishable from an untouched field, but
+            # apply only writes it when non-empty.
+            if "description" in rec:
+                entry["description"] = str(rec.get("description") or "").strip()
+            add_alias = str(rec.get("alias") or "").strip()
+            if add_alias:
+                entry["alias"] = add_alias
         mappings.append(entry)
     return {"ontology": ontology_name, "mappings": mappings}

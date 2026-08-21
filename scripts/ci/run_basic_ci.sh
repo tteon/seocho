@@ -69,7 +69,6 @@ uv run pytest \
   tests/seocho/test_pattern_trace_schema.py \
   tests/seocho/test_cache_simulator.py \
   tests/seocho/test_ontology_import.py \
-  tests/seocho/test_memory_sharing_contract.py \
   tests/seocho/test_operating_layer.py \
   tests/seocho/test_serving_image_hardening.py \
   tests/seocho/test_semantic_query_phase_a.py \

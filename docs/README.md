@@ -88,7 +88,7 @@ Then run the quickstart from a checkout:
 
 ```bash
 export MARA_API_KEY=...
-uv run python examples/finance-compliance/quickstart.py --llm mara/MiniMax-M2.5
+uv run python examples/finance-compliance/quickstart.py --llm mara/MiniMax-M2.7
 ```
 
 Use the runtime later, when another process needs the same graph contract over

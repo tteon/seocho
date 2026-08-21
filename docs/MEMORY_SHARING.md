@@ -9,7 +9,7 @@ write returns, if both point at the same backend and workspace; neither ever
 sees the other's session state.
 
 Every statement on this page is held by an executable test in
-`tests/seocho/test_memory_sharing_contract.py`. If the tests pass, this page
+the runtime/API compatibility suite. If the tests pass, this page
 is true.
 
 ## The two namespaces

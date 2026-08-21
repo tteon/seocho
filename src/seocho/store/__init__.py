@@ -2,7 +2,7 @@
 seocho.store — Storage backend abstractions.
 
 Where to look:
-- ``graph``: embedded LadybugDB and Neo4j/DozerDB graph stores
+- ``graph``: Neo4j/DozerDB graph store
   (write nodes/rels, query Cypher)
 - ``vector``: FAISS / LanceDB vector similarity search
 - ``llm``: OpenAI-compatible LLM and embedding backends
@@ -11,7 +11,6 @@ Where to look:
 from .graph import (
     EnsureConstraintsError,
     GraphStore,
-    LadybugGraphStore,
     Neo4jGraphStore,
     WorkspaceFilterMissingError,
 )
@@ -44,7 +43,6 @@ from .vector import (
 
 __all__ = [
     "GraphStore",
-    "LadybugGraphStore",
     "Neo4jGraphStore",
     "ProviderSpec",
     "LLMBackend",

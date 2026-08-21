@@ -723,10 +723,11 @@ def run(
 
     semantic_receipt = load_projection_receipt_from_env()
     admission = load_projection_admission_from_env()
+    staged_receipt = {"per_candidate": True} if spec.governance_mode in {"governed", "lockdown"} else None
     projection_decision = decide_projection(
         spec.governance_mode,
         rust_socket=os.environ.get("SEOCHO_RUST_PROJECTOR_SOCKET"),
-        semantic_receipt=semantic_receipt,
+        semantic_receipt=semantic_receipt or staged_receipt,
         admission=admission,
     )
     governance_receipt = projection_trace_receipt(

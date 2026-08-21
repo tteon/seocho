@@ -30,11 +30,14 @@ class SeochodProjectionClient:
         source_id: str,
         semantic_receipt: Mapping[str, Any] | None = None,
         admission: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         request_id = uuid.uuid4().hex
+        idempotency_key = idempotency_key or request_id
         payload = {
             "op": "project",
             "request_id": request_id,
+            "idempotency_key": idempotency_key,
             "database": database,
             "workspace_id": workspace_id,
             "source_id": source_id,

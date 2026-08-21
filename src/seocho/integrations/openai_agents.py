@@ -307,6 +307,54 @@ def make_graph_tool(graph_store: Any, *, database: str, row_cap: int = 50,
     return run_cypher
 
 
+def make_ontology_context_tools(*, bundle_dir: str, purpose: str = "query") -> list[Any]:
+    """Expose verified profile discovery and bounded JIT slicing to an Agent SDK run.
+
+    ``bundle_dir`` is captured by the host process and never returned.  Tool
+    responses carry immutable digest handles, which lets traces prove context
+    provenance without leaking filesystem layout into the model context.
+    """
+    _require_sdk()
+    if purpose not in {"indexing", "query", "projection"}:
+        raise ValueError("purpose must be indexing, query, or projection")
+
+    @function_tool(name_override="ontology_profile", description_override="Get the verified ontology profile for this task purpose. Call once before graph work when vocabulary is needed.")
+    def ontology_profile() -> str:
+        from ..ontology.lifecycle import load_agent_profile
+        from ..metrics import get_metrics
+        from ..tracing import start_span
+        with start_span("ontology.profile", metadata={"purpose": purpose}, tags=["ontology", "agent-tool"]) as span:
+            try:
+                profile = load_agent_profile(bundle_dir, purpose)
+                response = {key: profile[key] for key in ("purpose", "canonical_bundle_sha256", "profile_sha256", "allowed_node_labels", "allowed_relationship_types")}
+                span.set_output({"profile_sha256": response["profile_sha256"]})
+                get_metrics().add("seocho.ontology.tool.call.count", attributes={"tool": "profile", "outcome": "ok"})
+                return json.dumps(response, ensure_ascii=False)
+            except Exception as exc:
+                get_metrics().add("seocho.ontology.tool.call.count", attributes={"tool": "profile", "outcome": "error"})
+                return json.dumps({"error": str(exc)})
+
+    @function_tool(name_override="ontology_slice", description_override="Fetch a bounded, term-relevant verified ontology slice. Use specific entity or relationship terms; do not request the whole ontology.")
+    def ontology_slice(terms: str, max_chars: int = 4000) -> str:
+        from ..ontology.lifecycle import slice_agent_profile
+        from ..metrics import get_metrics
+        from ..tracing import start_span
+        budget = min(max(256, int(max_chars)), 8000)
+        with start_span("ontology.slice", metadata={"purpose": purpose, "max_chars": budget}, tags=["ontology", "agent-tool"]) as span:
+            try:
+                response = slice_agent_profile(bundle_dir, purpose, terms.split(","), max_chars=budget)
+                span.set_output({"profile_sha256": response["profile_sha256"], "truncated": response["truncated"]})
+                metrics = get_metrics()
+                metrics.add("seocho.ontology.tool.call.count", attributes={"tool": "slice", "outcome": "ok"})
+                metrics.record("seocho.ontology.slice.size", len(json.dumps(response, ensure_ascii=False)), {"kind": "chars"})
+                return json.dumps(response, ensure_ascii=False)
+            except Exception as exc:
+                get_metrics().add("seocho.ontology.tool.call.count", attributes={"tool": "slice", "outcome": "error"})
+                return json.dumps({"error": str(exc)})
+
+    return [ontology_profile, ontology_slice]
+
+
 def _mara_model(model: str) -> Any:
     """Point the SDK at MARA's OpenAI-compatible endpoint.
 
@@ -332,7 +380,8 @@ def build_graph_agent(*, ontology: Any, graph_store: Any, database: str,
                       model: str = "gpt-oss-120b", name: str = "graph_analyst",
                       row_cap: int = 50, row_format: str = "json",
                       extra_tools: Sequence[Any] = (),
-                      ledger: Optional[GuardrailLedger] = None) -> "Agent":
+                      ledger: Optional[GuardrailLedger] = None,
+                      ontology_bundle_dir: str | None = None) -> "Agent":
     """A graph-querying agent whose tool is guarded by the ontology.
 
     The schema block is the same one the deterministic planner sends, so the agent is told
@@ -369,12 +418,13 @@ def build_graph_agent(*, ontology: Any, graph_store: Any, database: str,
         "inventing labels."
     )
 
+    context_tools = make_ontology_context_tools(bundle_dir=ontology_bundle_dir) if ontology_bundle_dir else []
     return Agent(
         name=name,
         instructions=instructions,
         model=_mara_model(model),
         model_settings=ModelSettings(temperature=0.0),
-        tools=[tool, *extra_tools],
+        tools=[tool, *context_tools, *extra_tools],
     )
 
 
@@ -401,5 +451,6 @@ __all__ = [
     "build_graph_agent",
     "encode_rows",
     "make_graph_tool",
+    "make_ontology_context_tools",
     "make_ontology_guardrail",
 ]

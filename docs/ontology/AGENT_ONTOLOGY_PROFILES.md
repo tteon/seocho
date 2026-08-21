@@ -41,6 +41,11 @@ it never returns a host path or silently injects the entire ontology. This is
 the CLI-level primitive that an Agents SDK tool should expose, rather than
 placing a raw JSON-LD file into every prompt.
 
+`build_graph_agent(..., ontology_bundle_dir=...)` wires the same two tools
+(`ontology_profile`, `ontology_slice`) into a real OpenAI Agents SDK agent.
+Without that explicit argument, the existing graph agent remains compatible and
+does not claim agent-selected JIT context delivery.
+
 For receipt-enforced Rust projection, set `SEOCHO_RDF_GOVERNANCE_RECEIPT` and
 `SEOCHO_AGENT_ONTOLOGY_PROFILE` together in the SEOCHO process, and set
 `SEOCHOD_REQUIRE_GOVERNANCE=1` in the daemon process. SEOCHO validates that the

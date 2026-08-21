@@ -108,7 +108,7 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         name="mara",
         api_key_env="MARA_API_KEY",
         base_url="https://api.cloud.mara.com/v1",
-        default_model="MiniMax-M2.5",
+        default_model="MiniMax-M2.7",
         default_embedding_model=None,
         supports_embeddings=False,
         # MiniMax-M2.x is a reasoning model and mara is the default provider
@@ -1313,7 +1313,7 @@ class MaraBackend(OpenAICompatibleBackend):
     def __init__(
         self,
         *,
-        model: str = "MiniMax-M2.5",
+        model: str = "MiniMax-M2.7",
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         timeout: float = 120.0,

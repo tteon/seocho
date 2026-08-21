@@ -8,8 +8,8 @@ backends or providers plug in here. Anything else is an internal detail
 and must not be treated as an extension point.
 
 1. :class:`seocho.store.graph.GraphStore`
-   Graph database backend. Ships with :class:`Neo4jGraphStore` (production)
-   and :class:`LadybugGraphStore` (embedded, zero-config).
+   Graph database backend. Ships with :class:`Neo4jGraphStore` for
+   DozerDB / Neo4j.
 
 2. :class:`seocho.store.vector.VectorStore`
    Vector similarity store. Ships with :class:`FAISSVectorStore` and

@@ -79,6 +79,7 @@ and must not be tracked as part of the public GitHub surface.
 | Path | Status | Notes |
 |---|---|---|
 | `seocho-core/` | Optional accelerator workspace | Rust/Python hybrid support code, not the first stop for normal app changes. |
+| `dataplane/` | Optional native runtime components | Rust sidecars/proxies that sit below the Python control plane; the first component is the Oxigraph ontology read model. |
 
 ## Local Runtime State And Generated Artifacts
 

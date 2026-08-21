@@ -1,6 +1,6 @@
 name: lpg-finance-provenance
 graph_model: lpg
-storage_target: ladybug
+storage_target: dozerdb
 description: Preserve finance facts in a property-graph-friendly shape with strong provenance.
 ontology:
   required: true

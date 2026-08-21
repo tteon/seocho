@@ -28,13 +28,13 @@ from .spec_loader import (
     suggest as _suggest,  # noqa: F401  (kept for callers/tests referencing the old seam)
 )
 
-DEFAULT_MODEL = "mara/MiniMax-M2.5"
+DEFAULT_MODEL = "mara/MiniMax-M2.7"
 
 _ALLOWED_ENFORCEMENT_MODES = {"strict", "guided", "open"}
 _ALLOWED_EXECUTION_MODES = {"pipeline", "agent", "supervisor"}
 _ALLOWED_ROUTING_POLICIES = {"fast", "balanced", "thorough"}
 _ALLOWED_ANSWER_STYLES = {"concise", "evidence", "table"}
-_ALLOWED_GRAPH_KINDS = {"neo4j", "dozerdb", "ladybug"}
+_ALLOWED_GRAPH_KINDS = {"neo4j", "dozerdb"}
 _ALLOWED_VECTOR_KINDS = {"faiss", "lancedb"}
 _BOLT_SCHEMES = ("bolt://", "neo4j://", "neo4j+s://", "bolt+s://")
 
@@ -104,7 +104,7 @@ def parse_model_ref(value: str, *, where: str, errors: List[str]) -> Tuple[str, 
     text = _string(value)
     if "/" not in text:
         errors.append(
-            f"at {where}: model must be 'provider/model' (e.g. 'mara/MiniMax-M2.5'), got {text!r}."
+            f"at {where}: model must be 'provider/model' (e.g. 'mara/MiniMax-M2.7'), got {text!r}."
         )
         return ("", text)
     provider, model = text.split("/", 1)
@@ -139,9 +139,8 @@ class RunSpec:
     documents_recursive: bool = True
     models: Dict[str, str] = field(default_factory=dict)
     graph: str = ""
-    # Optional explicit backend kind (neo4j | dozerdb | ladybug). Empty means
-    # infer from the graph value: bolt-scheme URI → Neo4j/DozerDB, anything
-    # else (or blank) → embedded LadybugDB path.
+    # Optional explicit backend kind (neo4j | dozerdb). Empty infers Neo4j
+    # from the required Bolt URI.
     graph_kind: str = ""
     graph_user: str = "neo4j"
     graph_password: str = "password"
@@ -212,7 +211,7 @@ class RunSpec:
             return self.graph_kind
         if self.graph and self.graph.startswith(_BOLT_SCHEMES):
             return "neo4j"
-        return "ladybug"
+        return "neo4j"
 
     def uses_vector_store(self) -> bool:
         return bool(self.vector)
@@ -333,7 +332,7 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
     vector = _section(payload, "vector", errors=errors)
     output = _section(payload, "output", errors=errors)
 
-    # ``graph`` accepts a bare string (bolt URI or ladybug path — inferred)
+    # ``graph`` accepts a bare Bolt URI
     # or a mapping with an explicit backend kind. The mapping form
     # normalizes into the flat fields so everything downstream is unchanged.
     graph_value = payload.get("graph")
@@ -346,7 +345,7 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
         graph_password = _string(graph_section.get("password"))
         graph_database = _string(graph_section.get("database"))
         if _string(graph_section.get("uri")) and _string(graph_section.get("path")):
-            errors.append("at graph: declare either 'uri' (bolt) or 'path' (ladybug), not both.")
+            errors.append("at graph: declare only 'uri' for a Bolt-compatible graph.")
     else:
         graph_target = _string(graph_value)
         graph_user = ""
@@ -438,11 +437,8 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
                     f"at graph: kind {spec.graph_kind!r} requires a bolt:// (or neo4j://) "
                     f"uri; got {spec.graph!r}."
                 )
-            if spec.graph_kind == "ladybug" and is_bolt:
-                errors.append(
-                    "at graph: kind 'ladybug' is the embedded engine and takes a file "
-                    f"path, not a bolt uri; got {spec.graph!r}."
-                )
+    elif not spec.graph.startswith(_BOLT_SCHEMES):
+        errors.append("at graph: a DozerDB/Neo4j bolt:// (or neo4j://) URI is required.")
 
     if spec.vector:
         vector_kind = spec.vector_kind()
@@ -484,6 +480,7 @@ RUN_SPEC_TEMPLATE = """\
 # Minimal config: an ontology, a documents folder, and your questions.
 ontology: ./schema.yaml
 documents: ./docs/
+graph: ${NEO4J_URI:-bolt://localhost:7687}
 questions:
   - Which companies reported revenue growth?
   - Who is the CEO of Acme?
@@ -507,15 +504,15 @@ questions:
 #   indexing: mara/MiniMax-M2       # per-phase override
 #   query: mara/MiniMax-M2.5
 #
-# graph: bolt://localhost:7687      # omit for embedded LadybugDB (no server)
+# graph: bolt://localhost:7687      # required DozerDB/Neo4j graph endpoint
 # graph_user: neo4j
 # graph_password: ${NEO4J_PASSWORD:-password}
 # database: neo4j                   # omit to derive from the ontology name
 # workspace_id: my_run
 #
 # graph:                            # mapping form with an explicit backend
-#   kind: dozerdb                   # neo4j | dozerdb | ladybug
-#   uri: bolt://localhost:7687      # (ladybug uses `path:` instead)
+#   kind: dozerdb                   # neo4j | dozerdb
+#   uri: bolt://localhost:7687
 #   user: neo4j
 #   password: ${NEO4J_PASSWORD}
 #   database: mydb

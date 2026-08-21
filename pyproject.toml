@@ -42,7 +42,6 @@ local = [
     "openai-agents",
     "pydantic>=2.0",
     "pyyaml",
-    "real_ladybug>=0.15.0",
     "tenacity>=8.2.0",
     "uvicorn",
 ]
@@ -107,10 +106,6 @@ ontology = [
     "owlready2",
     "pyshacl",
     "rdflib>=6.0",
-]
-embedded = [
-    "real_ladybug>=0.15.0",
-    "openai",
 ]
 pdf = [
     "opendataloader-pdf",

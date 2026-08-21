@@ -52,7 +52,7 @@ def test_indexing_design_requires_ontology_section() -> None:
             {
                 "name": "missing-ontology",
                 "graph_model": "lpg",
-                "storage_target": "ladybug",
+                "storage_target": "dozerdb",
             }
         )
 
@@ -143,7 +143,7 @@ def test_seocho_from_indexing_design_applies_defaults_and_profile(tmp_path) -> N
             """
             name: lpg-finance-fast
             graph_model: lpg
-            storage_target: ladybug
+            storage_target: dozerdb
             ontology:
               required: true
               profile: finance-fast
@@ -217,7 +217,7 @@ def test_indexing_design_reasoning_cycle_records_shacl_anomaly_on_add(tmp_path) 
             """
             name: lpg-inquiry-finance
             graph_model: lpg
-            storage_target: ladybug
+            storage_target: dozerdb
             ontology:
               required: true
               profile: finance-fast

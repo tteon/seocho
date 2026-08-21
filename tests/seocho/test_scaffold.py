@@ -21,7 +21,7 @@ def test_create_sample_project_is_runnable_config(tmp_path) -> None:
     spec = load_run_spec(target / "seocho.run.yaml")
     assert spec.ontology_path == "./schema.yaml"
     assert spec.documents_path == "./docs/"
-    assert spec.query_model() == "mara/MiniMax-M2.5"
+    assert spec.query_model() == "mara/MiniMax-M2.7"
     assert spec.query.get("answer_style") == "evidence"
     assert len(spec.questions) == 3
 

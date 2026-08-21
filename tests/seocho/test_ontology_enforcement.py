@@ -459,6 +459,7 @@ def test_run_spec_enforcement_overrides_design_only_when_explicit(tmp_path) -> N
     base = {
         "ontology": "schema.yaml",
         "documents": "docs",
+        "graph": "bolt://localhost:7687",
         "agent": {"design": "design.yaml"},
     }
     # implicit guided default must NOT override the design's strict
@@ -485,6 +486,7 @@ def test_run_spec_inline_enforcement_lands_on_agent_config() -> None:
         {
             "ontology": {"path": "s.yaml", "enforcement": "strict"},
             "documents": "docs",
+            "graph": "bolt://localhost:7687",
         }
     )
     config = e2e.build_agent_config(spec)

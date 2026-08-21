@@ -85,11 +85,14 @@ validator. The current offline validation implementation is PySHACL. This
 separation keeps expensive governance work out of the request and projection
 hot paths.
 
-For receipt-enforced Rust projection, set `SEOCHO_RDF_GOVERNANCE_RECEIPT` and
-`SEOCHO_AGENT_ONTOLOGY_PROFILE` together in the SEOCHO process, and set
-`SEOCHOD_REQUIRE_GOVERNANCE=1` in the daemon process. SEOCHO validates that the
-profile derives from the promotable governed bundle; `seochod` stamps the four
-resulting hashes on canonical nodes and relationships.
+For an externally prepared receipt, set `SEOCHO_RDF_GOVERNANCE_RECEIPT` and
+`SEOCHO_AGENT_ONTOLOGY_PROFILE` together in the SEOCHO process. Normal
+`governed` CLI ingestion instead stages a *new* RDF candidate after each LLM
+extraction, validates it offline, and derives the projection receipt from the
+bundle's `projection` profile. In both cases, set
+`SEOCHOD_REQUIRE_GOVERNANCE=1` and `SEOCHOD_CONTROL_DB=<lifecycle.sqlite>` in
+the governed daemon process. The daemon independently verifies the live lease
+and stamps the resulting hashes on canonical nodes and relationships.
 
 ## Governed E2E contract
 
@@ -116,3 +119,30 @@ produce an extracted candidate RDF graph, validate it with
 approved projection. A normal immediate LLM indexing run must not reuse a
 receipt for a different candidate graph; candidate staging/promotion is the
 required boundary before calling it a governed ingestion workflow.
+
+### Reproducible live governed run
+
+Use one fresh `workspace_id` per run. This prevents a prior exploratory write
+from confounding an ontology or model comparison; `--force` reindexes known
+sources but is not a substitute for experiment isolation.
+
+1. Build an immutable bundle and activate it in the single-host lifecycle
+   store. Acquire a short-lived `projection` lease; put its ID, bundle path,
+   and lifecycle SQLite path in the run spec's `governance` block.
+2. Start a dedicated governed `seochod` process with DozerDB credentials,
+   `SEOCHOD_CONTROL_DB`, and `SEOCHOD_REQUIRE_GOVERNANCE=1`. Export its unique
+   Unix socket as `SEOCHO_RUST_PROJECTOR_SOCKET` only for this run.
+3. Run `uv run seocho run <spec> --dry-run`. It must pass ontology, document,
+   model, graph, lease, and daemon checks before any paid LLM call.
+4. Run with `SEOCHO_TRACE_BACKEND=jsonl` and a per-run
+   `SEOCHO_TRACE_JSONL_PATH`, then inspect `report.json` plus the root
+   `experiment.run`, per-candidate `governance.candidate.stage`, and
+   `seochod.project` spans. A valid run has one successful projection span per
+   staged document and `receipt_present=true` in the scorecard.
+
+For a direct/shadow *comparison* arm, do not send it to that governed daemon:
+the rejection is expected. Use a second isolated `seochod` socket without the
+governance-required/control-DB settings, retain the same Rust binary, DozerDB,
+model, corpus, and run settings, and record
+`canonical_claim_allowed=false`. This isolates the cost of governance rather
+than accidentally comparing different drivers or bypassing canonical admission.

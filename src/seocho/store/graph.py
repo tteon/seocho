@@ -605,6 +605,12 @@ class Neo4jGraphStore(GraphStore):
         # row neither loses its siblings nor its error message — behavior stays
         # identical to the old per-row loop, just N round-trips -> #labels.
         nodes_by_label: Dict[str, List[Dict[str, Any]]] = {}
+        # Extraction-local IDs (often ``c1``) are not stable across documents.
+        # Prefer a declared business name when present and remap relationship
+        # endpoints in this payload to the same canonical identity.  Otherwise
+        # a graph-level UNIQUE(name) constraint rejects a second source that
+        # describes the same company/person with a different local ID.
+        canonical_ids: Dict[str, str] = {}
         for node in nodes:
             label = node.get("label", "Entity")
             if not _LABEL_RE.match(label):
@@ -615,7 +621,10 @@ class Neo4jGraphStore(GraphStore):
             props["_workspace_id"] = workspace_id
             props["_writer_ts"] = now
             props["_writer_agent"] = source_id or "unknown"
-            node_id = node.get("id", props.get("name", ""))
+            original_id = str(node.get("id", ""))
+            node_id = str(props.get("name") or original_id or props.get("id", ""))
+            if original_id:
+                canonical_ids[original_id] = node_id
             props["id"] = node_id
             nodes_by_label.setdefault(label, []).append({"id": node_id, "props": props})
 
@@ -640,7 +649,8 @@ class Neo4jGraphStore(GraphStore):
             props["_writer_ts"] = now
             props["_writer_agent"] = source_id or "unknown"
             rels_by_type.setdefault((rtype, source_label, target_label), []).append(
-                {"src": rel.get("source", ""), "tgt": rel.get("target", ""), "props": props})
+                {"src": canonical_ids.get(str(rel.get("source", "")), rel.get("source", "")),
+                 "tgt": canonical_ids.get(str(rel.get("target", "")), rel.get("target", "")), "props": props})
 
         with self._driver.session(database=database) as session:
             # --- Nodes (one UNWIND per label) ---

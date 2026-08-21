@@ -1,6 +1,6 @@
 """RouteProfile — route-conditional tool_policy + planner selection.
 
-Empirically motivated by the opik kdd2026/icml2026 traces:
+Empirically motivated by the kdd2026/icml2026 trace corpus:
 
 - kdd `semantic.route_profile` spans map each question to a
   (route_class, tool_policy, planner, determinism) tuple before execution
@@ -34,6 +34,11 @@ class Planner(str, Enum):
     TEMPLATE = "template"      # single-pass deterministic build (cheap)
     COST_RANKED = "cost_ranked"  # GOPTS K-candidate cost ranking
     MULTI_STEP = "multi_step"    # iterative repair / decomposition (expensive)
+    # Validated generation: the model writes the read query, then it is checked
+    # against the ontology (declared labels/relationships only, bounded paths,
+    # tenant scope, row budget) and EXPLAINed before execution. Reserved for the
+    # routes whose shapes the pattern catalog cannot express — see ROUTE_CATALOG.
+    VALIDATED_GENERATION = "validated_generation"
 
 
 @dataclass(frozen=True)
@@ -77,10 +82,23 @@ ROUTE_CATALOG: Dict[str, RouteProfile] = {
     "multi_hop": RouteProfile(
         route_class="multi_hop",
         tool_policy=ToolPolicy.RETRIEVE_VERIFY_CYPHER,
-        planner=Planner.MULTI_STEP,
+        planner=Planner.VALIDATED_GENERATION,
         question_determinism="hybrid",
         recommended_tools=("schema_with_stats", "text2cypher", "validate_cypher", "execute_cypher", "similar_query_search"),
-        rationale=("exp5: multi-step planner beats single_call ONLY on multi-hop (+0.048 f1)",),
+        rationale=(
+            "exp5: multi-step planner beats single_call ONLY on multi-hop (+0.048 f1)",
+            # FinBench SF1000, same ontology/questions/scoring: the pattern catalog
+            # cannot express a variable-length hop, so it answered nhop_neighborhood
+            # with rows=2 and laundering_cycle with rows=0 — plausible counts, wrong
+            # content. Validated generation answered both, and its plans were cheaper
+            # throughout (265 vs 43,235,371 total db hits, sargable 100% vs 88%).
+            "finbench sf1000: catalog lacks variable-length hops; generation covers "
+            "them at 100% sargable and far fewer db hits",
+            # Escalation stays confined to this route: on lookup/entity_summary the
+            # catalog already answers, and generation there would add a model round
+            # trip plus a rejection risk for no accuracy gain.
+            "escalate only here — cheap routes keep the deterministic single pass",
+        ),
     ),
 }
 
@@ -89,9 +107,28 @@ _DEFAULT_ROUTE = "entity_summary"
 
 # Rule signals for route_class. Compositional / multi-hop wording escalates.
 _MULTI_HOP_RE = re.compile(
+    # Compositional wording (the original exp5 signals).
     r"\b(compositional|and then|after|both .* and|compared to|versus|"
     r"relative to|as a (?:fraction|percentage|share) of|combined|"
-    r"across .* and|sum of|difference between)\b",
+    r"across .* and|sum of|difference between"
+    # Traversal-depth wording. These name the shapes the pattern catalog cannot
+    # express — a variable-length hop, reachability, or a cycle — so they must
+    # escalate rather than be answered by a one-hop template with a plausible row
+    # count. Measured on FinBench SF1000: the catalog answered "within 3 transfer
+    # hops" with rows=2 and a cycle question with rows=0.
+    # Hop counts arrive as digits *or* as words, and a qualifier can sit between the
+    # count and the noun — "within two transfer hops downstream" is how the question is
+    # actually asked. Matching only `\d+\s*hops?` missed that entirely: measured on the
+    # realistic question set, every two-hop question fell through to the one-hop count
+    # template and was answered with the anchor's out-degree (gold 69,303, answered 68).
+    # That failure is worse than an expensive one because it is *cheaper* — db hits per
+    # answer fell to 154 from 38,584, so a cost metric reads it as an improvement.
+    r"|(?:\d+|two|three|four|five|several|multiple)\s*[- ]?(?:\w+\s+){0,2}hops?"
+    r"|multi[- ]?hop|hops? (?:away|from)"
+    r"|reachable|reach(?:es|ed)? .* (?:from|within)|traverse|traversal"
+    r"|cycle|loop(?:s)? back|returns? to (?:it|itself|the same)"
+    r"|shortest path|path between|connected to .* through"
+    r"|indirect(?:ly)?|chain of)\b",
     re.IGNORECASE,
 )
 _LOOKUP_RE = re.compile(
@@ -139,9 +176,26 @@ def planner_exec_params(planner: Planner) -> Dict[str, int]:
     - COST_RANKED: single pass but cost-ranked plan emission (GOPTS).
     - MULTI_STEP: reasoning on with a repair budget (the exp5 'planner',
       reserved for multi-hop).
+    - VALIDATED_GENERATION: the model writes the query and validation gates it, so
+      one repair is enough — the generator already retries internally once against
+      its own violation feedback. Reasoning stays on because these are the
+      compositional questions.
     """
+    if planner == Planner.VALIDATED_GENERATION:
+        return {"reasoning_mode": True, "repair_budget": 1}
     if planner == Planner.MULTI_STEP:
         return {"reasoning_mode": True, "repair_budget": 2}
     if planner == Planner.COST_RANKED:
         return {"reasoning_mode": False, "repair_budget": 1}
     return {"reasoning_mode": False, "repair_budget": 0}
+
+
+def prefers_validated_generation(question: str, *, reasoning_type: str = "") -> bool:
+    """Whether the route's policy calls for validated generation.
+
+    This is the policy-driven counterpart to the global
+    ``SEOCHO_QUERY_PRECEDENCE`` switch: the catalog already encodes that planner
+    escalation is route-conditional, so which arm builds the query belongs in the
+    same table rather than in a process-wide flag.
+    """
+    return select_route_profile(question, reasoning_type=reasoning_type).planner is Planner.VALIDATED_GENERATION

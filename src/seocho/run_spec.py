@@ -12,8 +12,6 @@ documents instead of redefining their keys.
 
 from __future__ import annotations
 
-import difflib
-import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -22,17 +20,26 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 import yaml
 
 DEFAULT_RUN_SPEC_FILENAME = "seocho.run.yaml"
-DEFAULT_MODEL = "mara/MiniMax-M2.5"
+from .spec_loader import (
+    SpecError,
+    check_schema_version as _check_schema_version,
+    check_unknown_keys as _check_unknown_keys,
+    interpolate_env as _interpolate_env,
+    suggest as _suggest,  # noqa: F401  (kept for callers/tests referencing the old seam)
+)
+
+DEFAULT_MODEL = "mara/MiniMax-M2.7"
 
 _ALLOWED_ENFORCEMENT_MODES = {"strict", "guided", "open"}
 _ALLOWED_EXECUTION_MODES = {"pipeline", "agent", "supervisor"}
 _ALLOWED_ROUTING_POLICIES = {"fast", "balanced", "thorough"}
 _ALLOWED_ANSWER_STYLES = {"concise", "evidence", "table"}
-_ALLOWED_GRAPH_KINDS = {"neo4j", "dozerdb", "ladybug"}
+_ALLOWED_GRAPH_KINDS = {"neo4j", "dozerdb"}
 _ALLOWED_VECTOR_KINDS = {"faiss", "lancedb"}
 _BOLT_SCHEMES = ("bolt://", "neo4j://", "neo4j+s://", "bolt+s://")
 
 _TOP_LEVEL_KEYS = {
+    "schema_version",
     "name",
     "description",
     "ontology",
@@ -62,69 +69,17 @@ _SECTION_KEYS: Dict[str, set] = {
     "output": {"dir"},
 }
 
-_ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
-
-
-class RunSpecError(ValueError):
+class RunSpecError(SpecError):
     """Raised when a run spec fails to parse or validate.
 
     ``errors`` keeps the individual messages so callers (the CLI) can
-    print one error per line.
+    print one error per line. Subclasses the shared :class:`SpecError` so
+    generic spec tooling can catch either.
     """
-
-    def __init__(self, errors: List[str]) -> None:
-        self.errors = list(errors)
-        super().__init__("\n".join(self.errors))
-
-
-def _interpolate_env(value: Any, *, errors: List[str], where: str) -> Any:
-    """Resolve ``${VAR}`` / ``${VAR:-default}`` in string values, recursively."""
-    if isinstance(value, str):
-        def _resolve(match: "re.Match[str]") -> str:
-            name, default = match.group(1), match.group(2)
-            resolved = os.environ.get(name)
-            if resolved is not None:
-                return resolved
-            if default is not None:
-                return default
-            errors.append(
-                f"at {where}: environment variable {name} is not set. "
-                f"Export it or use ${{{name}:-fallback}}."
-            )
-            return ""
-        return _ENV_PATTERN.sub(_resolve, value)
-    if isinstance(value, dict):
-        return {
-            key: _interpolate_env(item, errors=errors, where=f"{where}.{key}" if where else str(key))
-            for key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [
-            _interpolate_env(item, errors=errors, where=f"{where}[{idx}]")
-            for idx, item in enumerate(value)
-        ]
-    return value
 
 
 def _string(value: Any) -> str:
     return str(value).strip() if value is not None else ""
-
-
-def _suggest(key: str, allowed: set) -> str:
-    matches = difflib.get_close_matches(key, sorted(allowed), n=1)
-    return f" Did you mean '{matches[0]}'?" if matches else ""
-
-
-def _check_unknown_keys(
-    payload: Mapping[str, Any],
-    *,
-    allowed: set,
-    where: str,
-    errors: List[str],
-) -> None:
-    for key in payload:
-        if key not in allowed:
-            errors.append(f"at {where}: unknown key '{key}'.{_suggest(str(key), allowed)}")
 
 
 def _section(
@@ -149,7 +104,7 @@ def parse_model_ref(value: str, *, where: str, errors: List[str]) -> Tuple[str, 
     text = _string(value)
     if "/" not in text:
         errors.append(
-            f"at {where}: model must be 'provider/model' (e.g. 'mara/MiniMax-M2.5'), got {text!r}."
+            f"at {where}: model must be 'provider/model' (e.g. 'mara/MiniMax-M2.7'), got {text!r}."
         )
         return ("", text)
     provider, model = text.split("/", 1)
@@ -184,9 +139,8 @@ class RunSpec:
     documents_recursive: bool = True
     models: Dict[str, str] = field(default_factory=dict)
     graph: str = ""
-    # Optional explicit backend kind (neo4j | dozerdb | ladybug). Empty means
-    # infer from the graph value: bolt-scheme URI → Neo4j/DozerDB, anything
-    # else (or blank) → embedded LadybugDB path.
+    # Optional explicit backend kind (neo4j | dozerdb). Empty infers Neo4j
+    # from the required Bolt URI.
     graph_kind: str = ""
     graph_user: str = "neo4j"
     graph_password: str = "password"
@@ -257,7 +211,7 @@ class RunSpec:
             return self.graph_kind
         if self.graph and self.graph.startswith(_BOLT_SCHEMES):
             return "neo4j"
-        return "ladybug"
+        return "neo4j"
 
     def uses_vector_store(self) -> bool:
         return bool(self.vector)
@@ -325,6 +279,7 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
         raise RunSpecError(["run spec must be a YAML mapping."])
 
     payload = _interpolate_env(dict(payload), errors=errors, where="")
+    _check_schema_version(payload, supported=(1,), where="top level", errors=errors)
     _check_unknown_keys(payload, allowed=_TOP_LEVEL_KEYS, where="top level", errors=errors)
 
     ontology = _path_or_mapping(payload, "ontology", errors=errors)
@@ -377,7 +332,7 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
     vector = _section(payload, "vector", errors=errors)
     output = _section(payload, "output", errors=errors)
 
-    # ``graph`` accepts a bare string (bolt URI or ladybug path — inferred)
+    # ``graph`` accepts a bare Bolt URI
     # or a mapping with an explicit backend kind. The mapping form
     # normalizes into the flat fields so everything downstream is unchanged.
     graph_value = payload.get("graph")
@@ -390,7 +345,7 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
         graph_password = _string(graph_section.get("password"))
         graph_database = _string(graph_section.get("database"))
         if _string(graph_section.get("uri")) and _string(graph_section.get("path")):
-            errors.append("at graph: declare either 'uri' (bolt) or 'path' (ladybug), not both.")
+            errors.append("at graph: declare only 'uri' for a Bolt-compatible graph.")
     else:
         graph_target = _string(graph_value)
         graph_user = ""
@@ -482,11 +437,8 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
                     f"at graph: kind {spec.graph_kind!r} requires a bolt:// (or neo4j://) "
                     f"uri; got {spec.graph!r}."
                 )
-            if spec.graph_kind == "ladybug" and is_bolt:
-                errors.append(
-                    "at graph: kind 'ladybug' is the embedded engine and takes a file "
-                    f"path, not a bolt uri; got {spec.graph!r}."
-                )
+    elif not spec.graph.startswith(_BOLT_SCHEMES):
+        errors.append("at graph: a DozerDB/Neo4j bolt:// (or neo4j://) URI is required.")
 
     if spec.vector:
         vector_kind = spec.vector_kind()
@@ -528,6 +480,7 @@ RUN_SPEC_TEMPLATE = """\
 # Minimal config: an ontology, a documents folder, and your questions.
 ontology: ./schema.yaml
 documents: ./docs/
+graph: ${NEO4J_URI:-bolt://localhost:7687}
 questions:
   - Which companies reported revenue growth?
   - Who is the CEO of Acme?
@@ -551,15 +504,15 @@ questions:
 #   indexing: mara/MiniMax-M2       # per-phase override
 #   query: mara/MiniMax-M2.5
 #
-# graph: bolt://localhost:7687      # omit for embedded LadybugDB (no server)
+# graph: bolt://localhost:7687      # required DozerDB/Neo4j graph endpoint
 # graph_user: neo4j
 # graph_password: ${NEO4J_PASSWORD:-password}
 # database: neo4j                   # omit to derive from the ontology name
 # workspace_id: my_run
 #
 # graph:                            # mapping form with an explicit backend
-#   kind: dozerdb                   # neo4j | dozerdb | ladybug
-#   uri: bolt://localhost:7687      # (ladybug uses `path:` instead)
+#   kind: dozerdb                   # neo4j | dozerdb
+#   uri: bolt://localhost:7687
 #   user: neo4j
 #   password: ${NEO4J_PASSWORD}
 #   database: mydb

@@ -5,7 +5,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from shared_memory import SharedMemory, MAX_QUERY_CACHE_SIZE
+from ..shared_memory import SharedMemory, MAX_QUERY_CACHE_SIZE
 
 
 class TestSharedMemoryBasic:

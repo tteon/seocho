@@ -66,6 +66,12 @@ def _warn_deprecated_factory(name: str, migration_hint: str) -> None:
 # them off the module-top preserves the lazy-import contract verified by
 # tests/test_import_surface.py — accessing `seocho.Seocho` (the class
 # object) must NOT eagerly load the storage backends.
+from .client_namespaces import (
+    IndexNamespace,
+    OntologyNamespace,
+    PlatformNamespace,
+    SessionNamespace,
+)
 from .client_artifacts import (
     approved_artifacts_from_ontology as build_approved_artifacts_from_ontology,
 )
@@ -76,7 +82,7 @@ from .client_artifacts import (
     prompt_context_from_ontology as build_prompt_context_from_ontology,
 )
 from .client_remote import RemoteClientHelper
-from .exceptions import SeochoConnectionError, SeochoHTTPError
+from .exceptions import SeochoError
 from .governance import ArtifactDiff, ArtifactValidationResult, diff_artifact_payloads, validate_artifact_payload
 from .ontology_control_plane import (
     CompiledOntologyProfile,
@@ -138,7 +144,7 @@ if TYPE_CHECKING:
     from .runtime_bundle import RuntimeBundle
 
 logger = logging.getLogger(__name__)
-DEFAULT_LOCAL_LLM = "mara/MiniMax-M2.5"
+DEFAULT_LOCAL_LLM = "mara/MiniMax-M2.7"
 
 
 def _env_str(name: str, default: str) -> str:
@@ -214,6 +220,14 @@ class Seocho:
         extraction_prompt: Optional[Any] = None,  # seocho.query.PromptTemplate
         agent_config: Optional[Any] = None,  # seocho.agent_config.AgentConfig
         ontology_profile: str = "default",
+        enforcement: Optional[str] = None,  # "strict" | "guided" | "open"
+        # --- Operating-layer controls (local mode; explicit opt-in) ---
+        max_inflight: int = 0,
+        light_permits: int = 0,
+        reserved_for_high: int = 0,
+        admission_wait_s: float = 5.0,
+        token_budget: int = 0,
+        agent_row_cap: int = 50,
         # --- HTTP client mode ---
         base_url: Optional[str] = None,
         workspace_id: Optional[str] = None,
@@ -240,6 +254,14 @@ class Seocho:
             extraction_prompt: Custom extraction prompt template.
             agent_config: Agent-level configuration (quality thresholds, reasoning defaults).
             ontology_profile: Stable context profile name shared by indexing, query, and agent runs.
+            enforcement: Ontology write-admission mode for the local indexing
+                pipeline: ``"strict"`` (closed validation, non-conforming
+                extraction rejected), ``"guided"`` (default; ontology guides,
+                violations warn), or ``"open"`` (admit everything,
+                out-of-ontology elements annotated). An explicit value
+                overrides ``agent_config.ontology_enforcement``, mirroring the
+                ``ontology.enforcement`` precedence in run specs. Local engine
+                mode only — HTTP-mode clients inherit the server's policy.
             base_url: SEOCHO server URL (HTTP mode). Defaults to ``SEOCHO_BASE_URL`` env
                 var or ``http://localhost:8001``.
             workspace_id: Workspace identifier propagated to all API calls.
@@ -272,12 +294,40 @@ class Seocho:
         if agent_config is None:
             from .agent_config import AgentConfig
             agent_config = AgentConfig()
+        if enforcement is not None:
+            normalized_enforcement = str(enforcement).strip().lower()
+            if normalized_enforcement not in ("strict", "guided", "open"):
+                raise ValueError(
+                    "enforcement must be 'strict', 'guided', or 'open', "
+                    f"got {enforcement!r}"
+                )
+            if ontology is None or graph_store is None or llm is None:
+                raise ValueError(
+                    "enforcement is a local-engine indexing option and requires "
+                    "local engine mode (ontology + graph_store + llm, or "
+                    "Seocho.local). HTTP-mode clients inherit the server's "
+                    "enforcement policy."
+                )
+            from dataclasses import replace as _dc_replace
+            agent_config = _dc_replace(
+                agent_config, ontology_enforcement=normalized_enforcement
+            )
         self.agent_config = agent_config
 
         # Default database — auto-generated from ontology if not specified
         self.default_database = self._resolve_default_database(ontology)
 
         # Determine mode
+        # Operating-layer state (seocho-dxe: the OS surface is Seocho itself —
+        # no side class in the public API). Built lazily on first use; every
+        # control defaults to off/unlimited, per the explicit-opt-in rule.
+        self._os_config = {
+            "max_inflight": max_inflight, "light_permits": light_permits,
+            "reserved_for_high": reserved_for_high,
+            "admission_wait_s": admission_wait_s,
+            "token_budget": token_budget, "row_cap": agent_row_cap,
+        }
+        self._operating_layer: Optional[Any] = None
         self._local_mode = ontology is not None and graph_store is not None and llm is not None
 
         if self._local_mode:
@@ -328,6 +378,38 @@ class Seocho:
     # ------------------------------------------------------------------
     # Convenience factories — shorten the 0→hello-world distance
     # ------------------------------------------------------------------
+    # Grouped views (seocho-6yf). Additive: every flat method below still
+    # exists and is not deprecated. See client_namespaces.py for why `query`
+    # and `agents` are deliberately excluded.
+    # ------------------------------------------------------------------
+
+    @property
+    def index(self) -> "IndexNamespace":
+        """Writing into the graph — `sc.index.file(...)`, `sc.index.directory(...)`."""
+        return IndexNamespace(self)
+
+    @property
+    def governance(self) -> "OntologyNamespace":
+        """Operations ON the ontology — artifacts, profiles, signals, curation.
+
+        Named `governance` rather than `ontology` because `self.ontology` is
+        already the registered `Ontology` object. The collision forced a better
+        split than the one originally planned: the noun stays the thing, the
+        namespace is what you do to it.
+        """
+        return OntologyNamespace(self)
+
+    @property
+    def platform(self) -> "PlatformNamespace":
+        """Deployment-shell surface — what exists, health, teardown."""
+        return PlatformNamespace(self)
+
+    @property
+    def sessions(self) -> "SessionNamespace":
+        """Platform session state — history, reset, chat."""
+        return SessionNamespace(self)
+
+    # ------------------------------------------------------------------
 
     @classmethod
     def local(
@@ -335,39 +417,34 @@ class Seocho:
         ontology: Any,
         *,
         llm: str = DEFAULT_LOCAL_LLM,
-        graph: Optional[str] = None,
+        graph: str,
         neo4j_user: str = "neo4j",
         neo4j_password: str = "password",
         api_key: Optional[str] = None,
+        enforcement: Optional[str] = None,
         **kwargs: Any,
     ) -> "Seocho":
         """Create a local-engine ``Seocho`` with sensible defaults.
 
-        Zero-config path (uses embedded LadybugDB, no server needed)::
-
-            s = Seocho.local(ontology)   # → .seocho/local.lbug
-            s.add("text")
-            s.ask("question")
-
-        Neo4j/DozerDB path::
+        DozerDB / Neo4j path::
 
             s = Seocho.local(ontology, graph="bolt://localhost:7687")
 
         Args:
             ontology: :class:`~seocho.ontology.Ontology` to bind.
-            llm: Provider/model string (``"mara/MiniMax-M2.5"``,
+            llm: Provider/model string (``"mara/MiniMax-M2.7"``,
                 ``"openai/gpt-4o"``, ``"deepseek/deepseek-chat"``,
                 ``"kimi/kimi-k2.5"``) or plain model name. Plain model names
                 still default to the OpenAI provider for backward compatibility.
-            graph: Graph backend selector.
-                - ``None`` (default): embedded LadybugDB at ``.seocho/local.lbug``.
-                - ``"bolt://..."``: Neo4j/DozerDB over Bolt protocol.
-                - Any other path: LadybugDB file path.
-            neo4j_user: Neo4j username (only used when *graph* is a Bolt URI).
-            neo4j_password: Neo4j password (only used when *graph* is a Bolt URI).
+            graph: Required ``bolt://``/``neo4j://`` URI for DozerDB or Neo4j.
+            neo4j_user: Neo4j username.
+            neo4j_password: Neo4j password.
             api_key: Optional API key override for the LLM provider.
                 Falls back to the provider's env var (``MARA_API_KEY``,
                 ``OPENAI_API_KEY``, etc.).
+            enforcement: Ontology write-admission mode for indexing —
+                ``"strict"``, ``"guided"`` (default), or ``"open"``. See
+                :meth:`Seocho.__init__` for precedence semantics.
             **kwargs: Extra arguments forwarded to the :class:`Seocho`
                 constructor (``workspace_id``, ``agent_config``,
                 ``extraction_prompt``, …).
@@ -384,23 +461,16 @@ class Seocho:
             api_key=api_key,
         )
 
-        if graph and graph.startswith(("bolt://", "neo4j://", "neo4j+s://", "bolt+s://")):
-            from .store.graph import Neo4jGraphStore
-            graph_store = Neo4jGraphStore(graph, neo4j_user, neo4j_password)
-        else:
-            from .store.graph import LadybugGraphStore
-            path = graph or ".seocho/local.lbug"
-            graph_store = LadybugGraphStore(path)
-            # Declare tables from the ontology so writes work immediately
-            try:
-                graph_store.ensure_constraints(ontology)
-            except Exception:
-                pass
+        if not graph.startswith(("bolt://", "neo4j://", "neo4j+s://", "bolt+s://")):
+            raise ValueError("Seocho.local requires a DozerDB/Neo4j Bolt URI in graph=.")
+        from .store.graph import Neo4jGraphStore
+        graph_store = Neo4jGraphStore(graph, neo4j_user, neo4j_password)
 
         return cls(
             ontology=ontology,
             graph_store=graph_store,
             llm=llm_backend,
+            enforcement=enforcement,
             **kwargs,
         )
 
@@ -1112,6 +1182,7 @@ class Seocho:
         repair_budget: int = 0,
         query_mode: Optional[str] = None,
         cot_mode: bool = False,
+        engine: str = "deterministic",
     ) -> str:
         """Ask a question through the primary public query facade.
 
@@ -1134,6 +1205,7 @@ class Seocho:
             repair_budget=repair_budget,
             query_mode=query_mode,
             cot_mode=cot_mode,
+            engine=engine,
         ).response
 
     def ask_response(
@@ -1151,6 +1223,7 @@ class Seocho:
         repair_budget: int = 0,
         query_mode: Optional[str] = None,
         cot_mode: bool = False,
+        engine: str = "deterministic",
     ) -> AskResponse:
         """Return the primary query answer plus runtime metadata."""
         normalized_query_mode = _resolve_semantic_query_mode(
@@ -1166,6 +1239,7 @@ class Seocho:
                 repair_budget=repair_budget,
                 query_mode=normalized_query_mode,
                 ontology_override=self._ontology_registry.get(db),
+                engine=engine,
             )
             metadata = self.last_query_metadata
             semantic_context = dict(metadata.get("semantic_context", {}) or {})
@@ -1468,13 +1542,14 @@ class Seocho:
         name: str = "",
         *,
         database: Optional[str] = None,
+        priority: str = "normal",
     ) -> "Session":
         """Create an agent-level session with context and tracing.
 
         A session maintains state across ``add()`` and ``ask()`` calls.
         Each operation prefers the agent/tool path, falls back to the
         canonical local engine when the agent path is unavailable, and
-        rolls all operations into a single parent trace in Opik.
+        rolls all operations into a single parent trace.
 
         Parameters
         ----------
@@ -1502,7 +1577,7 @@ class Seocho:
 
         from .session import Session
 
-        return Session(
+        sess = Session(
             name=name,
             ontology=self.ontology,
             graph_store=self.graph_store,
@@ -1515,6 +1590,22 @@ class Seocho:
             ontology_profile=self.ontology_profile,
             user_id=self.user_id,
         )
+        # One session concept (seocho-dxe): the same object carries the
+        # operating-layer handles. Hand ``sess.sdk_session`` and
+        # ``sess.hooks`` to openai-agents ``Runner.run``; the shared
+        # admission gate and per-session budget ride the layer.
+        os_layer = self._os()
+        os_session = os_layer.session(sess.session_id, priority=priority,
+                                      user_id=self.user_id)
+        # Attach the layer + this session's handle so the Session object itself
+        # is the whole OS surface: sess.query()/resolve()/agent() delegate here.
+        sess._os = os_layer
+        sess._os_session = os_session
+        sess.priority = os_session.priority
+        sess.sdk_session = os_session.sdk_session
+        sess.hooks = os_session.hooks
+        sess.budget = os_session.budget
+        return sess
 
     def ensure_constraints(self, *, database: str = "neo4j") -> Dict[str, Any]:
         """Apply ontology-derived constraints to the graph database.
@@ -2708,6 +2799,46 @@ class Seocho:
         from .client_bundle import RuntimeBundleClientHelper  # lazy
         return RuntimeBundleClientHelper.create_client(bundle_source, workspace_id=workspace_id)
 
+    # ------------------------------------------------------------------
+    # The operating layer: memory / execution / scheduling / governance /
+    # resource, exposed as methods of Seocho itself (local mode).
+    # ------------------------------------------------------------------
+
+    def _os(self) -> Any:
+        if self.ontology is None or self.graph_store is None:
+            raise SeochoError(
+                "the operating layer needs local mode: construct "
+                "Seocho(ontology=..., graph_store=...)")
+        if self._operating_layer is None:
+            from .operating_layer import SeochoOS
+
+            self._operating_layer = SeochoOS(
+                ontology=self.ontology, graph_store=self.graph_store,
+                database=self.default_database or "neo4j",
+                workspace_id=self.workspace_id or "default",
+                **self._os_config)
+        return self._operating_layer
+
+    def _os_session_for(self, session: Any) -> Any:
+        return self._os().session(session.session_id,
+                                  priority=getattr(session, "priority", "normal"))
+
+    def build_agent(self, session: Any, *, name: str = "seocho_agent",
+                    model: Optional[Any] = None,
+                    extra_tools: Sequence[Any] = ()) -> Any:
+        """An openai-agents Agent whose only graph access is governed by
+        this client's ontology, tenancy, and admission."""
+        return self._os().build_agent(self._os_session_for(session),
+                                      name=name, model=model,
+                                      extra_tools=extra_tools)
+
+    def execute_query(self, session: Any, cypher: str,
+                      params_json: str = "{}") -> str:
+        """The governed read path (pinned tenancy, lanes, fail-closed)."""
+        return self._os().execute_query(self._os_session_for(session),
+                                        cypher, params_json)
+
+
     def close(self) -> None:
         """Release resources held by the client.
 
@@ -3198,11 +3329,52 @@ class ExecutionPlanBuilder:
 
 
 class AsyncSeocho:
-    """Async wrapper around the sync client for notebook and app usage."""
+    """Async wrapper around the sync client for notebook and app usage.
+
+    Methods written out below are hand-authored. Everything else on
+    :class:`Seocho` is generated at class creation as a `to_thread` delegate by
+    :func:`_fill_async_surface`, so the two surfaces cannot drift.
+
+    Before that generator this class had 56 methods to `Seocho`'s 80, and the
+    25 absent ones — `index_file`, `index_directory`, `reindex`, `plan`,
+    `agent`, `build_agent`, `session`, `execute_query`, `close`, … — had no
+    declared reason for being absent. 55 pairs were kept identical by hand
+    (`seocho-6yf`).
+    """
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the async client. Accepts the same arguments as :class:`Seocho`."""
         self._client = Seocho(**kwargs)
+
+    # The same grouped views as the sync client. `_Namespace` resolves through
+    # `getattr(owner, ...)`, so binding to the async client yields the async
+    # delegates -- `await sc.index.file(...)` -- with no second mapping table.
+
+    @property
+    def index(self) -> "IndexNamespace":
+        """Writing into the graph. Members are coroutines."""
+        return IndexNamespace(self)
+
+    @property
+    def governance(self) -> "OntologyNamespace":
+        """Operations ON the ontology — artifacts, profiles, signals, curation.
+
+        Named `governance` rather than `ontology` because `self.ontology` is
+        already the registered `Ontology` object. The collision forced a better
+        split than the one originally planned: the noun stays the thing, the
+        namespace is what you do to it.
+        """
+        return OntologyNamespace(self)
+
+    @property
+    def platform(self) -> "PlatformNamespace":
+        """Deployment-shell surface."""
+        return PlatformNamespace(self)
+
+    @property
+    def sessions(self) -> "SessionNamespace":
+        """Platform session state."""
+        return SessionNamespace(self)
 
     async def add(self, content: str, **kwargs: Any) -> Memory:
         """Async version of :meth:`Seocho.add`."""
@@ -3580,3 +3752,62 @@ def __getattr__(name: str):  # noqa: D401  (module-level dunder)
         globals()["RuntimeBundleClientHelper"] = _RBCH
         return _RBCH
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# ----------------------------------------------------------------------
+# Async surface completion (seocho-6yf)
+# ----------------------------------------------------------------------
+
+
+def _fill_async_surface() -> None:
+    """Give `AsyncSeocho` a `to_thread` delegate for every un-overridden method.
+
+    Only fills gaps: a name already defined on `AsyncSeocho` is left alone, so
+    the hand-written coroutines above — and any that genuinely need different
+    async behaviour rather than thread offload — keep winning.
+
+    Deliberately skipped:
+
+    * constructors (`local`, `remote`, `from_*`) — they build a `Seocho`, and an
+      async factory returning a sync client would be a lie about the object.
+    * `close` — offloading teardown to a worker thread while the event loop may
+      still hold references is worse than an explicit sync call.
+    * properties — `last_query_metadata` reads state, so awaiting it would make
+      a field look like an operation.
+    """
+    import functools
+    import inspect
+
+    skip = {
+        "local", "remote", "from_agent_design", "from_indexing_design",
+        "from_runtime_bundle", "close",
+    }
+
+    def _delegate(method_name: str):
+        sync_method = getattr(Seocho, method_name)
+
+        @functools.wraps(sync_method)
+        async def _async(self: "AsyncSeocho", *args: Any, **kwargs: Any) -> Any:
+            return await asyncio.to_thread(
+                getattr(self._client, method_name), *args, **kwargs
+            )
+
+        _async.__doc__ = (
+            f"Async version of :meth:`Seocho.{method_name}` "
+            f"(generated `to_thread` delegate)."
+        )
+        return _async
+
+    for name, attr in vars(Seocho).items():
+        if name.startswith("_") or name in skip:
+            continue
+        if name in vars(AsyncSeocho):
+            continue
+        if isinstance(attr, (property, classmethod, staticmethod)):
+            continue
+        if not inspect.isfunction(attr):
+            continue
+        setattr(AsyncSeocho, name, _delegate(name))
+
+
+_fill_async_surface()

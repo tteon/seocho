@@ -1,0 +1,22 @@
+{
+  "adr": "ADR-0198",
+  "instance": "DozerDB 5.26.3 (graphstack/dozerdb), bolt://localhost:7687",
+  "ddl_accepted": "7/7",
+  "explain_probe": {
+    "merge_key  MATCH (n:L {id:$i})": [
+      "NodeIndexSeek",
+      "ProduceResults"
+    ],
+    "tenancy+anchor  n._workspace_id=$w AND n.name=$nm": [
+      "NodeIndexSeek",
+      "ProduceResults"
+    ],
+    "tenancy as generated  ($w='' OR coalesce(n._workspace_id,'')=$w) AND n.name=$nm": [
+      "NodeByLabelScan",
+      "Filter",
+      "ProduceResults"
+    ]
+  },
+  "finding": "The indexes are used. The predicate the builder currently generates is not index-eligible: coalesce() wraps the property and the OR disjunct is not a property predicate, so the planner falls back to a label scan plus a post-filter on every query.",
+  "not_changed": "The tenancy predicate shape. It is load-bearing for workspace isolation (verify_workspace_binding, _TAUTOLOGY_RE in store/graph.py), and changing it without review risks opening a tenancy hole."
+}

@@ -40,13 +40,14 @@ class _FakeQuery:
         return self
 
     def to_arrow(self):
-        def score(row):
+        # Real LanceDB returns L2 distance (lower = closer), ordered ascending.
+        def distance(row):
             vector = row["vector"]
-            return sum(left * right for left, right in zip(self._query_vector, vector))
+            return sum((left - right) ** 2 for left, right in zip(self._query_vector, vector)) ** 0.5
 
-        rows = sorted(self._rows, key=score, reverse=True)[: self._limit]
+        rows = sorted(self._rows, key=distance)[: self._limit]
         return _FakeArrowTable(
-            [{**row, "_distance": float(score(row))} for row in rows]
+            [{**row, "_distance": float(distance(row))} for row in rows]
         )
 
 
@@ -105,6 +106,33 @@ def test_lancedb_vector_store_round_trip(monkeypatch):
     assert store.count() == 2
     assert store.delete("doc-alpha") is True
     assert store.count() == 1
+
+
+def test_lancedb_scores_are_similarity_higher_is_better(monkeypatch):
+    module = ModuleType("lancedb")
+    module.connect = lambda uri, **kwargs: _FakeLanceDB()
+    monkeypatch.setitem(sys.modules, "lancedb", module)
+
+    store = LanceDBVectorStore(
+        uri="/tmp/fake-lancedb",
+        table_name="docs",
+        embedding_backend=_FakeEmbeddingBackend(),
+        model="fake-embed",
+    )
+    store.add("doc-alpha", "alpha report")  # vector [1, 0]
+    store.add("doc-other", "gamma report")  # vector [0.5, 0.5]
+    store.add("doc-beta", "beta report")    # vector [0, 1]
+
+    results = store.search("alpha question", limit=3)  # query vector [1, 0]
+
+    # Raw L2 distance is lower-is-better; after conversion the score is a
+    # similarity (higher-is-better), so it is comparable with the FAISS backend.
+    assert [r.id for r in results] == ["doc-alpha", "doc-other", "doc-beta"]
+    scores = [r.score for r in results]
+    assert scores == sorted(scores, reverse=True)        # higher = better, monotonic with closeness
+    assert all(0.0 < s <= 1.0 for s in scores)           # bounded similarity
+    assert results[0].score == 1.0                       # exact match: distance 0 -> similarity 1.0
+    assert all(r.metric == "similarity" for r in results)
 
 
 def test_create_vector_store_supports_lancedb(monkeypatch):

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List
 
-from rule_constraints import RuleSet
+from .rule_constraints import RuleSet
 
 
 def export_ruleset_to_cypher(rule_profile: Dict[str, Any]) -> Dict[str, Any]:

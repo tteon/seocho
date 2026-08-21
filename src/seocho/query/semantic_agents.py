@@ -9,6 +9,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
+from ..cypher_ident import quote_identifier
 from .answering import build_evidence_bundle, infer_question_intent
 from .constraints import SemanticConstraintSliceBuilder
 from .contracts import CypherPlan, InsufficiencyAssessment
@@ -1215,7 +1216,7 @@ class LPGAgent:
             return {
                 "mode": "lpg",
                 "summary": "No resolved entity. Returned graph label distribution.",
-                "records": self._label_distribution(databases),
+                "records": self._label_distribution(databases, workspace_id=workspace_id),
                 "reasoning": {
                     "requested": reasoning_mode,
                     "repair_budget": max(0, int(repair_budget or 0)),
@@ -1288,7 +1289,7 @@ class LPGAgent:
             return {
                 "mode": "lpg",
                 "summary": summary,
-                "records": self._label_distribution(databases),
+                "records": self._label_distribution(databases, workspace_id=workspace_id),
                 "reasoning": {
                     "requested": reasoning_mode,
                     "repair_budget": max(0, int(repair_budget or 0)),
@@ -1659,17 +1660,28 @@ class LPGAgent:
 
     @staticmethod
     def _relationship_query(*, anchor_label: str, relation_types: Sequence[str]) -> str:
-        label_clause = f":{anchor_label}" if anchor_label else ""
-        relation_clause = ":" + "|".join(relation_types) if relation_types else ""
+        # Backtick-quote ontology-derived label/relation names so a value with a
+        # backtick, space, or Cypher fragment cannot break out of the clause
+        # (issue #136; the | between relation types stays as syntax).
+        label_clause = f":{quote_identifier(anchor_label)}" if anchor_label else ""
+        relation_clause = ":" + "|".join(quote_identifier(r) for r in relation_types) if relation_types else ""
         return f"""
         MATCH (n{label_clause})
         WHERE elementId(n) = toString($node_id)
         OPTIONAL MATCH (n)-[r{relation_clause}]-(m)
         WHERE $target_hint = ''
            OR toLower(coalesce(m.name, m.title, m.id, m.uri, elementId(m))) CONTAINS toLower($target_hint)
-        RETURN coalesce(n.name, n.title, n.id, n.uri, elementId(n)) AS source_entity,
+        RETURN CASE WHEN r IS NULL
+                    THEN coalesce(n.name, n.title, n.id, n.uri, elementId(n))
+                    ELSE coalesce(startNode(r).name, startNode(r).title,
+                                  startNode(r).id, startNode(r).uri,
+                                  elementId(startNode(r))) END AS source_entity,
                type(r) AS relation_type,
-               coalesce(m.name, m.title, m.id, m.uri, elementId(m)) AS target_entity,
+               CASE WHEN r IS NULL
+                    THEN coalesce(m.name, m.title, m.id, m.uri, elementId(m))
+                    ELSE coalesce(endNode(r).name, endNode(r).title,
+                                  endNode(r).id, endNode(r).uri,
+                                  elementId(endNode(r))) END AS target_entity,
                labels(m) AS target_labels,
                coalesce(m.content_preview, m.description, '') AS supporting_fact
         ORDER BY target_entity
@@ -1678,8 +1690,8 @@ class LPGAgent:
 
     @staticmethod
     def _responsibility_query(*, anchor_label: str, relation_types: Sequence[str]) -> str:
-        label_clause = f":{anchor_label}" if anchor_label else ""
-        relation_clause = ":" + "|".join(relation_types) if relation_types else ""
+        label_clause = f":{quote_identifier(anchor_label)}" if anchor_label else ""
+        relation_clause = ":" + "|".join(quote_identifier(r) for r in relation_types) if relation_types else ""
         return f"""
         MATCH (target{label_clause})
         WHERE elementId(target) = toString($node_id)
@@ -1696,7 +1708,7 @@ class LPGAgent:
 
     @staticmethod
     def _entity_summary_query(*, anchor_label: str) -> str:
-        label_clause = f":{anchor_label}" if anchor_label else ""
+        label_clause = f":{quote_identifier(anchor_label)}" if anchor_label else ""
         return f"""
         MATCH (n{label_clause})
         WHERE elementId(n) = toString($node_id)
@@ -1848,9 +1860,16 @@ class LPGAgent:
             "property_count": len(constraint_slice.get("allowed_properties", [])),
         }
 
-    def _label_distribution(self, databases: Sequence[str]) -> List[Dict[str, Any]]:
+    def _label_distribution(
+        self, databases: Sequence[str], *, workspace_id: str = "default"
+    ) -> List[Dict[str, Any]]:
+        # Scope by workspace like the other resolver queries; an empty
+        # workspace_id disables the filter (matches the read-filter convention).
+        # Without this the fallback aggregated labels across every workspace in
+        # the database (issue #132).
         query = """
         MATCH (n)
+        WHERE $workspace_id = '' OR coalesce(n._workspace_id, '') = $workspace_id
         RETURN labels(n)[0] AS label, count(*) AS count
         ORDER BY count DESC
         LIMIT 10
@@ -1862,7 +1881,7 @@ class LPGAgent:
                     self.connector,
                     query=query,
                     database=db_name,
-                    params=None,
+                    params={"workspace_id": workspace_id},
                     source=self.__class__.__name__,
                 )
             except QueryExecutionError:

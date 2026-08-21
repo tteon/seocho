@@ -8,8 +8,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import pytest
 from unittest.mock import MagicMock
 
-from exceptions import OpenAIAPIError, Neo4jConnectionError
-from retry_utils import openai_retry, neo4j_retry
+from ..exceptions import OpenAIAPIError, Neo4jConnectionError
+from ..retry_utils import openai_retry, neo4j_retry
 
 
 class TestOpenAIRetry:

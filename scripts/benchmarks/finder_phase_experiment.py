@@ -158,7 +158,7 @@ def run_one(
     modules_label = "+".join(ontology_modules) or "baseline"
     dataset_index = f"{case['slice']}/{case['case_id']}"
 
-    trace_tags = bc.opik_tags(
+    trace_tags = bc.trace_tags(
         llm_spec=llm_spec,
         dataset_index=dataset_index,
         prompt_hash=prompt_hash,
@@ -257,10 +257,10 @@ def run_one(
             )
             timing["ask_ms"] = round((time.perf_counter() - t1) * 1000.0, 2)
             print(f"    {trace_name}: ask done in {timing['ask_ms']}ms", flush=True)
-            bc.set_opik_trace_metadata(name=trace_name, tags=trace_tags, metadata=trace_metadata)
+            bc.set_trace_metadata(name=trace_name, tags=trace_tags, metadata=trace_metadata)
             return _answer
 
-        answer = bc.run_under_opik_track(
+        answer = bc.run_traced(
             name=trace_name,
             tags=trace_tags,
             metadata=trace_metadata,
@@ -427,7 +427,6 @@ def main() -> int:
         require_moonshot=not args.dry_run,
         require_openai_embed=False,
         require_neo4j=False,
-        require_opik=False,
         require_slices=True,
     )
     report.print_table()
@@ -521,8 +520,6 @@ def main() -> int:
         "llm": args.llm,
         "preflight": report.to_dict(),
         "tracing_backends": current_backend_names(),
-        "opik_project": os.environ.get("OPIK_PROJECT_NAME", ""),
-        "opik_workspace": os.environ.get("OPIK_WORKSPACE", ""),
         "total_runs": len(results),
         "total_wall_seconds": total_s,
         "reasoning_mode": args.reasoning_mode,

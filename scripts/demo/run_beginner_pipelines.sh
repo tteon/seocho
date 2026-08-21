@@ -16,7 +16,6 @@ Options:
   --api-port <port>     Extraction API port (default: 8001)
   --chat-port <port>    Chat API port (default: 8501)
   --output-dir <path>   Output directory (default: /tmp/seocho_beginner_demo)
-  --allow-no-opik       Do not fail when Opik profile is not running
   -h, --help            Show this help
 USAGE
 }
@@ -24,7 +23,6 @@ USAGE
 workspace_id="default"
 db_prefix="kgdemo_"
 output_dir="${DEMO_OUTPUT_DIR:-/tmp/seocho_beginner_demo}"
-allow_no_opik=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -47,10 +45,6 @@ while [[ $# -gt 0 ]]; do
     --output-dir)
       output_dir="$2"
       shift 2
-      ;;
-    --allow-no-opik)
-      allow_no_opik=true
-      shift
       ;;
     -h|--help)
       usage
@@ -99,10 +93,7 @@ graphrag_args=(
   --chat-port "${CHAT_PORT}"
   --output-dir "${output_dir}"
 )
-if [[ "${allow_no_opik}" == "true" ]]; then
-  graphrag_args+=(--allow-no-opik)
-fi
-"${SCRIPT_DIR}/pipeline_graphrag_opik.sh" "${graphrag_args[@]}"
+"${SCRIPT_DIR}/pipeline_graphrag.sh" "${graphrag_args[@]}"
 
 log "all four demo pipelines completed"
 log "result files are under: ${output_dir}"

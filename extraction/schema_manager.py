@@ -3,9 +3,9 @@ import yaml
 import os
 from neo4j import GraphDatabase
 from neo4j.exceptions import ServiceUnavailable, SessionExpired
-from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
-from exceptions import Neo4jConnectionError
-from retry_utils import neo4j_retry
+from .config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+from .exceptions import Neo4jConnectionError
+from .retry_utils import neo4j_retry
 from seocho.cypher_ident import is_valid_identifier
 
 logger = logging.getLogger(__name__)

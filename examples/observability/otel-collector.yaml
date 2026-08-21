@@ -7,6 +7,16 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
+  # Host saturation (CPU, memory, load, paging): the golden signal the app
+  # cannot report about itself. Container-scoped unless the compose file
+  # mounts the host root; either way the collector, not the app, owns it.
+  hostmetrics:
+    collection_interval: 15s
+    scrapers:
+      cpu:
+      memory:
+      load:
+      paging:
 
 processors:
   memory_limiter:
@@ -29,11 +39,21 @@ exporters:
 
 service:
   pipelines:
-      traces:
-        receivers: [otlp]
+    traces:
+      receivers: [otlp]
       processors: [memory_limiter, batch]
       exporters: [otlp/tempo]
     metrics:
-      receivers: [otlp]
+      receivers: [otlp, hostmetrics]
       processors: [memory_limiter, batch]
       exporters: [prometheus]
+  # Self-telemetry on :8888, scraped by Prometheus: without it the pipeline's
+  # own drops are invisible and SeochoTelemetryExportFailure has no context.
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888

@@ -118,12 +118,22 @@ class TestMigrationPlan:
         assert ("relationship", "OLD_REL") in removed_types
         assert ("property", "age") in [(r["type"], r.get("property")) for r in removals]
 
-    def test_generates_cypher_for_removals(self, v1_ontology, v2_ontology):
+    def test_generates_cypher_for_removals_soft_delete_default(self, v1_ontology, v2_ontology):
+        # seocho-ia4.5: default is soft-delete (not destroy) (no data loss).
         plan = v1_ontology.migration_plan(v2_ontology)
+        cyphers = [s["cypher"] for s in plan["cypher_statements"]]
+        assert any("OldEntity" in c and "_ontology_soft_deleted_at" in c for c in cyphers)
+        assert any("OLD_REL" in c and "_ontology_soft_deleted_at" in c for c in cyphers)
+        assert not any("DETACH DELETE" in c for c in cyphers)          # nothing destroyed
+        assert all(not s.get("data_loss") for s in plan["cypher_statements"])
+
+    def test_generates_destructive_cypher_when_opted_in(self, v1_ontology, v2_ontology):
+        plan = v1_ontology.migration_plan(v2_ontology, soft_delete=False)
         cyphers = [s["cypher"] for s in plan["cypher_statements"]]
         assert any("OldEntity" in c and "DELETE" in c for c in cyphers)
         assert any("OLD_REL" in c and "DELETE" in c for c in cyphers)
         assert any("age" in c and "REMOVE" in c for c in cyphers)
+        assert any(s.get("data_loss") for s in plan["cypher_statements"])
 
     def test_marks_breaking(self, v1_ontology, v2_ontology):
         plan = v1_ontology.migration_plan(v2_ontology)

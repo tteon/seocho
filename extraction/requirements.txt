@@ -25,4 +25,3 @@ httpx>=0.25.0
 
 datasets
 openai-agents
-opik

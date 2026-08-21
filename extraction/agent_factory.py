@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from agents import Agent, function_tool, RunContextWrapper
 
-from config import GraphTarget, graph_registry
+from .config import GraphTarget, graph_registry
 from seocho.ontology_context import (
     _clean_distinct_strings,
     build_ontology_context_summary_query,

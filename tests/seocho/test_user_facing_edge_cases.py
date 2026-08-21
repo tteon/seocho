@@ -11,27 +11,24 @@ Issues tracked here (all sev-high, sprint 2026-S03):
 - seocho-35n4 — Semantic artifact approval is non-atomic
 - seocho-cimb — Ontology drift gate is advisory-only on apply
 - seocho-vncn — Session query cache cross-database hits / no TTL
-- seocho-8k1h — OpikBackend silently drops traces if init fails
 
 These tests deliberately do NOT require live services: no Neo4j/DozerDB,
-no live LLM, no live Opik. They use in-tree fakes + monkeypatched runtimes.
+no live LLM. They use in-tree fakes + monkeypatched runtimes.
 """
 
 from __future__ import annotations
 
 import json
-import os
-import sys
 import threading
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
 
 import pytest
 
 from seocho.models import Memory
-from seocho.ontology import Ontology, NodeDef, RelDef, P
+from seocho.ontology import Ontology, NodeDef, P
 from seocho.session import Session
 
 
@@ -389,50 +386,3 @@ class TestQueryCacheCrossDatabase:
         assert second == "ANSWER_FOR_BETA", (
             "Cross-database cache scope fix regressed — see seocho-vncn"
         )
-
-
-# ======================================================================
-# seocho-8k1h — OpikBackend silently drops traces on init failure
-# ======================================================================
-
-
-class TestOpikBackendSilentInit:
-    """REGRESSION ANCHOR: seocho-8k1h.
-
-    OpikBackend wraps client construction in try/except and silently no-ops
-    log_span when self._client is None. Users see no error from the SDK.
-    """
-
-    def test_log_span_no_ops_when_opik_client_init_raises(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        # Build a fake `opik` module whose Opik() constructor raises.
-        fake_opik = ModuleType("opik")
-
-        class _BoomOpik:
-            def __init__(self, **_: Any) -> None:
-                raise RuntimeError("opik unreachable")
-
-        fake_opik.Opik = _BoomOpik  # type: ignore[attr-defined]
-        monkeypatch.setitem(sys.modules, "opik", fake_opik)
-
-        # Ensure env doesn't leak into init.
-        for var in ("OPIK_API_KEY", "OPIK_WORKSPACE", "OPIK_URL_OVERRIDE"):
-            monkeypatch.delenv(var, raising=False)
-
-        from seocho.tracing import OpikBackend
-
-        backend = OpikBackend(api_key="bad", workspace="x", project_name="p")
-
-        # Init "succeeded" without raising; client is None.
-        assert backend._client is None, (
-            "OpikBackend silent-init regression — see seocho-8k1h"
-        )
-
-        # log_span returns None silently (no exception, no trace).
-        result = backend.log_span(
-            "anything",
-            input_data={"q": "?"},
-            output_data={"a": "!"},
-        )
-        assert result is None

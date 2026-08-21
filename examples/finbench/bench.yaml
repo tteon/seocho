@@ -1,0 +1,102 @@
+# FinBench benchmark spec — every parameter of a run, in one readable file.
+#
+#   python scripts/finbench/bench_runner.py examples/finbench/bench.yaml
+#   python scripts/finbench/bench_runner.py examples/finbench/bench.yaml --dry-run
+#
+# Why a spec file rather than flags: a run has to be explainable to someone who was
+# not there. The report this produces echoes every value below next to the numbers it
+# produced, so "what did you set, and what happened" is answerable from one document.
+# Values support ${VAR} / ${VAR:-default} interpolation, matching seocho.run.yaml.
+#
+# Omit any section to skip that stage. `--only` selects stages on the command line.
+
+name: finbench-scalability
+
+# ---------------------------------------------------------------------------
+# What data to generate. Scale is a parameter; the generator is deterministic
+# (seed 0.42), so the same scales reproduce byte-identical snapshots.
+# ---------------------------------------------------------------------------
+data:
+  out_root: outputs/finbench
+  scales: [1, 1000]          # scale factors; SF1 ≈ 3.3k nodes, SF1000 ≈ 3.3M
+  regenerate: false          # true re-runs the generator even if the snapshot exists
+
+# ---------------------------------------------------------------------------
+# How to load it. The bulk path is the only viable one above SF10 — measured
+# 142 rel/s transactionally vs 673,116 rel/s via neo4j-admin import.
+# ---------------------------------------------------------------------------
+load:
+  mode: bulk                 # bulk | skip  (bulk = neo4j-admin database import)
+  db_prefix: finbenchsf
+  container: graphrag-neo4j
+
+# ---------------------------------------------------------------------------
+# The database under test. These values belong in any published number, which is
+# why the report repeats them verbatim (Full Disclosure Report style).
+# ---------------------------------------------------------------------------
+target:
+  uri: bolt://localhost:7687
+  user: neo4j
+  password: ${NEO4J_PASSWORD}
+  workspace_id: default
+
+# ---------------------------------------------------------------------------
+# Measurement protocol. Neo4j's page cache is empty at startup, so an unwarmed
+# number reports I/O rather than query cost; a single shot is noise. Both defaults
+# are deliberate and both change the result materially.
+# ---------------------------------------------------------------------------
+protocol:
+  warm_up: true              # apoc.warmup.run before timing
+  repeats: 10                # warm repetitions; p50/p95/p99 come from these
+  profile_plans: all         # off | slow | all — sampled PROFILE for plan quality
+  query_timeout: 60s
+
+# ---------------------------------------------------------------------------
+# Graph-layer probe: the planted typologies as bounded Cypher, no LLM. Runs each
+# scenario in two shapes so the cost of the plan shape is visible — both return the
+# same answer, which is why accuracy alone cannot separate them.
+# ---------------------------------------------------------------------------
+graph_layer:
+  enabled: true
+  shapes: [tuned, naive]     # tuned = label + indexed property; naive = unlabeled
+
+# ---------------------------------------------------------------------------
+# Agent layer. `precedence` selects how a query gets built:
+#   template_first    deterministic pattern catalog only (historical default)
+#   by_route          RouteProfile decides per question (multi_hop escalates)
+#   generated_first   validated generation for everything (measurement switch)
+# ---------------------------------------------------------------------------
+agent_layer:
+  enabled: true
+  cases: examples/finbench/cases.json
+  ontology: examples/finbench/finbench.ontology.yaml
+  models: [gpt-oss-120b]     # MARA models; add DeepSeek-V3.1, MiniMax-M2.5 to sweep
+  precedence: by_route
+  reasoning_mode: true
+  repair_budget: 1
+
+# ---------------------------------------------------------------------------
+# Infrastructure sweep — the axis that answers "what actually matters at scale".
+# Each profile restarts the container, so this stage is slow by nature.
+#
+# `mem` is a cgroup limit and caps the OS page cache too. Without it the host's own
+# cache holds the store and a Neo4j-level miss is still served from RAM, which is why
+# sweeping `cache` alone produced no cliff. `heap` must shrink with `mem` or the JVM
+# will not start inside the limit.
+# ---------------------------------------------------------------------------
+infra_sweep:
+  enabled: false             # set true to run; expect ~5 min per profile
+  database: finbenchsf1000   # which loaded graph to stress
+  profiles:
+    - { name: baseline,   mem: none, heap: 8G, cache: 6G }
+    - { name: pressure,   mem: 6g,   heap: 3G, cache: 1G }
+    - { name: tight,      mem: 4g,   heap: 2G, cache: 1G }
+    - { name: starved,    mem: 2g,   heap: 1G, cache: 512M }
+
+# ---------------------------------------------------------------------------
+# Where the report goes. The JSON carries this spec verbatim under `spec`, so a
+# result can always be traced back to the parameters that produced it.
+# ---------------------------------------------------------------------------
+output:
+  dir: outputs/finbench/bench
+  tag: ${BENCH_TAG:-manual}

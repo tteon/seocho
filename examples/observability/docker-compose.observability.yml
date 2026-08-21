@@ -1,8 +1,8 @@
 # ADR-0144: lightweight local OpenTelemetry observability stack.
 #
-# Four containers (Collector + Tempo + Prometheus + Grafana) — the local
-# alternative to self-hosted Opik (8 containers). Opik stays the cloud team
-# backend; this is for local development. Pattern borrowed from LMCache's
+# Four containers (Collector + Tempo + Prometheus + Grafana). Since ADR-0172
+# removed the Opik backend this is the only observability stack, local and
+# otherwise — there is no vendor tier above it. Pattern borrowed from LMCache's
 # examples/observability (NOT a manifest copy): SEOCHO services push OTLP to the
 # collector by container name, so no host.docker.internal is needed.
 #
@@ -33,7 +33,7 @@ services:
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${OTLP_GRPC_PORT:-4317}:4317"
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${OTLP_HTTP_PORT:-4318}:4318"
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${OTEL_METRICS_PORT:-8889}:8889"
-    networks: [seocho-net]
+    networks: [graphrag-net]
     depends_on: [tempo]
 
   tempo:
@@ -46,7 +46,7 @@ services:
       - tempo-data:/var/tempo
     ports:
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${TEMPO_PORT:-3200}:3200"
-    networks: [seocho-net]
+    networks: [graphrag-net]
 
   prometheus:
     image: prom/prometheus:v2.55.1
@@ -61,7 +61,7 @@ services:
       - prometheus-data:/prometheus
     ports:
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${PROMETHEUS_PORT:-9091}:9090"
-    networks: [seocho-net]
+    networks: [graphrag-net]
 
   grafana:
     image: grafana/grafana:11.5.1
@@ -77,13 +77,18 @@ services:
       - grafana-data:/var/lib/grafana
     ports:
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
-    networks: [seocho-net]
+    networks: [graphrag-net]
     depends_on: [prometheus, tempo]
 
 networks:
-  seocho-net:
-    external: true
+  # Declared IDENTICALLY to the root compose's network so that, when this file is
+  # pulled in via `include:` from the root docker-compose.yml, the two definitions
+  # merge cleanly into one (project-created) `seocho-net` — no external/driver
+  # union that would stop the core stack from creating its own network. The 4
+  # services attach to it; the profile keeps them off unless requested.
+  graphrag-net:
     name: seocho-net
+    driver: bridge
 
 volumes:
   tempo-data:

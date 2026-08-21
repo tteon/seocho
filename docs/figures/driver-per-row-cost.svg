@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" width="720" height="320"
+     role="img" aria-labelledby="t d">
+  <title id="t">Per-row client cost: Python driver vs neo4rs</title>
+  <desc id="d">Microseconds of client time per row returned. At 1,000 rows the Python driver
+  costs 14.72 microseconds per row against neo4rs at 3.34. At 50,000 rows Python costs 12.96
+  against neo4rs at 2.81. Each driver's per-row cost is flat across row counts, so this is a
+  fixed charge per row rather than a warm-up effect.</desc>
+
+  <!-- Self-contained so the file opens correctly on its own and in a slide. Both themes are
+       declared: the media query covers a dark viewer, and the light values are the default so
+       an exported PNG or a print is legible. -->
+  <style>
+    .surface { fill: #ffffff; }
+    .grid    { stroke: #eceff3; stroke-width: 1; }
+    .axis    { fill: #6b7684; }
+    .label   { fill: #47515f; }
+    .value   { fill: #12151a; }
+    .s1      { fill: #2a78d6; }
+    .s2      { fill: #eb6834; }
+    text     { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+               font-variant-numeric: tabular-nums; }
+    @media (prefers-color-scheme: dark) {
+      .surface { fill: #1a1d22; }
+      .grid    { stroke: #23272e; }
+      .axis    { fill: #8b95a2; }
+      .label   { fill: #b3bcc8; }
+      .value   { fill: #f1f3f6; }
+      .s1      { fill: #3987e5; }
+      .s2      { fill: #d95926; }
+    }
+  </style>
+
+  <rect class="surface" x="0" y="0" width="720" height="320"/>
+
+  <g class="grid">
+    <line x1="80" y1="250" x2="690" y2="250"/>
+    <line x1="80" y1="195" x2="690" y2="195"/>
+    <line x1="80" y1="140" x2="690" y2="140"/>
+    <line x1="80" y1="85"  x2="690" y2="85"/>
+    <line x1="80" y1="30"  x2="690" y2="30"/>
+  </g>
+
+  <g class="axis" font-size="11" text-anchor="end">
+    <text x="70" y="254">0</text>
+    <text x="70" y="199">4</text>
+    <text x="70" y="144">8</text>
+    <text x="70" y="89">12</text>
+    <text x="70" y="34">16</text>
+  </g>
+  <text class="axis" x="80" y="18" font-size="10.5" letter-spacing="0.09em">MICROSECONDS PER ROW</text>
+
+  <!-- Legend: two series, so identity is never carried by colour alone. -->
+  <g font-size="11.5">
+    <rect class="s1" x="452" y="292" width="10" height="10" rx="2"/>
+    <text class="label" x="468" y="301">Python driver 5.x</text>
+    <rect class="s2" x="588" y="292" width="10" height="10" rx="2"/>
+    <text class="label" x="604" y="301">neo4rs 0.8.0</text>
+  </g>
+
+  <!-- 1,000 rows. 4px rounded data-ends, anchored to the baseline; 4px surface gap between
+       the paired bars so adjacent fills stay separable. -->
+  <path class="s1" d="M184,250 V51.9 Q184,47.9 188,47.9 H244 Q248,47.9 248,51.9 V250 Z"/>
+  <path class="s2" d="M252,250 V208.1 Q252,204.1 256,204.1 H312 Q316,204.1 316,208.1 V250 Z"/>
+  <g class="value" font-size="11.5" font-weight="600" text-anchor="middle">
+    <text x="216" y="41">14.72</text>
+    <text x="284" y="197">3.34</text>
+  </g>
+
+  <!-- 50,000 rows -->
+  <path class="s1" d="M454,250 V75.8 Q454,71.8 458,71.8 H514 Q518,71.8 518,75.8 V250 Z"/>
+  <path class="s2" d="M522,250 V215.4 Q522,211.4 526,211.4 H582 Q586,211.4 586,215.4 V250 Z"/>
+  <g class="value" font-size="11.5" font-weight="600" text-anchor="middle">
+    <text x="486" y="65">12.96</text>
+    <text x="554" y="204">2.81</text>
+  </g>
+
+  <g class="label" font-size="11.5" text-anchor="middle">
+    <text x="250" y="272">1,000 rows</text>
+    <text x="520" y="272">50,000 rows</text>
+  </g>
+
+  <text class="axis" x="80" y="301" font-size="10">median of 7 repeats · sf1000-real · server time 19–21 ms</text>
+</svg>

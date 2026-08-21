@@ -18,6 +18,7 @@ def _minimal_payload() -> dict:
     return {
         "ontology": "./schema.yaml",
         "documents": "./docs/",
+        "graph": "bolt://localhost:7687",
         "questions": ["Who is the CEO of Acme?"],
     }
 
@@ -68,6 +69,7 @@ def test_errors_are_collected_not_fail_fast() -> None:
         "documents": "d/",
         "agent": {"execution_mode": "banana"},
         "models": {"default": "no-slash"},
+        "graph": "bolt://localhost:7687",
     }
     with pytest.raises(RunSpecError) as excinfo:
         parse_run_spec(payload)
@@ -146,7 +148,7 @@ def test_questions_accept_strings_and_mappings() -> None:
 
 
 def test_index_only_run_when_questions_absent() -> None:
-    payload = {"ontology": "./schema.yaml", "documents": "./docs/"}
+    payload = {"ontology": "./schema.yaml", "documents": "./docs/", "graph": "bolt://localhost:7687"}
     spec = parse_run_spec(payload)
     assert spec.index_only() is True
 
@@ -175,6 +177,7 @@ def test_load_run_spec_from_file(tmp_path) -> None:
             """
             ontology: ./schema.yaml
             documents: ./docs/
+            graph: bolt://localhost:7687
             questions:
               - Who is the CEO of Acme?
             """
@@ -221,26 +224,26 @@ def test_graph_bare_string_back_compat() -> None:
     )
     assert spec.graph_kind == ""
     assert spec.resolved_graph_kind() == "neo4j"  # inferred from bolt scheme
-    blank = parse_run_spec({"ontology": "s.yaml", "documents": "d/"})
-    assert blank.resolved_graph_kind() == "ladybug"
+    with pytest.raises(RunSpecError, match="bolt://.*URI is required"):
+        parse_run_spec({"ontology": "s.yaml", "documents": "d/"})
 
 
 def test_graph_kind_coherence_errors() -> None:
-    base = {"ontology": "s.yaml", "documents": "d/"}
+    base = {"ontology": "s.yaml", "documents": "d/", "graph": "bolt://localhost:7687"}
     with pytest.raises(RunSpecError, match="requires a bolt"):
         parse_run_spec({**base, "graph": {"kind": "neo4j", "path": "./g.lbug"}})
-    with pytest.raises(RunSpecError, match="embedded engine"):
-        parse_run_spec({**base, "graph": {"kind": "ladybug", "uri": "bolt://h:7687"}})
+    with pytest.raises(RunSpecError, match="graph.kind"):
+        parse_run_spec({**base, "graph": {"kind": "unsupported", "uri": "bolt://h:7687"}})
     with pytest.raises(RunSpecError, match="graph.kind"):
         parse_run_spec({**base, "graph": {"kind": "postgres", "uri": "bolt://h:7687"}})
-    with pytest.raises(RunSpecError, match="not both"):
+    with pytest.raises(RunSpecError, match="only 'uri'"):
         parse_run_spec(
-            {**base, "graph": {"kind": "ladybug", "uri": "x", "path": "y"}}
+            {**base, "graph": {"kind": "dozerdb", "uri": "x", "path": "y"}}
         )
 
 
 def test_vector_section_parse_and_defaults() -> None:
-    base = {"ontology": "s.yaml", "documents": "d/"}
+    base = {"ontology": "s.yaml", "documents": "d/", "graph": "bolt://localhost:7687"}
     spec = parse_run_spec({**base, "vector": {"kind": "lancedb", "uri": "./v"}})
     assert spec.uses_vector_store()
     assert spec.vector_kind() == "lancedb"
@@ -255,3 +258,42 @@ def test_vector_section_parse_and_defaults() -> None:
         parse_run_spec({**base, "vector": {"kind": "faiss", "dimension": "big"}})
     with pytest.raises(RunSpecError, match="unknown key"):
         parse_run_spec({**base, "vector": {"kind": "faiss", "embeding": "x"}})
+
+
+def test_schema_version_1_is_accepted(tmp_path, monkeypatch):
+    from seocho.run_spec import load_run_spec
+
+    spec_file = tmp_path / "seocho.run.yaml"
+    spec_file.write_text(
+        "schema_version: 1\n"
+        "ontology:\n  path: onto.yaml\n"
+        "documents:\n  path: docs/\n"
+        "graph: bolt://localhost:7687\n"
+    )
+    (tmp_path / "onto.yaml").write_text("name: t\nnodes: {}\n")
+    (tmp_path / "docs").mkdir()
+    spec = load_run_spec(spec_file)
+    assert spec.ontology_path.endswith("onto.yaml")
+
+
+def test_unsupported_schema_version_is_a_migration_signal(tmp_path):
+    from seocho.run_spec import RunSpecError, load_run_spec
+
+    spec_file = tmp_path / "seocho.run.yaml"
+    spec_file.write_text(
+        "schema_version: 99\n"
+        "ontology:\n  path: onto.yaml\n"
+        "documents:\n  path: docs/\n"
+    )
+    with pytest.raises(RunSpecError) as excinfo:
+        load_run_spec(spec_file)
+    assert any("schema_version 99 is not supported" in e for e in excinfo.value.errors)
+
+
+def test_run_spec_error_is_a_spec_error():
+    from seocho.run_spec import RunSpecError
+    from seocho.spec_loader import SpecError
+
+    assert issubclass(RunSpecError, SpecError)
+    err = RunSpecError(["a", "b"])
+    assert err.errors == ["a", "b"]

@@ -1,0 +1,68 @@
+{
+  "model": "gpt-oss-120b",
+  "database": "finbenchl1",
+  "questions": 5,
+  "gold": {
+    "company_count": 100,
+    "transfer_count": 10895,
+    "flagged_accounts": 1,
+    "person_count": 1000,
+    "accounts_owner_1019": 5
+  },
+  "bare_correct": 5,
+  "os_correct": 4,
+  "bare_tokens_total": 3389,
+  "os_tokens_total": 18138,
+  "cases": [
+    {
+      "id": "company_count",
+      "gold": 100,
+      "bare_correct": true,
+      "bare_tokens": 664,
+      "bare_error": null,
+      "os_correct": true,
+      "os_tokens": 3688,
+      "os_error": null
+    },
+    {
+      "id": "transfer_count",
+      "gold": 10895,
+      "bare_correct": true,
+      "bare_tokens": 646,
+      "bare_error": null,
+      "os_correct": true,
+      "os_tokens": 3603,
+      "os_error": null
+    },
+    {
+      "id": "flagged_accounts",
+      "gold": 1,
+      "bare_correct": true,
+      "bare_tokens": 696,
+      "bare_error": null,
+      "os_correct": true,
+      "os_tokens": 3573,
+      "os_error": null
+    },
+    {
+      "id": "person_count",
+      "gold": 1000,
+      "bare_correct": true,
+      "bare_tokens": 675,
+      "bare_error": null,
+      "os_correct": true,
+      "os_tokens": 3456,
+      "os_error": null
+    },
+    {
+      "id": "accounts_owner_1019",
+      "gold": 5,
+      "bare_correct": true,
+      "bare_tokens": 708,
+      "bare_error": null,
+      "os_correct": false,
+      "os_tokens": 3818,
+      "os_error": null
+    }
+  ]
+}

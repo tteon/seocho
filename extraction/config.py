@@ -30,15 +30,6 @@ NEO4J_PASSWORD = DOZERDB_PASSWORD
 # Vendor-neutral tracing contract
 TRACE_BACKEND = str(os.getenv("SEOCHO_TRACE_BACKEND", "none") or "none").strip().lower()
 TRACE_JSONL_PATH = os.getenv("SEOCHO_TRACE_JSONL_PATH", "/tmp/seocho-runtime.jsonl")
-OPIK_MODE = str(
-    os.getenv("SEOCHO_TRACE_OPIK_MODE", "")
-    or ("self_host" if os.getenv("OPIK_URL_OVERRIDE", "") or os.getenv("OPIK_URL", "") else "hosted")
-).strip().lower()
-OPIK_URL = os.getenv("OPIK_URL_OVERRIDE", "") or os.getenv("OPIK_URL", "")
-OPIK_WORKSPACE = os.getenv("OPIK_WORKSPACE", "default")
-OPIK_PROJECT_NAME = os.getenv("OPIK_PROJECT_NAME", "seocho")
-OPIK_API_KEY = os.getenv("OPIK_API_KEY", "")
-OPIK_ENABLED = TRACE_BACKEND == "opik"
 
 # DB name validation: Neo4j 5 rules — lowercase alphanumeric, 3-63 chars.
 # Aligned with seocho/store/graph.py to prevent SDK/server mismatches.
@@ -364,7 +355,7 @@ def validate_config() -> None:
     Raises:
         MissingAPIKeyError: If OPENAI_API_KEY is missing or empty.
     """
-    from exceptions import MissingAPIKeyError
+    from .exceptions import MissingAPIKeyError
 
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
@@ -373,14 +364,10 @@ def validate_config() -> None:
         )
 
     logger = logging.getLogger(__name__)
-    if TRACE_BACKEND not in {"none", "console", "jsonl", "opik"}:
+    if TRACE_BACKEND not in {"none", "console", "jsonl", "otlp"}:
         logger.warning(
-            "Unsupported SEOCHO_TRACE_BACKEND=%s. Expected one of none|console|jsonl|opik.",
+            "Unsupported SEOCHO_TRACE_BACKEND=%s. Expected one of none|console|jsonl|otlp.",
             TRACE_BACKEND,
-        )
-    if TRACE_BACKEND == "opik" and OPIK_MODE == "self_host" and not OPIK_URL:
-        logger.warning(
-            "SEOCHO_TRACE_BACKEND=opik with self_host mode expects OPIK_URL/OPIK_URL_OVERRIDE to be set."
         )
     if NEO4J_URI == "bolt://localhost:7687":
         logger.warning(

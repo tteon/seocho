@@ -1,0 +1,251 @@
+name: finbench
+description: 'Synthetic LDBC-FinBench-style financial AML schema (Account / Person / Company / Loan +
+  transfer/own/deposit/repay). Declaring the schema lets the guardrail (allowed labels/relationship types,
+  hop/row bounds) constrain agent-generated Cypher at scale.
+
+  '
+nodes:
+  Account:
+    description: A financial account that sends and receives transfers
+    identity_keys:
+    - acct_no
+    - id
+    properties:
+      id:
+        type: STRING
+        constraint: UNIQUE
+      acct_no:
+        type: INTEGER
+        description: The account number used to refer to this account
+      iban:
+        type: STRING
+      flagged:
+        type: BOOLEAN
+      risk_tier:
+        type: INTEGER
+      acct_type:
+        type: INTEGER
+  Person:
+    description: An individual who may own accounts
+    properties:
+      id:
+        type: STRING
+        constraint: UNIQUE
+      name:
+        type: STRING
+      country:
+        type: STRING
+  Company:
+    description: A company or organization that may own accounts
+    properties:
+      id:
+        type: STRING
+        constraint: UNIQUE
+      name:
+        type: STRING
+      sector:
+        type: STRING
+  Loan:
+    description: A loan disbursed to and repaid from accounts
+    properties:
+      id:
+        type: STRING
+        constraint: UNIQUE
+      principal:
+        type: INTEGER
+  Channel:
+    description: 'The means by which money moved (전자금융거래법 §2 channel inventory plus FATF-recognized high-risk
+      rails). Channel choice carries most of the AML signal because channels differ in traceability, limits,
+      and supervision. Anchored on fibo:Payment; FIBO defines no PaymentMethod taxonomy upstream.
+
+      '
+    properties:
+      code:
+        type: STRING
+        constraint: UNIQUE
+        description: Channel code such as WIRE_CROSSBORDER, ATM_CD, OPEN_BANKING
+      label:
+        type: STRING
+        description: Human-readable channel name (Korean / English)
+      risk_weight:
+        type: INTEGER
+        description: Ordinal AML risk hint, 1 (low) to 5 (high)
+  Medium:
+    description: >
+      A login device or terminal a session came from — FinBench's `Medium`. Distinct from
+      Channel: Channel is the payment rail money rode (전자금융거래법 §2 + FATF), Medium is
+      the device the session originated on. Conflating them would lose the strongest
+      multi-layer signal available, which is two accounts sharing a login device.
+    properties:
+      id:
+        type: STRING
+        constraint: UNIQUE
+      type:
+        type: STRING
+        description: Device class such as mobile_app, web_browser, atm_terminal
+      risk_level:
+        type: INTEGER
+        description: Ordinal device risk, 1 (low) to 5 (high)
+relationships:
+  TRANSFER:
+    source: Account
+    target: Account
+    description: 'A money transfer from one account to another.
+
+      '
+    # Declared, not only described. The prose above named these properties from the start, but
+    # `policy_from_ontology` builds `allowed_properties` from the `properties:` block alone, so
+    # the guardrail rejected `t.amount` — the single most-used property in the graph — as an
+    # unknown identifier. The model's repair was to return `null AS total_amount` and answer the
+    # question with a hole in it. A guardrail that blocks the correct query is worse than none,
+    # and prose the validator cannot read is not a declaration.
+    properties:
+      amount:
+        type: INTEGER
+        description: Transferred amount in KRW; the ₩10,000,000 CTR threshold applies to it
+      ts:
+        type: INTEGER
+        description: Transfer timestamp
+      channel:
+        type: STRING
+        description: Channel code the transfer rode, matching Channel.code
+      channel_risk:
+        type: INTEGER
+        description: Ordinal AML risk of that channel, 1 (low) to 5 (high), denormalised
+          onto the transfer so a channel filter needs no join
+      cross_border:
+        type: BOOLEAN
+    # Both endpoints are Accounts, so source/target alone cannot tell "sent to" from
+    # "received from" — and query construction defaulted to treating the anchor as the
+    # arrow's target, answering every outgoing question with an in-degree. Naming the
+    # roles is what makes the direction recoverable; the phrase lists below are only a
+    # deterministic fast path (they scored 0 of 6 on paraphrases on their own), and the
+    # general case is the model mapping arbitrary wording onto these role names.
+    sourceRole: sender
+    targetRole: beneficiary
+    sourcePhrases:
+    - transfer money to
+    - transferred money to
+    - transfer to
+    - transferred to
+    - sent to
+    - sent money to
+    - send to
+    - remitted to
+    - wired to
+    - paid to
+    - outgoing
+    - reachable within
+    - reachable from
+    - downstream of
+    targetPhrases:
+    - transfers into
+    - transferred into
+    - transfer from
+    - transferred from
+    - received from
+    - sent transfers into
+    - sent into
+    - credited by
+    - incoming
+    - upstream of
+    - paid by
+    # Measured, not asserted — written by scripts/finbench/annotate_ontology_degrees.py
+    # from the snapshot named in measured_from. A schema of labels and endpoint types
+    # cannot say that one account carries tens of thousands of edges while the median
+    # carries three, so a planner had no basis for preferring a bounded shape; an
+    # aggregate anchored on a hub does not return at all. Re-run the annotator when the
+    # snapshot changes: a hint carried over from a differently-shaped dataset is worse
+    # than none.
+    degreeHint:
+      median_out: 3
+      p99_out: 41
+      max_out: 77036
+      mean_out: 5.62
+      median_in: 3
+      max_in: 77810
+      max_over_median_out: 25678.7
+      heavy_tailed: true
+      measured_from: "outputs/finbench/sf1000-real"
+  USES_CHANNEL:
+    source: Account
+    target: Channel
+    description: 'An account moved money over this channel. Makes the channel dimension
+      traversable structure rather than only an edge property.
+
+      '
+    properties:
+      tx_count:
+        type: INTEGER
+        description: How many transactions this account put through this channel
+  # `Any` was not a neutral placeholder. Measured on the SF100 graph, GUARANTEE runs
+  # Person/Company -> Person/Company 40,001 times and touches an Account zero times — yet with
+  # `source: Any, target: Any` in the schema, every agent design wrote
+  # `(a:Account)-[:GUARANTEE]-(b:Account)` on the three-layer question and returned nothing.
+  # The model does not read `Any` as "not yet known"; it reads it as "anything is permitted".
+  # An under-specified endpoint costs as much as a missing one, and costs it silently.
+  OWN:
+    source: Person|Company
+    target: Account
+    description: A person or company owns an account. Accounts never own accounts.
+  DEPOSIT:
+    source: Loan
+    target: Account
+    description: A loan is disbursed into an account
+    properties:
+      amount:
+        type: INTEGER
+  REPAY:
+    source: Account
+    target: Loan
+    description: An account makes a repayment toward a loan
+    properties:
+      amount:
+        type: INTEGER
+  # The party and device layers. Until these existed, four of FinBench's nine edge types
+  # were declared and every question was confined to the account layer — a query could not
+  # reach the parties behind the accounts, so "are these two accounts under common control"
+  # could not be *expressed*, let alone answered.
+  APPLY:
+    source: Person|Company
+    target: Loan
+    description: >
+      A person or company applied for a loan. Connects the loan layer to the party layer,
+      so a loan can be traced to a human rather than floating unattached.
+    sourceRole: applicant
+    targetRole: facility
+  INVEST:
+    source: Person|Company
+    target: Company
+    description: >
+      A person or company holds an ownership stake in a company (ratio). The corporate
+      ownership layer, where control is concealed behind nominally separate entities.
+    sourceRole: investor
+    targetRole: investee
+  GUARANTEE:
+    source: Person|Company
+    target: Person|Company
+    description: >
+      A person or company guarantees another *party*. Never an account: guarantees are given
+      by the people and companies behind accounts, so reaching this layer from an account
+      requires going through OWN first. Ordinary between family or business partners, which is
+      precisely why it only becomes a signal in conjunction with other layers.
+    sourceRole: guarantor
+    targetRole: guaranteed
+  WITHDRAW:
+    source: Account
+    target: Account
+    description: >
+      Cash withdrawal. Kept separate from TRANSFER because FinBench separates it: a
+      withdrawal is money leaving the traceable system, which is the terminal step of most
+      typologies and a different thing to reason about.
+    sourceRole: withdrawer
+    targetRole: destination
+  SIGN_IN:
+    source: Medium
+    target: Account
+    description: >
+      A device signed in to an account. Shared-device access by nominally unrelated parties
+      is a first-order concealment red flag, and it is invisible to an account-only graph.
+    sourceRole: device
+    targetRole: session_account

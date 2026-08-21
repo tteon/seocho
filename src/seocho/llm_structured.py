@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Dict, Optional, Tuple
 
 
@@ -78,17 +78,48 @@ _REASONING_SUFFIX = (
 )
 
 
-def capability_for(model: Optional[str]) -> ModelCapability:
-    """Resolve a model name to its capability profile (first registry match).
-    Unknown models that *look* like reasoning models (``-r1``, ``think``,
-    ``reason``) get a reasoning profile; otherwise the conservative default."""
+#: Servers that enforce a JSON schema in the decoder itself, so schema support
+#: is a property of the server rather than of the model it happens to serve.
+_SCHEMA_ENFORCING_PROVIDERS = {"vllm"}
+
+
+def capability_for(
+    model: Optional[str], provider: Optional[str] = None
+) -> ModelCapability:
+    """Resolve a capability profile from the model and, when known, the server.
+
+    Capability is a function of *(server, model)*, and keying it on the model
+    alone made the vLLM entry dead code: it matches the literal name ``vllm``,
+    which is never a served model name. A self-hosted ``MiniMax-M2.7`` matched
+    the ``minimax`` entry first and inherited ``supports_guided_json=False``, so
+    the one deployment where schema enforcement is exact — vLLM constrains the
+    decoder with a grammar, and prose-before-JSON is untokenizable — could never
+    reach it.
+
+    ``provider`` upgrades schema support when the *server* enforces it,
+    regardless of which model is loaded. Unknown models that look like reasoning
+    models (``-r1``, ``think``, ``reason``) still get a reasoning profile.
+    """
     name = str(model or "").strip()
+    server = str(provider or "").strip().lower()
+
+    resolved: Optional[ModelCapability] = None
     for pattern, cap in _REGISTRY:
         if pattern.search(name):
-            return cap
-    if re.search(r"think|reason|-r\d|:r\d", name, re.I):
-        return ModelCapability("unknown-reasoner", emits_reasoning=True, supports_json_object=True, max_tokens_floor=4096)
-    return _DEFAULT
+            resolved = cap
+            break
+    if resolved is None:
+        if re.search(r"think|reason|-r\d|:r\d", name, re.I):
+            resolved = ModelCapability(
+                "unknown-reasoner", emits_reasoning=True,
+                supports_json_object=True, max_tokens_floor=4096,
+            )
+        else:
+            resolved = _DEFAULT
+
+    if server in _SCHEMA_ENFORCING_PROVIDERS and not resolved.supports_guided_json:
+        return replace(resolved, supports_guided_json=True)
+    return resolved
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +225,12 @@ def structured_complete(
 
     ``schema`` (a JSON Schema) is used for guided decoding only when the model
     supports it; otherwise ``json_object`` + robust extraction is used."""
-    cap = capability_for(model or getattr(backend, "model", ""))
+    # The backend knows which server it is talking to; schema enforcement is
+    # a property of that server, not only of the model name.
+    cap = capability_for(
+        model or getattr(backend, "model", ""),
+        getattr(backend, "provider", None),
+    )
     mt = max(int(max_tokens or 0), cap.max_tokens_floor)
     temp = temperature if cap.temperature_clamp is None else cap.temperature_clamp
 

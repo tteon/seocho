@@ -5,9 +5,10 @@ import logging
 import os
 import re
 from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any, Dict, Iterator, List, Optional, Sequence
 
-from .curation_design import CurationDesignSpec, load_curation_design_spec
+from .curation_design import load_curation_design_spec
 from .graph_projector import GraphProjector
 from .models import Memory
 from .observability import StageTimer
@@ -29,6 +30,19 @@ from .store.llm import complete_with_task_hints
 
 logger = logging.getLogger(__name__)
 _FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")
+
+# The in-flight per-request run context, isolated per execution context so that
+# concurrent multi-tenant asks() never observe each other's workspace/pin (the
+# structured-runtime B7 fix). Mid-run consumers (the structured orchestrator, the
+# synthesizer, tracing) read THIS, never a shared instance attribute.
+_ACTIVE_RUN_CONTEXT: "ContextVar[Any]" = ContextVar("seocho_active_run_context", default=None)
+
+
+def active_run_context() -> Any:
+    """The `OntologyRunContext` of the request running in the current execution
+    context, or None. Concurrency-safe (unlike the post-hoc
+    `_LocalEngine.last_run_context()`)."""
+    return _ACTIVE_RUN_CONTEXT.get()
 
 
 class _LocalEngine:
@@ -76,6 +90,29 @@ class _LocalEngine:
 
         self._ontology_context_cache = OntologyContextCache()
         self._last_query_metadata: Dict[str, Any] = {}
+        # Per-request run-context spine (seocho structured-runtime, ADR-0200):
+        # the typed OntologyRunContext built once per ask() and exposed via
+        # last_run_context(). Optional RCU wiring (a VersionPinRegistry + active
+        # pointer) makes the request pin ONE frozen ontology version for its whole
+        # duration; all default to None so behaviour is unchanged until configured.
+        self._ontology_package_id = str(
+            getattr(ontology, "package_id", "") or getattr(ontology, "name", "") or "default"
+        )
+        self._ontology_pin_registry: Any = None
+        self._active_ontology_pointer: Any = None
+        self._last_run_context: Any = None
+        # Structured engine (ADR-0205): the organ-flagged orchestrator path. All
+        # optional/injectable so `engine="deterministic"` (the default) never
+        # touches any of this. A snapshot-store-backed resolver enables the pinned
+        # schema organ; the two seams default to real (LLM text2cypher +
+        # QueryAnswerSynthesizer) but are injectable for tests.
+        from .query.arm_config import ArmConfig
+
+        self._structured_arm = ArmConfig.governed()
+        self._pinned_schema_resolver: Any = None
+        self._structured_cypher_generator: Any = None
+        self._structured_synthesizer: Any = None
+        self._structured_repair_budget = 1   # guardrail-reject -> retry-with-feedback (ADR-0209)
         self._events = NullEventPublisher()
         self._ingest_request_cls = IngestRequest
 
@@ -340,7 +377,21 @@ class _LocalEngine:
             graph_store=self.graph_store,
             workspace_id=self.workspace_id,
         )
-        return projector.project(snapshot, database=database)
+        # Stamp the active ontology version onto projected data so drift
+        # detection is not blind on this path (seocho-ia4.1).
+        ontology_context = None
+        if getattr(self, "ontology", None) is not None:
+            try:
+                ontology_context = self._ontology_context_cache.get(
+                    self.ontology,
+                    workspace_id=self.workspace_id,
+                    profile=self.ontology_profile,
+                )
+            except Exception:
+                ontology_context = None
+        return projector.project(
+            snapshot, database=database, ontology_context=ontology_context
+        )
 
     def add(
         self,
@@ -482,8 +533,7 @@ class _LocalEngine:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Run extraction only (no graph write)."""
-        self._extraction.category = category
-        system, user = self._extraction.render(content, metadata=metadata)
+        system, user = self._extraction.render(content, metadata=metadata, category=category)
 
         response = complete_with_task_hints(
             self.llm,
@@ -515,8 +565,15 @@ class _LocalEngine:
         repair_budget: Optional[int] = None,
         query_mode: str = DEFAULT_QUERY_MODE,
         ontology_override: Optional[Any] = None,
+        engine: str = "deterministic",
     ) -> str:
-        """Ontology-aware query: generate Cypher -> execute -> synthesize answer."""
+        """Ontology-aware query: generate Cypher -> execute -> synthesize answer.
+
+        ``engine`` selects the runtime (orthogonal to ``query_mode``, which is
+        reasoning semantics): ``"deterministic"`` (default) is the existing
+        monolithic pipeline; ``"structured"`` routes through the organ-flagged
+        :class:`~seocho.query.structured_orchestrator.StructuredQueryOrchestrator`
+        (the governed multi-agent path the arm×organ e2e exercises)."""
         query_mode = normalize_query_mode(query_mode)
         active_ontology = ontology_override or self.ontology
         ontology_context = self._ontology_context_cache.get(
@@ -533,7 +590,7 @@ class _LocalEngine:
             reasoning_mode = self.agent_config.reasoning_mode
         if repair_budget is None:
             repair_budget = self.agent_config.repair_budget
-        # RouteProfile (opik-derived, A/B-gated): when SEOCHO_ROUTE_PROFILE is
+        # RouteProfile (trace-derived, A/B-gated): when SEOCHO_ROUTE_PROFILE is
         # set, classify the question's route_class and let its planner choose
         # the execution levers — escalate to multi-step (reasoning + repair)
         # ONLY for multi-hop, keep simple lookups on the cheap single pass
@@ -583,9 +640,33 @@ class _LocalEngine:
 
         # ADR-0144: wrap the retrieval pipeline in a single rag.ask root span so
         # its stages (compile_cypher -> execute -> retrieve_ctx -> synthesize)
-        # nest as a tree in Tempo/Opik instead of one flat sdk.query event.
+        # nest as a tree in Tempo instead of one flat sdk.query event.
         from .tracing import start_span
 
+        # Build the per-request run context ONCE (workspace-scoped, typed) and,
+        # when an RCU pin registry is configured, pin ONE frozen ontology version
+        # for the whole request; the deterministic pipeline runs inside that pin.
+        from contextlib import nullcontext
+
+        from .ontology.run_context import build_local_ontology_run_context, pinned_run_context
+
+        run_context = build_local_ontology_run_context(
+            ontology_context,
+            workspace_id=self.workspace_id,
+            database=database,
+            reasoning_mode=bool(reasoning_mode),
+            repair_budget=int(repair_budget or 0),
+        )
+        pin_cm = (
+            pinned_run_context(
+                run_context,
+                pin_registry=self._ontology_pin_registry,
+                package_id=self._ontology_package_id,
+                active_pointer=self._active_ontology_pointer,
+            )
+            if self._ontology_pin_registry is not None
+            else nullcontext(run_context)
+        )
         with start_span(
             "rag.ask",
             input_data={"question": question[:200]},
@@ -595,16 +676,135 @@ class _LocalEngine:
                 "ontology": getattr(active_ontology, "name", ""),
             },
             tags=["rag"],
-        ):
-            return self._run_query_pipeline(
-                question,
-                database=database,
-                reasoning_mode=reasoning_mode,
-                repair_budget=repair_budget,
-                query_mode=query_mode,
-                active_ontology=active_ontology,
-                ontology_context=ontology_context,
-            )
+        ), pin_cm as pinned_context:
+            # Publish the in-flight context in a ContextVar (isolated per execution
+            # context) — NEVER on a shared instance attribute, so concurrent
+            # multi-tenant asks() cannot clobber each other (B7).
+            token = _ACTIVE_RUN_CONTEXT.set(pinned_context)
+            try:
+                if str(engine) == "structured":
+                    return self._run_structured_pipeline(
+                        question,
+                        database=database,
+                        active_ontology=active_ontology,
+                        run_context=pinned_context,
+                    )
+                return self._run_query_pipeline(
+                    question,
+                    database=database,
+                    reasoning_mode=reasoning_mode,
+                    repair_budget=repair_budget,
+                    query_mode=query_mode,
+                    active_ontology=active_ontology,
+                    ontology_context=ontology_context,
+                )
+            finally:
+                # Fold the drift outcome the pipeline computed into the LOCAL
+                # request context (not a shared attr), then publish it as the
+                # last request's context (post-hoc convenience only).
+                ctx = pinned_context
+                mismatch = (self._last_query_metadata or {}).get("ontology_context_mismatch")
+                if mismatch:
+                    ctx = ctx.with_mismatch(mismatch)
+                _ACTIVE_RUN_CONTEXT.reset(token)
+                self._last_run_context = ctx
+
+    def last_run_context(self) -> Any:
+        """The typed :class:`OntologyRunContext` of the MOST RECENT ``ask`` on this
+        engine — workspace-scoped, carrying the ontology identity/hash, the
+        RCU-pinned version, and the drift outcome.
+
+        This is a **post-hoc convenience and is NOT concurrency-safe**: under
+        concurrent multi-tenant calls it reflects whichever request finished last.
+        Mid-run consumers must read :func:`active_run_context` (ContextVar-isolated)
+        instead."""
+        return self._last_run_context
+
+    def _structured_seams(self, active_ontology: Any, database: str):
+        """The (cypher_generator, synthesizer) the structured orchestrator drives.
+        Injectable (set the ``_structured_*`` attrs) for tests; the defaults are the
+        real LLM text2cypher + the QueryAnswerSynthesizer, invoked only with a live
+        LLM/graph (the e2e)."""
+        gen = self._structured_cypher_generator
+        if gen is None:
+            from .query.grounded_text2cypher import generate_grounded_cypher
+
+            def gen(question: str, schema_text: str, feedback=None):  # noqa: E306
+                # Ontology-grounded, guardrail-conformant: declared identifiers,
+                # $params (no inlined literals), $workspace_id scope, LIMIT $limit —
+                # so the governed guardrail passes it instead of rejecting the
+                # deterministic planner's non-conformant Cypher (the live-smoke gap).
+                # `feedback` carries a prior guardrail rejection for the repair loop.
+                return generate_grounded_cypher(
+                    self.llm, question, schema_text,
+                    workspace_id=self.workspace_id, limit=getattr(self, "row_cap", 50),
+                    feedback=feedback,
+                    # workspace organ: OFF -> generate an un-governed (unscoped) read
+                    # instead of Cypher that references an unbound $workspace_id.
+                    workspace_scoped=self._structured_arm.workspace_enforce)
+        synth = self._structured_synthesizer
+        if synth is None:
+            answerer = QueryAnswerSynthesizer(query_strategy=self._query, llm=self.llm)
+
+            def synth(question: str, rows: List[Dict[str, Any]]) -> str:  # noqa: E306
+                return answerer.synthesize(question, rows)
+        return gen, synth
+
+    def _run_structured_pipeline(
+        self, question: str, *, database: str, active_ontology: Any, run_context: Any
+    ) -> str:
+        """Organ-flagged structured path (ADR-0205): resolve schema -> retrieve ->
+        guardrail -> governed execute -> synthesize, over the per-request run
+        context. A per-request GuardrailLedger keeps the before/after governance
+        signal un-poisoned across tenants; abstain is honest (a guardrail
+        rejection is reported as such, never as 'no supporting evidence')."""
+        from .query.structured_orchestrator import StructuredQueryOrchestrator
+
+        ledger = None
+        try:
+            from .integrations.openai_agents import GuardrailLedger
+            ledger = GuardrailLedger()
+        except Exception:
+            ledger = None
+
+        gen, synth = self._structured_seams(active_ontology, database)
+        orchestrator = StructuredQueryOrchestrator(
+            arm=self._structured_arm,
+            graph_store=self.graph_store,
+            ontology=active_ontology,
+            cypher_generator=gen,
+            synthesizer=synth,
+            resolver=self._pinned_schema_resolver,
+            get_schema_fn=lambda: self._get_schema_info(database),
+            database=database,
+            repair_budget=getattr(self, "_structured_repair_budget", 1),
+        )
+        result = orchestrator.answer(question, run_context, workspace_id=self.workspace_id)
+        if ledger is not None:
+            ledger.record(result.guardrail_violations)
+
+        # Honest abstain (D5): a guardrail rejection is NOT "no evidence".
+        if result.guardrail_rejected:
+            answer_source = "structured_guardrail_rejected"
+        elif not result.rows:
+            answer_source = "structured_no_evidence"
+        else:
+            answer_source = "structured"
+
+        self._last_query_metadata = {
+            "schema_version": "local_query_metadata.v1",
+            "workspace_id": self.workspace_id,
+            "database": database,
+            "engine": "structured",
+            "answer_source": answer_source,
+            "arm": self._structured_arm.to_dict(),
+            "structured": result.to_dict(),
+            "guardrail_ledger": ledger.summary() if ledger is not None else {},
+            "semantic_context": {},
+            "cypher": result.cypher,
+            "result_count": len(result.rows),
+        }
+        return result.answer
 
     @contextmanager
     def _traced_stage(
@@ -696,7 +896,8 @@ class _LocalEngine:
             llm=self.llm,
             workspace_id=self.workspace_id,
         )
-        executor = GraphQueryExecutor(graph_store=self.graph_store, database=database)
+        executor = GraphQueryExecutor(graph_store=self.graph_store, database=database,
+                                      workspace_id=self.workspace_id)
         answer_synthesizer = QueryAnswerSynthesizer(
             query_strategy=self._query,
             llm=self.llm,
@@ -809,9 +1010,23 @@ class _LocalEngine:
                     params = fb_params
 
         attempts = []
-        if reasoning_mode and repair_budget > 0 and not records:
+        # A plan hint enters the repair loop the same way an error does. Repair
+        # previously fired only on `not records`, so a query that returned rows
+        # while planning a full scan was a success that could never be improved
+        # -- and that is exactly the query whose cost explodes with the graph:
+        # ADR-0144 measured 25 db hits against 6.6M at SF1000 for the same
+        # answer, while at SF1 the two shapes were 4 ms apart.
+        plan_hint = self._plan_repair_hint(cypher, params, database,
+                                           executor=executor, ontology=active_ontology)
+        # Whether the original query already answered. A plan-hint-only repair
+        # (this is True) is a COST optimisation, not a correctness one, so it
+        # must never trade a correct answer for a cheaper wrong one — see the
+        # result-count guard below.
+        original_had_records = bool(records)
+        if reasoning_mode and repair_budget > 0 and (not records or plan_hint):
             with timer.stage("repair"):
-                attempts.append({"cypher": cypher, "result_count": 0, "error": None})
+                attempts.append({"cypher": cypher, "result_count": len(records or []),
+                                 "error": None, "plan_hint": plan_hint})
 
                 for _attempt_num in range(repair_budget):
                     repair_cypher, repair_params, repair_error = self._generate_repair_query(
@@ -840,6 +1055,15 @@ class _LocalEngine:
                     )
 
                     if repair_records:
+                        # If the original already returned rows, the repair was
+                        # fired for plan cost alone. Accepting a repair that
+                        # returns FEWER rows would turn a correct answer into a
+                        # cheaper, smaller one -- a silent correctness
+                        # regression to save db-hits. Keep the original unless
+                        # the repair at least matches it.
+                        if original_had_records and \
+                                len(repair_records) < len(records or []):
+                            break
                         records = repair_records
                         cypher = repair_cypher
                         params = repair_params
@@ -871,13 +1095,32 @@ class _LocalEngine:
 
         with self._traced_stage(timer, "ontology_context_check"):
             ontology_context_mismatch = self._query_ontology_context_mismatch(database, ontology_context)
-        if ontology_context_mismatch.get("mismatch"):
-            logger.warning(
-                "Ontology context mismatch for database=%s active=%s indexed=%s",
-                database,
-                ontology_context_mismatch.get("active_context_hash", ""),
-                ontology_context_mismatch.get("indexed_context_hashes", []),
+            # Turn the detected mismatch into an enforced barrier instead of a
+            # bare warning (seocho-ia4.1). policy='warn' keeps back-compat;
+            # 'raise' throws OntologyDriftError; 'block' annotates blocked=True
+            # so the caller can refuse to answer against a stale contract.
+            from .ontology_context import enforce_drift_policy
+
+            ontology_context_mismatch = enforce_drift_policy(
+                ontology_context_mismatch,
+                policy=self._drift_policy(),
+                logger_obj=logger,
             )
+
+            # Read-time repair (seocho-ia4.6): on a proceeding drift (mismatch but
+            # not blocked), reconcile the retrieved records to the ACTIVE contract
+            # before answering — drop soft-deleted (logically removed) rows and
+            # strip deprecated properties. This makes the "repair" freshness
+            # decision a real reconciliation instead of serving stale data as-is.
+            # Cheap O(records) scan of self-describing data — no ontology reasoning
+            # on the hot path.
+            if (records and ontology_context_mismatch.get("mismatch")
+                    and not ontology_context_mismatch.get("blocked")):
+                from .ontology.freshness import repair_read
+
+                records, _repair_report = repair_read(records)
+                if _repair_report.dropped_records or _repair_report.stripped_property_keys:
+                    ontology_context_mismatch["read_repair"] = _repair_report.to_dict()
 
         with self._traced_stage(timer, "deterministic_answer"):
             deterministic_answer = self._build_deterministic_answer(
@@ -945,7 +1188,7 @@ class _LocalEngine:
             pass
 
         with timer.stage("generation"):
-            # AnswerShape (opik-derived): classify the question's expected
+            # AnswerShape (trace-derived): classify the question's expected
             # answer shape and steer the synthesizer toward a terse
             # value/name/location answer. DEFAULT ON (opt-out via
             # SEOCHO_ANSWER_SHAPE=0); explanation/unknown shapes emit no
@@ -1030,6 +1273,9 @@ class _LocalEngine:
                     reasoning_attempts=reasoning_attempts,
                     elapsed_seconds=elapsed_seconds,
                     metadata=self._last_query_metadata,
+                    workspace_id=self.workspace_id,
+                    provider=getattr(self.llm, "provider", None),
+                    stage="query",
                 )
         except Exception:
             pass
@@ -1037,7 +1283,8 @@ class _LocalEngine:
     def _log_semantic_route(self, question: str, sr: Any) -> None:
         """Emit the arbiter route (ADR-0103 H3) as a tracing span for observability."""
         try:
-            from .tracing import is_tracing_enabled, log_span, record_metric
+            from .metrics import get_metrics
+            from .tracing import is_tracing_enabled, log_span
 
             if not is_tracing_enabled():
                 return
@@ -1049,9 +1296,21 @@ class _LocalEngine:
                 metadata=(hint.to_span() if hint is not None else {"arbiter.route": sr.route}),
                 tags=["semantic-layer", f"route:{sr.route}"],
             )
-            record_metric("seocho_arbiter_route", 1, attributes={"route": sr.route})
+            get_metrics().add("seocho.arbiter.route.count", attributes={"route": sr.route})
         except Exception:
             pass
+
+    def _drift_policy(self) -> str:
+        """Ontology-drift enforcement policy: 'warn' (default, back-compat),
+        'raise', or 'block'. Set via SEOCHO_ONTOLOGY_DRIFT_POLICY or the
+        ``drift_policy`` attribute (seocho-ia4.1)."""
+        import os
+
+        pol = str(
+            getattr(self, "drift_policy", None)
+            or os.environ.get("SEOCHO_ONTOLOGY_DRIFT_POLICY", "warn")
+        ).strip().lower()
+        return pol if pol in {"warn", "raise", "block"} else "warn"
 
     def _query_ontology_context_mismatch(self, database: str, ontology_context: Any) -> Dict[str, Any]:
         from .ontology_context import query_ontology_context_mismatch
@@ -1099,9 +1358,37 @@ class _LocalEngine:
         active_executor = executor or GraphQueryExecutor(
             graph_store=self.graph_store,
             database=database,
+            workspace_id=self.workspace_id,
         )
         execution = active_executor.execute(QueryPlan(question="", cypher=cypher, params=params))
         return execution.records, execution.error
+
+    def _plan_repair_hint(self, cypher: str, params: Dict, database: str, *,
+                          executor: Optional[GraphQueryExecutor] = None,
+                          ontology: Optional[Any] = None) -> Optional[str]:
+        """EXPLAIN the query and, if it plans a scan, say what to do instead.
+
+        EXPLAIN rather than PROFILE: it compiles without executing, so this can
+        gate every query instead of a sample, and the seek/scan distinction is
+        already settled at plan time.
+
+        Behind SEOCHO_PLAN_GATE and off by default, because it changes WHEN
+        repair fires. A behaviour change belongs behind a flag until it has been
+        measured on a real corpus.
+        """
+        import os
+
+        if os.getenv("SEOCHO_PLAN_GATE", "").strip().lower() not in {"1", "true", "on"}:
+            return None
+        try:
+            from .query.plan_quality import repair_hint, summarize_plan
+
+            explained = (executor or GraphQueryExecutor(
+                graph_store=self.graph_store, database=database,
+            )).explain(QueryPlan(question="", cypher=cypher, params=params))
+            return repair_hint(summarize_plan(explained), ontology)
+        except Exception:  # noqa: BLE001 — a planning probe must never fail a query
+            return None
 
     def _generate_repair_query(
         self,

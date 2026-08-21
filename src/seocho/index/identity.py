@@ -48,6 +48,9 @@ def apply_identity_keys(
     ontology: Any,
     nodes: List[Dict[str, Any]],
     relationships: List[Dict[str, Any]],
+    *,
+    intern_table: Any = None,
+    workspace_id: str = "default",
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Rewrite node ids to composite identities and remap relationship endpoints.
 
@@ -56,6 +59,16 @@ def apply_identity_keys(
     keep their original ids. When two nodes in the same payload resolve to the
     same identity, both point at that id — the store's MERGE then folds them,
     which is the intended same-entity behavior.
+
+    When an ``intern_table`` (:class:`~seocho.index.shared_intern.SharedInternTable`)
+    is supplied, each resolved identity is interned in the workspace-scoped canonical
+    namespace (the allocator's shared-memory intern table): first-writer-wins, so the
+    same entity resolved on concurrent chunk-extraction threads — or across documents
+    in the same session — converges to one canonical id, and the table's hit count
+    measures interning *collapse* (duplicate entities folded), the allocator's
+    defining metric. Opt-in: no table → behavior unchanged (the composite id is
+    already deterministic; the table adds the shared registry + census + concurrency
+    safety for the whole workspace).
     """
     node_defs = getattr(ontology, "nodes", {}) or {}
     id_remap: Dict[str, str] = {}
@@ -66,12 +79,33 @@ def apply_identity_keys(
         label = str(node.get("label", "") or "")
         nd = node_defs.get(label)
         identity_keys = list(getattr(nd, "identity_keys", []) or []) if nd else []
-        if not identity_keys:
+        cross_unique = bool(getattr(nd, "cross_source_unique", False)) if nd else False
+        if not identity_keys and not cross_unique:
             continue
         props = node.get("properties") or {}
-        new_id = compute_node_identity(label, props, identity_keys)
+        name = str(props.get("name", "") or "")
+        if cross_unique and name:
+            # Cross-source-unique (seocho-zfe D2-2): a SOURCE-AGNOSTIC, label-free
+            # canonical address. The same real entity written from two sources with
+            # different labels (company|acme vs organization|acme) gets the SAME id
+            # here, so both graph nodes MERGE to one — cross-source joins land on one
+            # node. Safe because the modeler declared this type globally name-unique.
+            new_id = "~xs|" + _normalize_segment(name)
+        else:
+            new_id = compute_node_identity(label, props, identity_keys)
         if not new_id:
             continue
+        if intern_table is not None:
+            # Register/resolve in the workspace canonical namespace. The composite
+            # id is the identity AND the canonical address; first-writer-wins.
+            new_id = intern_table.intern(workspace_id, new_id, new_id)
+            # Also index the entity's bare NAME -> canonical so a read that knows
+            # only the mention text can resolve it (seocho-t28/zfe). The composite
+            # identity is not reconstructable from a bare mention, so without this a
+            # multi-key entity is never found on the read side. Best-effort: skip if
+            # the table predates the alias index.
+            if hasattr(intern_table, "alias"):
+                intern_table.alias(workspace_id, str(props.get("name", "") or ""), new_id)
         old_id = str(node.get("id") or props.get("name") or "")
         if old_id:
             id_remap[old_id] = new_id

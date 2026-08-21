@@ -25,7 +25,7 @@ from .runtime_contract import DATABASE_NAME_PATTERN
 
 # App-tier port bands. The shared neo4j keeps the default 7474/7687; only the
 # per-instance app containers are offset. Bands sit clear of the monolithic
-# stack's 8001/8501/8888 defaults AND the opik profile ports (8080/8000/8123/
+# stack's 8001/8501/8888 defaults AND the former tracing profile ports (8080/8000/8123/
 # 9000/9001/9090/...). 200 contiguous slots keep collisions rare at realistic
 # worktree counts: P(>=1 collision) ~1% at 2 tenants, ~14% at 8 (vs ~5% / ~50%
 # at the original 40 slots — see scripts/experiments/isolation_experiment.py).

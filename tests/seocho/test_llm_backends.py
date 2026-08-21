@@ -28,10 +28,14 @@ class _FakeChatCompletions:
 
 
 class _FakeEmbeddings:
+    def __init__(self):
+        self.calls = []
+
     def create(self, *, model, input):
+        self.calls.append(len(input))
         return SimpleNamespace(
             data=[
-                SimpleNamespace(embedding=[float(index + 1), 0.0])
+                SimpleNamespace(index=index, embedding=[float(index + 1), 0.0])
                 for index, _ in enumerate(input)
             ]
         )
@@ -118,6 +122,23 @@ def test_openai_embedding_backend_uses_default_embedding_model(
     assert vectors == [[1.0, 0.0], [2.0, 0.0]]
 
 
+def test_openai_embedding_backend_batches_large_inputs(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
+
+    backend = create_embedding_backend(provider="openai")
+    n = 2048 * 2 + 5
+    vectors = backend.embed([f"t{i}" for i in range(n)])
+
+    # Nothing dropped, and the request is split into provider-safe sub-batches
+    # instead of one oversized call that would 400.
+    assert len(vectors) == n
+    assert backend._client.embeddings.calls == [2048, 2048, 5]
+    assert max(backend._client.embeddings.calls) <= 2048
+
+
 def test_non_embedding_provider_requires_explicit_embedding_model(
     fake_openai: None,
     monkeypatch: pytest.MonkeyPatch,
@@ -173,61 +194,25 @@ def test_agents_sdk_helpers_build_model_provider_and_run_config(
     assert run_config.model.model == "kimi-k2.5"
 
 
-def test_openai_clients_are_not_opik_wrapped_without_explicit_backend(
+def test_openai_clients_are_never_wrapped_by_a_third_party_tracer(
     fake_openai: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls = []
+    """The client handed to callers must be the OpenAI client, unwrapped.
 
-    opik_module = ModuleType("opik")
-    integrations_module = ModuleType("opik.integrations")
-    openai_integration_module = ModuleType("opik.integrations.openai")
+    Until ADR-0172 the backend wrapped it in Opik's `track_openai` whenever the
+    opik tracing backend was on, which quietly routed every prompt and
+    completion to a third party. Opik is gone; this pins the general rule that
+    replaced it, so a future integration cannot reintroduce silent wrapping
+    without failing here.
+    """
+    import openai as openai_module
 
-    def track_openai(client):
-        calls.append(client)
-        return client
-
-    openai_integration_module.track_openai = track_openai
-    monkeypatch.setitem(sys.modules, "opik", opik_module)
-    monkeypatch.setitem(sys.modules, "opik.integrations", integrations_module)
-    monkeypatch.setitem(sys.modules, "opik.integrations.openai", openai_integration_module)
     monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
+    backend = create_llm_backend(provider="openai", model="gpt-4o-mini")
 
-    create_llm_backend(provider="openai")
-
-    assert calls == []
-
-
-def test_openai_clients_are_wrapped_only_when_opik_backend_is_enabled(
-    fake_openai: None,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = []
-
-    opik_module = ModuleType("opik")
-    integrations_module = ModuleType("opik.integrations")
-    openai_integration_module = ModuleType("opik.integrations.openai")
-
-    def track_openai(client):
-        client.opik_wrapped = True
-        calls.append(client)
-        return client
-
-    openai_integration_module.track_openai = track_openai
-    monkeypatch.setitem(sys.modules, "opik", opik_module)
-    monkeypatch.setitem(sys.modules, "opik.integrations", integrations_module)
-    monkeypatch.setitem(sys.modules, "opik.integrations.openai", openai_integration_module)
-    monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
-
-    import seocho.tracing as tracing
-
-    monkeypatch.setattr(tracing, "is_backend_enabled", lambda name: name == "opik")
-
-    backend = create_llm_backend(provider="openai")
-
-    assert len(calls) == 2
-    assert getattr(backend._client, "opik_wrapped", False) is True
-    assert getattr(backend._async_client, "opik_wrapped", False) is True
+    assert type(backend._client) is openai_module.OpenAI
+    assert type(backend._async_client) is openai_module.AsyncOpenAI
 
 
 def test_openai_reasoning_model_uses_max_completion_tokens(
@@ -390,14 +375,14 @@ def test_mara_provider_preset_resolves_cloud_defaults(
     fake_openai: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """MARA preset resolves the cloud base_url, MiniMax-M2.5 default model,
+    """MARA preset resolves the cloud base_url, MiniMax-M2.7 default model,
     and MARA_API_KEY env var."""
     monkeypatch.setenv("MARA_API_KEY", "mara-secret")
 
     backend = create_llm_backend(provider="mara")
 
     assert backend.provider == "mara"
-    assert backend.model == "MiniMax-M2.5"
+    assert backend.model == "MiniMax-M2.7"
     assert backend._base_url == "https://api.cloud.mara.com/v1"
     assert backend._api_key_env == "MARA_API_KEY"
     assert backend._api_key == "mara-secret"
@@ -580,127 +565,86 @@ def test_vllm_complete_round_trip_against_mocked_endpoint(
     assert call["model"] == "Qwen2.5-7B-Instruct"
 
 
-def test_vllm_pipeline_mode_translates_json_object_to_guided_json(
+def test_vllm_pipeline_mode_passes_response_format_through(
     fake_openai: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """V3: pipeline-mode + response_format={'type':'json_object'} on vLLM
-    translates to extra_body.guided_json. response_format is dropped
-    because guided decoding supersedes it on the vLLM endpoint."""
-    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
-    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+    """response_format must reach vLLM unchanged.
 
+    ADR-0098 translated it into ``extra_body.guided_json``. That field does not
+    exist in vLLM 0.27 -- a grep of the installed package returns zero hits, the
+    API is ``structured_outputs`` -- and OpenAIBaseModel is
+    ``ConfigDict(extra="allow")``, so the unknown key was accepted and dropped
+    with only a debug log.
+
+    The translation was an ``elif``, so when it fired ``response_format`` was
+    stripped. vLLM maps ``response_format`` natively and correctly via
+    ``structured_outputs_from_response_format``. The net effect of the
+    translation was therefore to turn working structured output into none at
+    all, silently, on the deployment we target.
+    """
     backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
     backend.complete(
         system="reply json",
         user="ok",
-        temperature=0.0,
         response_format={"type": "json_object"},
         mode="pipeline",
-    )
-
-    call = backend._client.chat.completions.calls[0]
-    assert "response_format" not in call
-    assert call["extra_body"] == {"guided_json": {"type": "object"}}
-
-
-def test_vllm_pipeline_mode_translates_json_schema(
-    fake_openai: None,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """V3: pipeline-mode + response_format={'type':'json_schema',...}
-    on vLLM translates to extra_body.guided_json with the schema."""
-    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
-    monkeypatch.delenv("VLLM_API_KEY", raising=False)
-
-    schema = {"type": "object", "properties": {"answer": {"type": "string"}}}
-    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
-    backend.complete(
-        system="reply json",
-        user="ok",
-        temperature=0.0,
-        response_format={"type": "json_schema", "json_schema": schema},
-        mode="pipeline",
-    )
-
-    call = backend._client.chat.completions.calls[0]
-    assert "response_format" not in call
-    assert call["extra_body"] == {"guided_json": schema}
-
-
-def test_vllm_pipeline_mode_translates_regex_and_choice(
-    fake_openai: None,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """V3: regex and choice response_format types translate to the
-    corresponding guided_* extra_body keys."""
-    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
-    monkeypatch.delenv("VLLM_API_KEY", raising=False)
-
-    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
-
-    backend.complete(
-        system="match",
-        user="ok",
-        response_format={"type": "regex", "pattern": r"^[A-Z]{3}$"},
-        mode="pipeline",
-    )
-    call = backend._client.chat.completions.calls[-1]
-    assert call["extra_body"] == {"guided_regex": r"^[A-Z]{3}$"}
-
-    backend.complete(
-        system="pick one",
-        user="ok",
-        response_format={"type": "choice", "options": ["yes", "no", "maybe"]},
-        mode="pipeline",
-    )
-    call = backend._client.chat.completions.calls[-1]
-    assert call["extra_body"] == {"guided_choice": ["yes", "no", "maybe"]}
-
-
-def test_vllm_agent_mode_does_not_translate_response_format(
-    fake_openai: None,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """V3: agent mode preserves the OpenAI response_format because the
-    Agents SDK's tool-call structure carries the shape — we must never
-    JSON-force a tool-call response."""
-    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
-    monkeypatch.delenv("VLLM_API_KEY", raising=False)
-
-    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
-    backend.complete(
-        system="agent mode",
-        user="ok",
-        response_format={"type": "json_object"},
-        mode="agent",
     )
 
     call = backend._client.chat.completions.calls[0]
     assert call["response_format"] == {"type": "json_object"}
-    assert "extra_body" not in call or "guided_json" not in (call.get("extra_body") or {})
+    assert "guided_json" not in (call.get("extra_body") or {})
 
 
-def test_vllm_default_mode_preserves_pre_adr_behavior(
+def test_vllm_pipeline_mode_passes_json_schema_through(
     fake_openai: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """V3 backward compat: when ``mode`` is unset, response_format flows
-    through unchanged — pre-ADR-0098 callers are unaffected."""
-    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
-    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+    """The schema must arrive intact, at the level vLLM expects.
 
+    The translator also unwrapped one level too few: it took
+    ``response_format["json_schema"]``, which is ``{"name": ..., "schema": ...}``
+    -- a JSON Schema with no ``type`` and no ``properties``, matching any JSON.
+    vLLM unwraps to ``json_schema.json_schema`` itself, so passing the whole
+    response_format through is both simpler and correct.
+    """
+    schema = {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "output",
+            "schema": {"type": "object", "properties": {"a": {"type": "string"}}},
+        },
+    }
+    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
+    backend.complete(system="s", user="u", response_format=schema, mode="pipeline")
+
+    call = backend._client.chat.completions.calls[0]
+    assert call["response_format"] == schema
+    assert "extra_body" not in call or not (call.get("extra_body") or {})
+
+
+def test_json_safety_nets_stay_armed_on_vllm(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Three retries key off response_format being present in the request.
+
+    ``_maybe_boost_json_budget`` returns early without it, and the
+    "Return ONLY valid JSON" prompt variant is skipped. Stripping
+    response_format disabled both -- so on self-hosted vLLM the runaway
+    thinking-in-content failure they were written for was the default, with
+    every mitigation off.
+    """
     backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
     backend.complete(
-        system="default",
-        user="ok",
-        response_format={"type": "json_object"},
-        # no mode arg
+        system="s", user="u",
+        response_format={"type": "json_object"}, mode="pipeline",
     )
 
     call = backend._client.chat.completions.calls[0]
-    assert call["response_format"] == {"type": "json_object"}
-    assert "extra_body" not in call or "guided_json" not in (call.get("extra_body") or {})
+    assert "response_format" in call, (
+        "the JSON budget-boost and prompt-variant retries both gate on this key"
+    )
 
 
 def test_pipeline_mode_is_noop_on_non_vllm_provider(
@@ -906,3 +850,138 @@ def test_vllm_to_agents_sdk_model_binding(
     assert sdk_provider.kwargs["base_url"] == "http://localhost:8000/v1"
     assert sdk_provider.kwargs["use_responses"] is False
     assert run_config.model.model == "Qwen2.5-7B-Instruct"
+
+
+def test_build_response_falls_back_to_provider_reasoning_fields():
+    """seocho-ub5: MARA MiniMax-M2.7 emits `reasoning` (not
+    `reasoning_content`) and may leave `content` empty; empty content must
+    not reach json.loads as ''."""
+    from types import SimpleNamespace
+
+    from seocho.store.llm import OpenAICompatibleBackend
+
+    def _resp(message):
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=message)], usage=None, model="m"
+        )
+
+    # kimi-style reasoning_content still works
+    kimi = SimpleNamespace(content="", reasoning_content='{"a": 1}')
+    assert OpenAICompatibleBackend._build_response(_resp(kimi)).json() == {"a": 1}
+
+    # mara/M2.7-style `reasoning` attribute
+    mara = SimpleNamespace(content="", reasoning='{"b": 2}')
+    assert OpenAICompatibleBackend._build_response(_resp(mara)).json() == {"b": 2}
+
+    # SDK models park unknown fields in model_extra
+    extra = SimpleNamespace(content="", model_extra={"reasoning": '{"c": 3}'})
+    assert OpenAICompatibleBackend._build_response(_resp(extra)).json() == {"c": 3}
+
+    # content wins when present
+    both = SimpleNamespace(content='{"d": 4}', reasoning='{"ignored": 0}')
+    assert OpenAICompatibleBackend._build_response(_resp(both)).json() == {"d": 4}
+
+
+def test_task_hint_json_extraction_gets_default_max_tokens():
+    """seocho-ub5: structured-output task hints must carry an explicit
+    token budget so reasoning models don't truncate mid-thinking."""
+    from seocho.store.llm import complete_with_task_hints
+
+    captured = {}
+
+    class FakeLLM:
+        def complete(self, **kwargs):
+            captured.update(kwargs)
+            return object()
+
+    complete_with_task_hints(
+        FakeLLM(), system="s", user="u", task_hint="json_extraction"
+    )
+    assert captured["max_tokens"] == 8192
+
+    captured.clear()
+    complete_with_task_hints(
+        FakeLLM(), system="s", user="u",
+        task_hint="json_extraction", max_tokens=1234,
+    )
+    assert captured["max_tokens"] == 1234  # explicit caller value wins
+
+    captured.clear()
+    complete_with_task_hints(
+        FakeLLM(), system="s", user="u", task_hint="answer_synthesis"
+    )
+    assert "max_tokens" not in captured  # non-structured hints unchanged
+
+
+def test_json_truncation_400_boosts_budget_before_stripping_response_format(monkeypatch):
+    """seocho-ub5: a provider 'JSON truncated by token limit' 400 must retry
+    the SAME shape with a doubled budget, not fall straight to the variant
+    that strips response_format (which yields runaway non-JSON prose)."""
+    from types import SimpleNamespace
+
+    from seocho.store.llm import OpenAICompatibleBackend
+
+    backend = OpenAICompatibleBackend(provider="mara", model="MiniMax-M2.7", api_key="k")
+
+    calls = []
+
+    def fake_create(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise RuntimeError(
+                "Error code: 400 - Model did not output valid JSON. The output "
+                "was truncated before a complete JSON object could be generated"
+            )
+        msg = SimpleNamespace(content='{"nodes": []}')
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=msg, finish_reason="stop")],
+            usage=None, model="MiniMax-M2.7",
+        )
+
+    backend._client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    )
+
+    result = backend.complete(
+        system="s", user="u",
+        max_tokens=8192,
+        response_format={"type": "json_object"},
+        task_hint="json_extraction",
+    )
+    assert result.json() == {"nodes": []}
+    assert len(calls) == 2
+    # retry keeps the JSON constraint and doubles the budget
+    assert calls[1]["response_format"] == {"type": "json_object"}
+    assert calls[1]["max_tokens"] == 16384
+
+
+def test_non_json_400_still_walks_strip_ladder():
+    """Payload-incompatibility errors keep the original strip behavior."""
+    from types import SimpleNamespace
+
+    from seocho.store.llm import OpenAICompatibleBackend
+
+    backend = OpenAICompatibleBackend(provider="mara", model="MiniMax-M2.7", api_key="k")
+
+    calls = []
+
+    def fake_create(**kwargs):
+        calls.append(kwargs)
+        if "response_format" in kwargs:
+            raise RuntimeError("Error code: 400 - response_format is not supported")
+        msg = SimpleNamespace(content='{"ok": true}')
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=msg, finish_reason="stop")],
+            usage=None, model="MiniMax-M2.7",
+        )
+
+    backend._client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    )
+
+    result = backend.complete(
+        system="s", user="u",
+        response_format={"type": "json_object"},
+    )
+    assert result.json() == {"ok": True}
+    assert "response_format" not in calls[-1]

@@ -47,7 +47,7 @@ require_file "docs/decisions/DECISION_LOG.md"
 
 # CLAUDE baseline checks
 require_pattern "CLAUDE.md" "OpenAI Agents SDK" "runtime baseline"
-require_pattern "CLAUDE.md" "Opik" "trace baseline"
+require_pattern "CLAUDE.md" "vendor-neutral" "trace baseline"
 require_pattern "CLAUDE.md" "DozerDB" "database baseline"
 require_pattern "CLAUDE.md" "workspace_id" "workspace propagation guardrail"
 require_pattern "CLAUDE.md" "Owlready2" "ontology boundary"

@@ -17,7 +17,23 @@ class GraphProjector:
         snapshot: GraphProjectionSnapshot,
         *,
         database: str,
+        ontology_context: Any = None,
     ) -> GraphProjectionResult:
+        # Stamp the ontology-context provenance (_ontology_version /
+        # _ontology_context_hash / _ontology_id ...) on every projected node and
+        # relationship so drift detection (build_ontology_context_summary_query
+        # + assess_ontology_context_mismatch) can tell which ontology version the
+        # materialized data was written under. Without this the summary query
+        # reads empty hashes and drift assessment is blind on projector-written
+        # data (seocho-ia4.1). Best-effort: unchanged behavior when no context.
+        ontology_props: Dict[str, str] = {}
+        if ontology_context is not None:
+            from .ontology_context import ontology_context_graph_properties
+
+            ontology_props = {
+                k: v for k, v in ontology_context_graph_properties(ontology_context).items() if v
+            }
+
         nodes: List[Dict[str, Any]] = []
         relationships: List[Dict[str, Any]] = []
 
@@ -29,6 +45,8 @@ class GraphProjector:
             properties.setdefault("workspace_id", snapshot.workspace_id)
             properties.setdefault("graph_id", snapshot.graph_id)
             properties.setdefault("snapshot_id", snapshot.snapshot_id)
+            for k, v in ontology_props.items():
+                properties.setdefault(k, v)
             nodes.append(
                 {
                     "id": entity.entity_id,
@@ -44,6 +62,8 @@ class GraphProjector:
             properties.setdefault("workspace_id", snapshot.workspace_id)
             properties.setdefault("graph_id", snapshot.graph_id)
             properties.setdefault("snapshot_id", snapshot.snapshot_id)
+            for k, v in ontology_props.items():
+                properties.setdefault(k, v)
             relationships.append(
                 {
                     "source": relation.source_entity_id,

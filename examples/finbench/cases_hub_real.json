@@ -1,0 +1,372 @@
+{
+  "schema_version": "seocho.finbench.cases.hub.v1",
+  "curated_from": "outputs/finbench/sf1000-real",
+  "note": "Anchored on curated anchors (by intermediate result size), not on planted typology ids. The planted set is unusable for this question because its anchors sit at reserved ids outside the random attachment range, so their degrees are 2-26 against a graph maximum of 158,315 \u2014 the case set cannot see the degree distribution at all. Gold is computed in DuckDB over the same Parquet the graph was loaded from.",
+  "cases": [
+    {
+      "id": "small_fan_out_count",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many distinct accounts did the account with account number 44957 transfer money to?",
+      "gold": [
+        "11"
+      ],
+      "scenario": "hub-degree",
+      "difficulty": {
+        "cost_band": "small",
+        "anchor_l1": 11,
+        "anchor_l2": 72,
+        "terminable": false,
+        "answer_size": 11,
+        "answer_fits_row_cap": true,
+        "anchor_kind": "exact_key",
+        "distractor_density": "none_anchored",
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      },
+      "band": "small",
+      "anchor_account": 44957,
+      "anchor_l1": 11,
+      "anchor_l2": 72
+    },
+    {
+      "id": "small_twohop_count",
+      "category": "aggregation",
+      "reasoning_type": "two_hop_aggregate",
+      "question": "How many distinct accounts are reachable within 2 transfer hops from the account with account number 44957?",
+      "gold": [
+        "81"
+      ],
+      "scenario": "hub-degree",
+      "difficulty": {
+        "cost_band": "small",
+        "anchor_l1": 11,
+        "anchor_l2": 72,
+        "terminable": false,
+        "answer_size": 81,
+        "answer_fits_row_cap": false,
+        "anchor_kind": "exact_key",
+        "distractor_density": "none_anchored",
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      },
+      "band": "small",
+      "anchor_account": 44957,
+      "anchor_l1": 11,
+      "anchor_l2": 72
+    },
+    {
+      "id": "medium_fan_out_count",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many distinct accounts did the account with account number 18503 transfer money to?",
+      "gold": [
+        "25"
+      ],
+      "scenario": "hub-degree",
+      "difficulty": {
+        "cost_band": "medium",
+        "anchor_l1": 25,
+        "anchor_l2": 3773,
+        "terminable": false,
+        "answer_size": 25,
+        "answer_fits_row_cap": true,
+        "anchor_kind": "exact_key",
+        "distractor_density": "none_anchored",
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      },
+      "band": "medium",
+      "anchor_account": 18503,
+      "anchor_l1": 25,
+      "anchor_l2": 3773
+    },
+    {
+      "id": "medium_twohop_count",
+      "category": "aggregation",
+      "reasoning_type": "two_hop_aggregate",
+      "question": "How many distinct accounts are reachable within 2 transfer hops from the account with account number 18503?",
+      "gold": [
+        "3669"
+      ],
+      "scenario": "hub-degree",
+      "difficulty": {
+        "cost_band": "medium",
+        "anchor_l1": 25,
+        "anchor_l2": 3773,
+        "terminable": false,
+        "answer_size": 3669,
+        "answer_fits_row_cap": false,
+        "anchor_kind": "exact_key",
+        "distractor_density": "none_anchored",
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      },
+      "band": "medium",
+      "anchor_account": 18503,
+      "anchor_l1": 25,
+      "anchor_l2": 3773
+    },
+    {
+      "id": "large_fan_out_count",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many distinct accounts did the account with account number 14079 transfer money to?",
+      "gold": [
+        "68"
+      ],
+      "scenario": "hub-degree",
+      "difficulty": {
+        "cost_band": "large",
+        "anchor_l1": 68,
+        "anchor_l2": 79794,
+        "terminable": false,
+        "answer_size": 68,
+        "answer_fits_row_cap": false,
+        "anchor_kind": "exact_key",
+        "distractor_density": "none_anchored",
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      },
+      "band": "large",
+      "anchor_account": 14079,
+      "anchor_l1": 68,
+      "anchor_l2": 79794
+    },
+    {
+      "id": "large_twohop_count",
+      "category": "aggregation",
+      "reasoning_type": "two_hop_aggregate",
+      "question": "How many distinct accounts are reachable within 2 transfer hops from the account with account number 14079?",
+      "gold": [
+        "69303"
+      ],
+      "scenario": "hub-degree",
+      "difficulty": {
+        "cost_band": "large",
+        "anchor_l1": 68,
+        "anchor_l2": 79794,
+        "terminable": false,
+        "answer_size": 69303,
+        "answer_fits_row_cap": false,
+        "anchor_kind": "exact_key",
+        "distractor_density": "none_anchored",
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      },
+      "band": "large",
+      "anchor_account": 14079,
+      "anchor_l1": 68,
+      "anchor_l2": 79794
+    },
+    {
+      "id": "huge_fan_out_count",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many distinct accounts did the account with account number 3126 transfer money to?",
+      "gold": [
+        "114"
+      ],
+      "scenario": "hub-degree",
+      "difficulty": {
+        "cost_band": "huge",
+        "anchor_l1": 115,
+        "anchor_l2": 192942,
+        "terminable": false,
+        "answer_size": 114,
+        "answer_fits_row_cap": false,
+        "anchor_kind": "exact_key",
+        "distractor_density": "none_anchored",
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      },
+      "band": "huge",
+      "anchor_account": 3126,
+      "anchor_l1": 115,
+      "anchor_l2": 192942
+    },
+    {
+      "id": "huge_twohop_count",
+      "category": "aggregation",
+      "reasoning_type": "two_hop_aggregate",
+      "question": "How many distinct accounts are reachable within 2 transfer hops from the account with account number 3126?",
+      "gold": [
+        "97973"
+      ],
+      "scenario": "hub-degree",
+      "difficulty": {
+        "cost_band": "huge",
+        "anchor_l1": 115,
+        "anchor_l2": 192942,
+        "terminable": false,
+        "answer_size": 97973,
+        "answer_fits_row_cap": false,
+        "anchor_kind": "exact_key",
+        "distractor_density": "none_anchored",
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      },
+      "band": "huge",
+      "anchor_account": 3126,
+      "anchor_l1": 115,
+      "anchor_l2": 192942
+    },
+    {
+      "id": "max_fan_out_count",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many distinct accounts did the account with account number 0 transfer money to?",
+      "gold": [
+        "67065"
+      ],
+      "scenario": "hub-degree",
+      "difficulty": {
+        "cost_band": "max",
+        "anchor_l1": 77036,
+        "anchor_l2": 51447907,
+        "terminable": false,
+        "answer_size": 67065,
+        "answer_fits_row_cap": false,
+        "anchor_kind": "exact_key",
+        "distractor_density": "none_anchored",
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      },
+      "band": "max",
+      "anchor_account": 0,
+      "anchor_l1": 77036,
+      "anchor_l2": 51447907
+    },
+    {
+      "id": "max_twohop_count",
+      "category": "aggregation",
+      "reasoning_type": "two_hop_aggregate",
+      "question": "How many distinct accounts are reachable within 2 transfer hops from the account with account number 0?",
+      "gold": [
+        "908649"
+      ],
+      "scenario": "hub-degree",
+      "difficulty": {
+        "cost_band": "max",
+        "anchor_l1": 77036,
+        "anchor_l2": 51447907,
+        "terminable": false,
+        "answer_size": 908649,
+        "answer_fits_row_cap": false,
+        "anchor_kind": "exact_key",
+        "distractor_density": "none_anchored",
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      },
+      "band": "max",
+      "anchor_account": 0,
+      "anchor_l1": 77036,
+      "anchor_l2": 51447907
+    },
+    {
+      "id": "paraphrase_paid",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many accounts did the account with account number 18503 pay?",
+      "gold": [
+        "25"
+      ],
+      "scenario": "hub-degree-paraphrase",
+      "difficulty": {
+        "cost_band": "medium",
+        "anchor_l1": 25,
+        "anchor_l2": 3773,
+        "terminable": false,
+        "answer_size": 25,
+        "answer_fits_row_cap": true,
+        "anchor_kind": "exact_key",
+        "distractor_density": "none_anchored",
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      },
+      "band": "medium",
+      "anchor_account": 18503,
+      "anchor_l1": 25,
+      "anchor_l2": 3773
+    },
+    {
+      "id": "paraphrase_beneficiaries",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many beneficiaries did the account with account number 18503 send funds to?",
+      "gold": [
+        "25"
+      ],
+      "scenario": "hub-degree-paraphrase",
+      "difficulty": {
+        "cost_band": "medium",
+        "anchor_l1": 25,
+        "anchor_l2": 3773,
+        "terminable": false,
+        "answer_size": 25,
+        "answer_fits_row_cap": true,
+        "anchor_kind": "exact_key",
+        "distractor_density": "none_anchored",
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      },
+      "band": "medium",
+      "anchor_account": 18503,
+      "anchor_l1": 25,
+      "anchor_l2": 3773
+    },
+    {
+      "id": "paraphrase_pushed",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many distinct accounts did the account with account number 18503 push funds toward?",
+      "gold": [
+        "25"
+      ],
+      "scenario": "hub-degree-paraphrase",
+      "difficulty": {
+        "cost_band": "medium",
+        "anchor_l1": 25,
+        "anchor_l2": 3773,
+        "terminable": false,
+        "answer_size": 25,
+        "answer_fits_row_cap": true,
+        "anchor_kind": "exact_key",
+        "distractor_density": "none_anchored",
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      },
+      "band": "medium",
+      "anchor_account": 18503,
+      "anchor_l1": 25,
+      "anchor_l2": 3773
+    }
+  ],
+  "skipped_list_cases": [
+    {
+      "band": "small",
+      "fan_out": 11,
+      "reason": "fan-out exceeds the cap, so any correct answer is one of many valid subsets and ordering would decide the score"
+    },
+    {
+      "band": "medium",
+      "fan_out": 25,
+      "reason": "fan-out exceeds the cap, so any correct answer is one of many valid subsets and ordering would decide the score"
+    },
+    {
+      "band": "large",
+      "fan_out": 68,
+      "reason": "fan-out exceeds the cap, so any correct answer is one of many valid subsets and ordering would decide the score"
+    },
+    {
+      "band": "huge",
+      "fan_out": 114,
+      "reason": "fan-out exceeds the cap, so any correct answer is one of many valid subsets and ordering would decide the score"
+    },
+    {
+      "band": "max",
+      "fan_out": 67065,
+      "reason": "fan-out exceeds the cap, so any correct answer is one of many valid subsets and ordering would decide the score"
+    }
+  ]
+}

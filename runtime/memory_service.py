@@ -8,9 +8,9 @@ from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import uuid4
 
-from config import db_registry, graph_registry
+from extraction.config import db_registry, graph_registry
 from runtime.runtime_ingest import RuntimeRawIngestor
-from semantic_query_flow import SemanticAgentFlow
+from extraction.semantic_query_flow import SemanticAgentFlow
 from seocho.ontology_context import (
     _clean_distinct_strings,
     assess_graph_ontology_context_status,

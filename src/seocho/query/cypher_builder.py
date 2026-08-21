@@ -83,6 +83,12 @@ def normalize_entity(name: str) -> str:
     return text
 
 
+def active_graph_predicate(alias: str) -> str:
+    """Exclude graph rows superseded by an approved remediation."""
+
+    return f"coalesce({alias}._superseded_by, '') = ''"
+
+
 class CypherBuilder:
     """Build correct Cypher queries from structured intent."""
 
@@ -121,6 +127,10 @@ class CypherBuilder:
         schema_hints: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, Dict[str, Any]]:
         hint_payload = dict(schema_hints or {})
+        # Cleared per build: a builder is constructed per plan, but `build` may
+        # be called more than once on one (repair paths do).
+        self.anchor_role = ""
+        self.unbound_slots: List[str] = []
         if anchor_label and anchor_label not in self.ontology.nodes:
             anchor_label = ""
         if target_label and target_label not in self.ontology.nodes:
@@ -154,6 +164,25 @@ class CypherBuilder:
                 anchor_label=anchor_label,
                 target_label=target_label,
             )
+
+        # The relationship may be valid yet oriented the wrong way round. The
+        # ontology declares the direction, so a contradicting (anchor, target)
+        # pair is a slot-fill error the guardrail can repair instead of emitting
+        # a traversal that matches nothing.
+        anchor_label, target_label = self._orient_relationship(
+            relationship_type, anchor_label, target_label
+        )
+
+        # Which end of the edge the anchor sits on. Carried as instance state rather than
+        # a template kwarg so every registered PatternSpec factory keeps its signature —
+        # the same approach ``last_orientation_repair`` already uses, and safe because a
+        # builder is constructed per plan.
+        # _orient_relationship above may already have determined the role from
+        # the ontology's declared direction. The ontology is authoritative about
+        # direction and the hint is a model guess, so the derived role wins;
+        # otherwise fall back to the hint.
+        _derived_role = getattr(self, "anchor_role", "")
+        self.anchor_role = _derived_role or str(hint_payload.get("anchor_role", "") or "")
 
         # ADR-0097 G3: dispatch via externalized PatternSpec catalog.
         # Behavior is bit-identical to the pre-G3 inline if/elif chain;
@@ -231,10 +260,41 @@ class CypherBuilder:
         profile = self.ontology.to_query_profile()
         labels = list(self.ontology.nodes.keys())
         rel_descriptions = []
+        role_lines = []
+        card_lines = []
         for rtype, rd in self.ontology.relationships.items():
             desc = rd.description or rtype
             rel_descriptions.append(f"  - {rtype}: ({rd.source})→({rd.target}) — {desc}")
+            src_role = getattr(rd, "source_role", "") or ""
+            tgt_role = getattr(rd, "target_role", "") or ""
+            hint = getattr(rd, "degree_hint", None) or {}
+            if hint.get("heavy_tailed"):
+                card_lines.append(
+                    f"  - {rtype}: median out-degree {hint.get('median_out')}, "
+                    f"p99 {hint.get('p99_out')}, maximum {hint.get('max_out'):,} — a few "
+                    f"nodes carry orders of magnitude more edges than the typical one"
+                )
+            if src_role or tgt_role:
+                role_lines.append(
+                    f"  - {rtype}: the tail of the arrow is the "
+                    f"{src_role or rd.source}, the head is the {tgt_role or rd.target}"
+                )
         rel_block = "\n".join(rel_descriptions) if rel_descriptions else "  (none defined)"
+        # Roles are asked for only when the ontology declares them, so an ontology that
+        # never needed the distinction is not handed a field it cannot answer.
+        role_block = (
+            "Directional roles (both endpoints may share a label, so the arrow — not the "
+            "label — carries the direction):\n" + "\n".join(role_lines) + "\n\n"
+        ) if role_lines else ""
+        # Stated so intent classification can route a question that would walk an
+        # unbounded neighbourhood, rather than discovering it as a timeout.
+        card_block = (
+            "Degree distribution (measured on the loaded data):\n"
+            + "\n".join(card_lines)
+            + "\n  Multi-hop expansion from a high-degree node is unbounded work. Prefer "
+              "an intent whose answer can stop early; a question requiring an exhaustive "
+              "count or ranking over such a neighbourhood is expensive by nature.\n\n"
+        ) if card_lines else ""
 
         node_descriptions = []
         for label, nd in self.ontology.nodes.items():
@@ -243,7 +303,17 @@ class CypherBuilder:
             node_descriptions.append(f"  - {label}: {desc} (properties: {props})")
         node_block = "\n".join(node_descriptions)
         hint_block = self.render_schema_hints(schema_hints)
-        hint_prefix = f"Question-scoped schema hints:\n{hint_block}\n\n" if hint_block else ""
+        # Question-scoped hints are the only part of this prompt that changes
+        # between questions on one ontology, so they go LAST (ADR-0148: stable
+        # sections precede volatile ones). They used to sit just after the
+        # invariant header, which truncated the reusable KV prefix at ~112
+        # tokens and forced the ~2.7 KB ontology body — byte-identical across
+        # questions — to be re-prefilled on every planning call.
+        hint_suffix = (
+            f"\nQuestion-scoped schema hints (specific to this question):\n{hint_block}\n"
+            if hint_block
+            else ""
+        )
 
         return (
             "You are a question analyzer for a knowledge graph.\n"
@@ -257,9 +327,10 @@ class CypherBuilder:
             f"- Ontology query profile: package_id={profile['package_id']}, "
             f"version={profile['version']}, graph_model={profile['graph_model']}.\n"
             f"- Deterministic intents supported: {', '.join(profile['deterministic_intents'])}.\n\n"
-            f"{hint_prefix}"
             f"Node types:\n{node_block}\n\n"
             f"Relationship types (ONLY these exist in the graph):\n{rel_block}\n\n"
+            f"{role_block}"
+            f"{card_block}"
             "Constraints:\n"
             "- Do NOT invent new node or relationship types.\n"
             "- If the question implies a relationship not in the list, use the closest supported relationship or set relationship_type to empty.\n"
@@ -273,7 +344,15 @@ class CypherBuilder:
             '  "target_label": secondary entity type\n'
             f'  "relationship_type": one of [{", ".join(self.ontology.relationships.keys())}] or empty\n'
             '  "metric_name": financial metric or line-item phrase when asking about a metric value or delta\n'
-            '  "years": list of years mentioned in the question\n\n'
+            '  "years": list of years mentioned in the question\n'
+            + (
+                '  "anchor_role": which end of the relationship the anchor entity sits on '
+                '— "source" if the anchor is the tail of the arrow (it acts), "target" if '
+                'the anchor is the head (it is acted upon), empty if the question is '
+                'symmetric or the direction is genuinely unclear\n'
+                if role_lines else ""
+            )
+            + "\n"
             "Verification:\n"
             "- Before finalizing, check that the json is valid.\n"
             "- Check that labels and relationship types are from the allowed ontology lists.\n"
@@ -282,7 +361,17 @@ class CypherBuilder:
             '  "Who works at Samsung?" → {"intent": "relationship_lookup", "anchor_entity": "Samsung", "anchor_label": "Company", "relationship_type": "EMPLOYS"}\n'
             '  "Tell me about Apple" → {"intent": "neighbors", "anchor_entity": "Apple", "anchor_label": "Company"}\n'
             '  "How many companies?" → {"intent": "count", "anchor_label": "Company"}\n'
+            + (
+                '  "How many accounts did account 42 pay?" → anchor_role "source" '
+                '(account 42 acts; the answer is its counterparties on the head side)\n'
+                '  "Which accounts funded account 42?" → anchor_role "target" '
+                '(account 42 is acted upon)\n'
+                if role_lines else ""
+            ) +
+            '  "How many accounts sent transfers into account 42?" → {"intent": "count", "anchor_entity": "42", '
+            '"anchor_label": "Account", "target_label": "Account", "relationship_type": "TRANSFER"}\n'
             '  "Delta in CBOE Data & Access Solutions rev from 2021-23." → {"intent": "financial_metric_delta", "anchor_entity": "CBOE", "anchor_label": "Company", "metric_name": "Data & Access Solutions revenue", "years": ["2021", "2023"]}\n'
+            + hint_suffix
         )
 
     def derive_schema_hints(
@@ -395,6 +484,9 @@ class CypherBuilder:
             "anchor_label": anchor_label,
             "target_label": target_label,
             "relationship_type": relationship_type,
+            "anchor_role": self._anchor_role(
+                question, relationship_type,
+                extracted=str(intent_data.get("anchor_role", "") or "").strip().lower()),
             "optimization_hints": {
                 "anchor_access": "label_plus_indexed_key",
                 "require_workspace_filter_pushdown": True,
@@ -473,22 +565,117 @@ class CypherBuilder:
                 lines.append("- Avoid plan shapes: " + ", ".join(str(item) for item in avoid))
         return "\n".join(lines)
 
+    def _text_anchor(self, alias: str, entity: str, *,
+                     value_param: str = "entity", norm_param: str = "entity_norm",
+                     include_id: bool = False) -> Tuple[str, Dict[str, Any]]:
+        """Fuzzy fallback anchor: CONTAINS over the conventional display properties.
+
+        Kept for genuinely free-text mentions. It cannot use an index, so callers
+        should try :meth:`_sargable_anchor` first.
+        """
+        chain = f"coalesce({alias}.name, {alias}.uri, {alias}.id, '')" if include_id \
+            else f"coalesce({alias}.name, {alias}.uri, '')"
+        predicate = (f"(toLower({chain}) CONTAINS toLower(${value_param})\n"
+                     f"   OR toLower({chain}) CONTAINS toLower(${norm_param}))")
+        return predicate, {value_param: entity, norm_param: normalize_entity(entity)}
+
+    def _sargable_anchor_in(self, alias: str, label: str, tokens: Sequence[str],
+                            *, param: str = "anchor_keys") -> Optional[Tuple[str, Dict[str, Any]]]:
+        """Index-usable membership test for a list of identifier mentions.
+
+        "channels used by accounts 9000001, 9000002 and 9000003" names several
+        anchors. ``key IN $list`` is index-eligible, whereas CONTAINS over a token
+        list is not — that shape cost 86M dbHits at SF1000 while returning the
+        right answer, which is exactly the failure mode a correctness-only test
+        cannot see.
+        """
+        cleaned = [tok.strip() for tok in tokens if tok and tok.strip()]
+        if not cleaned or not label:
+            return None
+        ontology = getattr(self, "ontology", None)
+        node = ontology.nodes.get(label) if ontology is not None else None
+        if node is None:
+            return None
+        keys = list(getattr(node, "effective_identity_keys", []) or [])
+        for name in getattr(node, "indexed_properties", []) or []:
+            if name not in keys:
+                keys.append(name)
+        if not keys:
+            return None
+
+        clauses: List[str] = []
+        params: Dict[str, Any] = {}
+        for index, key in enumerate(keys):
+            prop = node.properties.get(key)
+            declared = str(getattr(getattr(prop, "type", None), "value", "") or "").upper()
+            values: List[Any] = []
+            for tok in cleaned:
+                if declared in {"INTEGER", "INT", "LONG"}:
+                    try:
+                        values.append(int(tok))
+                    except ValueError:
+                        continue
+                elif declared in {"FLOAT", "DOUBLE"}:
+                    try:
+                        values.append(float(tok))
+                    except ValueError:
+                        continue
+                else:
+                    values.append(tok)
+            if not values:
+                continue
+            name = f"{alias}_{param}_{index}"
+            clauses.append(f"{alias}.{quote_identifier(key)} IN ${name}")
+            params[name] = values
+        if not clauses:
+            return None
+        return "(" + " OR ".join(clauses) + ")", params
+
+    def _anchor_predicate(self, alias: str, label: str, entity: str, *,
+                          value_param: str = "entity", norm_param: str = "entity_norm",
+                          include_id: bool = False) -> Tuple[str, Dict[str, Any]]:
+        """Index-usable equality when the mention identifies a node, else fuzzy text.
+
+        Every anchored template routes through here so a single decision — "is this
+        an identifier or prose?" — governs plan shape everywhere. Applying it to only
+        one template is what left `_list_all` doing 86M dbHits at SF1000 while the
+        repaired `_count` did 105.
+
+        An EMPTY mention is a third case, and it was being handled as the second.
+        "Which decisions apply to the Payments API?" names one endpoint and asks
+        the system to find the other, so the unnamed slot is an unknown to solve
+        for, not a mention to match. Falling through to the text anchor produced
+        ``toLower(...) CONTAINS toLower('')``, which is true for every node in
+        the database — an accidental wildcard that reads as a filter. It also
+        forces a scan, since a CONTAINS over a coalesce chain cannot use an
+        index, so the plan cost is paid for a predicate that excludes nothing.
+
+        An unbound slot is now constrained by its LABEL alone, which the caller
+        has already put in the MATCH pattern. `is_bound=False` tells the caller
+        the slot is open, so it can distinguish "no constraint" from "constraint
+        that happens to match everything".
+        """
+        if not str(entity or "").strip():
+            self.unbound_slots = sorted(set(getattr(self, "unbound_slots", set())) | {alias})
+            return "true", {}
+        sargable = self._sargable_anchor(alias, label, entity)
+        if sargable is not None:
+            return sargable
+        return self._text_anchor(alias, entity, value_param=value_param,
+                                 norm_param=norm_param, include_id=include_id)
+
     def _entity_lookup(self, entity: str, label: str, workspace_id: str, limit: int) -> Tuple[str, Dict[str, Any]]:
         label_clause = f":{quote_identifier(label)}" if label else ""
-        normalized = normalize_entity(entity)
+        predicate, params = self._anchor_predicate("n", label, entity)
+        params.update({"workspace_id": workspace_id, "limit": limit})
         return (
             f"MATCH (n{label_clause})\n"
-            "WHERE (toLower(coalesce(n.name, n.uri, '')) CONTAINS toLower($entity)\n"
-            "   OR toLower(coalesce(n.name, n.uri, '')) CONTAINS toLower($entity_norm))\n"
+            f"WHERE {predicate}\n"
             "  AND ($workspace_id = '' OR coalesce(n._workspace_id, '') = $workspace_id)\n"
+            f"  AND {active_graph_predicate('n')}\n"
             "RETURN n\n"
             "LIMIT $limit",
-            {
-                "entity": entity,
-                "entity_norm": normalized,
-                "workspace_id": workspace_id,
-                "limit": limit,
-            },
+            params,
         )
 
     def _relationship_lookup(
@@ -505,52 +692,94 @@ class CypherBuilder:
         t_label = f":{quote_identifier(target_label)}" if target_label else ""
         rel_clause = f":{quote_identifier(self._rel_name(rel_type))}" if rel_type else ""
 
-        anchor_norm = normalize_entity(anchor)
+        anchor_pred, anchor_params = self._anchor_predicate(
+            "a", anchor_label, anchor, value_param="anchor", norm_param="anchor_norm")
         where_parts = [
-            "(toLower(coalesce(a.name, a.uri, '')) CONTAINS toLower($anchor) "
-            "OR toLower(coalesce(a.name, a.uri, '')) CONTAINS toLower($anchor_norm))",
+            anchor_pred,
             "($workspace_id = '' OR (coalesce(a._workspace_id, '') = $workspace_id AND coalesce(b._workspace_id, '') = $workspace_id))",
+            active_graph_predicate("a"), active_graph_predicate("b"),
         ]
-        params: Dict[str, Any] = {
-            "anchor": anchor,
-            "anchor_norm": anchor_norm,
-            "workspace_id": workspace_id,
-            "limit": limit,
-        }
+        params: Dict[str, Any] = {**anchor_params, "workspace_id": workspace_id, "limit": limit}
 
         if target:
-            target_norm = normalize_entity(target)
-            where_parts.append(
-                "(toLower(coalesce(b.name, b.uri, '')) CONTAINS toLower($target) "
-                "OR toLower(coalesce(b.name, b.uri, '')) CONTAINS toLower($target_norm))"
-            )
-            params["target"] = target
-            params["target_norm"] = target_norm
+            target_pred, target_params = self._anchor_predicate(
+                "b", target_label, target, value_param="target", norm_param="target_norm")
+            where_parts.append(target_pred)
+            params.update(target_params)
 
         where = " AND ".join(where_parts)
+        # Two defects lived here, both invisible until the endpoints share a label
+        # (Account -TRANSFER-> Account), which is every payments/ownership schema.
+        #
+        # 1. The projection named the ANCHOR `source` and the neighbour `target`
+        #    regardless of which way the arrow pointed. Matching undirected then
+        #    labelling by binding order inverts every incoming edge: asked "which
+        #    accounts transferred to B2", it returned B2 as the source of A1's
+        #    transfer and the model answered the exact opposite of the graph, with
+        #    no error raised. Read the direction off the edge instead (seocho-k5n).
+        # 2. The pattern stayed undirected even when the ontology declared which end
+        #    the anchor sits on, so recall ignored the question's direction. Honour
+        #    `anchor_role` — the same flip `_count` (seocho-k2v) and `_list_all`
+        #    (seocho-pl1) already apply.
+        #
+        # `target_labels` / `target_properties` / `supporting_fact` stay bound to
+        # `b`, the anchor's counterpart, which is what an answer needs; only the
+        # source/target naming was ever a claim about direction.
+        role = getattr(self, "anchor_role", "")
+        if role == "source":
+            pattern = f"MATCH (a{a_label})-[r{rel_clause}]->(b{t_label})"
+        elif role == "target":
+            pattern = f"MATCH (a{a_label})<-[r{rel_clause}]-(b{t_label})"
+        else:
+            pattern = f"MATCH (a{a_label})-[r{rel_clause}]-(b{t_label})"
         return (
-            f"MATCH (a{a_label})-[r{rel_clause}]-(b{t_label})\n"
+            f"{pattern}\n"
             f"WHERE {where}\n"
-            "RETURN coalesce(a.name, a.uri) AS source,\n"
+            "RETURN coalesce(startNode(r).name, startNode(r).uri) AS source,\n"
             "       type(r) AS relationship,\n"
-            "       coalesce(b.name, b.uri) AS target,\n"
+            "       coalesce(endNode(r).name, endNode(r).uri) AS target,\n"
             "       labels(b) AS target_labels,\n"
-            "       properties(b) AS target_properties,\n"
+            f"       {self._declared_props_expr('b', target_label)} AS target_properties,\n"
             "       coalesce(b.content_preview, b.description, b.content, '') AS supporting_fact\n"
             "LIMIT $limit",
             params,
         )
 
-    def _neighbors(self, entity: str, label: str, workspace_id: str, limit: int) -> Tuple[str, Dict[str, Any]]:
+    def _neighbors(self, entity: str, label: str, workspace_id: str, limit: int,
+                   *, target_label: str = "", relationship_type: str = "") -> Tuple[str, Dict[str, Any]]:
         label_clause = f":{quote_identifier(label)}" if label else ""
-        normalized = normalize_entity(entity)
+        anchor_predicate, anchor_params = self._anchor_predicate("n", label, entity)
+
+        # "Which accounts did X transfer to" arrives here with the relationship and
+        # target already resolved (anchor_label=Account, target_label=Account,
+        # relationship_type=TRANSFER), and the generic neighbour summary below throws
+        # all three away: it expands undirected over every relationship and collapses
+        # the result into one row. Honour the slots when they are present — the same
+        # defect previously fixed in _count (seocho-k2v) and _list_all (seocho-pl1).
+        if relationship_type in self.ontology.relationships:
+            tgt_clause = f":{quote_identifier(target_label)}" if target_label in self.ontology.nodes else ""
+            arrow = ">" if self._path_direction([relationship_type]) else ""
+            return (
+                f"MATCH (n{label_clause})-[:{quote_identifier(relationship_type)}]-{arrow}(m{tgt_clause})\n"
+                f"WHERE {anchor_predicate}\n"
+                "  AND ($workspace_id = '' OR coalesce(n._workspace_id, '') = $workspace_id)\n"
+                f"  AND {active_graph_predicate('n')}\n"
+                f"  AND {active_graph_predicate('m')}\n"
+                f"RETURN DISTINCT {self._display_expr('m', target_label)} AS neighbor,\n"
+                "       labels(m) AS neighbor_labels\n"
+                "ORDER BY neighbor\n"
+                "LIMIT $limit",
+                {**anchor_params, "workspace_id": workspace_id, "limit": limit},
+            )
+
         return (
             f"MATCH (n{label_clause})\n"
-            "WHERE (toLower(coalesce(n.name, n.uri, '')) CONTAINS toLower($entity)\n"
-            "   OR toLower(coalesce(n.name, n.uri, '')) CONTAINS toLower($entity_norm))\n"
+            f"WHERE {anchor_predicate}\n"
             "  AND ($workspace_id = '' OR coalesce(n._workspace_id, '') = $workspace_id)\n"
+            f"  AND {active_graph_predicate('n')}\n"
             "OPTIONAL MATCH (n)-[r]-(m)\n"
-            "WHERE $workspace_id = '' OR coalesce(m._workspace_id, '') = $workspace_id\n"
+            "WHERE ($workspace_id = '' OR coalesce(m._workspace_id, '') = $workspace_id)\n"
+            f"  AND {active_graph_predicate('m')}\n"
             "RETURN coalesce(n.name, n.uri) AS entity,\n"
             "       properties(n) AS properties,\n"
             "       collect(DISTINCT {\n"
@@ -560,13 +789,119 @@ class CypherBuilder:
             "       })[0..$limit] AS neighbors,\n"
             "       coalesce(n.content_preview, n.description, n.content, '') AS supporting_fact\n"
             "LIMIT 1",
-            {
-                "entity": entity,
-                "entity_norm": normalized,
-                "workspace_id": workspace_id,
-                "limit": limit,
-            },
+            {**anchor_params, "workspace_id": workspace_id, "limit": limit},
         )
+
+    def _reachable_labels(
+        self, start_label: str, *, relationship_types: Optional[Sequence[str]] = None,
+        max_hops: int = 4, undirected: bool = False,
+    ) -> Set[str]:
+        """Labels reachable from ``start_label`` within ``max_hops``, per the ontology.
+
+        A variable-length pattern is only satisfiable if the ontology admits a chain
+        of declared relationships between the endpoint labels. ``TRANSFER`` is
+        declared ``Account -> Account``, so repeating it never leaves ``Account`` —
+        an ``Account -> Company`` path over ``TRANSFER*`` is provably empty and the
+        engine should not be asked to search for it. This is the LPG analogue of the
+        type-inference pruning formalised for recursive graph queries in
+        "Schema-Based Query Optimisation for Graph Databases" (SIGMOD 2025).
+        """
+        ontology = getattr(self, "ontology", None)
+        if ontology is None or not start_label:
+            return set()
+        allowed = (
+            {r for r in relationship_types if r in ontology.relationships}
+            if relationship_types else set(ontology.relationships)
+        )
+        # ``undirected`` decides what "reachable" means, and the two uses differ:
+        # pruning must be conservative (only refuse a pattern nothing could satisfy,
+        # so it walks edges both ways), while choosing to emit a directed arrow needs
+        # the strict directed answer.
+        edges: List[Tuple[str, str]] = []
+        for rtype in allowed:
+            rel = ontology.relationships[rtype]
+            edges.append((rel.source, rel.target))
+            if undirected:
+                edges.append((rel.target, rel.source))
+
+        frontier = {start_label}
+        seen = {start_label}
+        for _ in range(max(1, int(max_hops))):
+            nxt: Set[str] = set()
+            for source, target in edges:
+                if source in {"Any", ""} or source in frontier:
+                    for label in ({target} if target not in {"Any", ""} else set(ontology.nodes)):
+                        if label not in seen:
+                            nxt.add(label)
+            if not nxt:
+                break
+            seen |= nxt
+            frontier = nxt
+        return seen
+
+    def _path_direction(self, relationship_types: Sequence[str]) -> str:
+        """``->`` when every candidate relationship agrees on direction, else undirected.
+
+        An undirected variable-length pattern explores both ways, which on a large
+        graph is the difference between a bounded traversal and a scan. When the
+        ontology fixes the direction there is no reason to pay for the ambiguity.
+        """
+        ontology = getattr(self, "ontology", None)
+        if ontology is None or not relationship_types:
+            return ""
+        pairs = {
+            (ontology.relationships[r].source, ontology.relationships[r].target)
+            for r in relationship_types if r in ontology.relationships
+        }
+        if not pairs:
+            return ""
+        # Self-referential (Account->Account) or a single consistent orientation.
+        return ">" if len(pairs) == 1 else ""
+
+    def _connecting_relationship_types(
+        self, start_label: str, end_label: str, *, max_hops: int = 4,
+    ) -> List[str]:
+        """Declared relationship types on any chain from start_label to end_label.
+
+        Used when the model names a relationship that cannot on its own reach the
+        target ("which decision applies to the Payments API, and what did it
+        supersede" names SUPERSEDES, declared Decision -> Decision, while the
+        anchor is a System). The previous relaxation dropped the restriction
+        entirely, which admits every edge in the store -- including the
+        provenance layer this pipeline writes. Measured on a live graph: the
+        unrestricted form returned 20 paths, most of them Chunk MENTIONS
+        detours, for a question with two relevant edges.
+
+        Widening to the types that CAN connect the endpoints keeps the chain the
+        question needs and leaves the provenance edges out.
+        """
+        rels = self.ontology.relationships or {}
+        adjacency: Dict[str, List[Tuple[str, str]]] = {}
+        for name, rel in rels.items():
+            source, target = rel.source, rel.target
+            if not source or not target:
+                continue
+            adjacency.setdefault(source, []).append((target, name))
+            adjacency.setdefault(target, []).append((source, name))
+
+        used: Set[str] = set()
+        # Breadth-first over label space, recording the types on any chain that
+        # reaches the end label within the hop bound.
+        frontier: List[Tuple[str, List[str]]] = [(start_label, [])]
+        for _ in range(max(1, int(max_hops))):
+            nxt: List[Tuple[str, List[str]]] = []
+            for label, path in frontier:
+                for neighbour, rel_name in adjacency.get(label, []):
+                    if rel_name in path:
+                        continue  # do not repeat a type within one chain
+                    chain = path + [rel_name]
+                    if neighbour == end_label:
+                        used.update(chain)
+                    nxt.append((neighbour, chain))
+            frontier = nxt
+            if not frontier:
+                break
+        return sorted(used)
 
     def _path(
         self,
@@ -580,28 +915,165 @@ class CypherBuilder:
         relationship_type: str = "",
         max_hops: int = 4,
     ) -> Tuple[str, Dict[str, Any]]:
+        self.last_path_pruning: Optional[Dict[str, Any]] = None
+        bounded_hops = max(1, min(int(max_hops), 4))
+        requested = [relationship_type] if relationship_type else []
+
+        # Schema-reachability pruning. Asking the engine to search for a path the
+        # ontology rules out is what let one generated query run 9m13s at SF1000
+        # (seocho-z1q); the hop bound constrains the shape but not satisfiability.
+        rel_types = list(requested)
+        if anchor_label and target_label:
+            # Conservative test: walk declared edges in both directions, so a pattern
+            # is only refused when no chain could satisfy it either way. Pruning on
+            # directed reachability would wrongly empty legitimate undirected
+            # questions ("how is account X connected to company Y", where OWN is
+            # declared Company -> Account).
+            if target_label not in self._reachable_labels(
+                anchor_label, relationship_types=requested or None,
+                max_hops=bounded_hops, undirected=True,
+            ):
+                widened = self._reachable_labels(
+                    anchor_label, max_hops=bounded_hops, undirected=True)
+                if target_label in widened:
+                    # Reachable, just not over the relationship the model named:
+                    # drop the restriction rather than return a wrong empty answer.
+                    # Widen to the types that can actually connect the two
+                    # endpoints, rather than to everything. Dropping the
+                    # restriction entirely admits the provenance layer
+                    # (Chunk MENTIONS, HAS_SECTION), which floods the answer
+                    # context with document-structure detours.
+                    connecting = self._connecting_relationship_types(
+                        anchor_label, target_label, max_hops=bounded_hops)
+                    self.last_path_pruning = {
+                        "action": "relaxed_relationship_type",
+                        "requested": relationship_type,
+                        "widened_to": connecting,
+                        "reason": "target_label_unreachable_over_requested_relationship",
+                    }
+                    rel_types = connecting
+                else:
+                    # Provably empty per the schema: answer immediately instead of
+                    # exhaustively searching for something that cannot exist.
+                    self.last_path_pruning = {
+                        "action": "pruned_unsatisfiable",
+                        "requested": relationship_type,
+                        "anchor_label": anchor_label,
+                        "target_label": target_label,
+                        "reason": "no_declared_relationship_chain_between_endpoint_labels",
+                    }
+                    return (
+                        "RETURN [] AS nodes, [] AS relationships\n"
+                        "LIMIT 0",
+                        {"workspace_id": workspace_id, "limit": limit},
+                    )
+
         a_label = f":{quote_identifier(anchor_label)}" if anchor_label else ""
         b_label = f":{quote_identifier(target_label)}" if target_label else ""
-        rel_name = self._rel_name(relationship_type) if relationship_type else ""
-        rel_clause = f":{quote_identifier(rel_name)}" if rel_name else ""
-        bounded_hops = max(1, min(int(max_hops), 4))
+        # All resolved types, not just the first. A widened set describes a chain
+        # (APPLIES_TO then SUPERSEDES); keeping only rel_types[0] would restrict
+        # the traversal to one leg of it and return nothing.
+        rel_names = [n for n in (self._rel_name(r) for r in rel_types) if n]
+        rel_clause = (
+            ":" + "|".join(quote_identifier(n) for n in dict.fromkeys(rel_names))
+            if rel_names else ""
+        )
+        # Only orient the pattern when the target is genuinely reachable following
+        # declared directions; otherwise the question needs undirected traversal and
+        # forcing an arrow would return nothing.
+        arrow = ""
+        if anchor_label and target_label and target_label in self._reachable_labels(
+            anchor_label, relationship_types=rel_types or None, max_hops=bounded_hops
+        ):
+            arrow = self._path_direction(rel_types)
+
+        from_pred, from_params = self._anchor_predicate(
+            "a", anchor_label, from_entity, value_param="from_e", norm_param="from_e_norm")
+        to_pred, to_params = self._anchor_predicate(
+            "b", target_label, to_entity, value_param="to_e", norm_param="to_e_norm")
+        params: Dict[str, Any] = {**from_params, **to_params,
+                                  "workspace_id": workspace_id, "limit": limit}
+        # Drop a `true` from an unbound endpoint rather than emitting `AND true`.
+        # It is harmless to the planner but it is noise in an EXPLAIN, and the
+        # plan grader reads operator shape from exactly that.
+        endpoint_preds = " AND ".join(
+            pred for pred in (from_pred, to_pred) if pred != "true"
+        ) or "true"
+        # shortestPath answers "how are THESE TWO connected" -- one path per
+        # endpoint pair. When an endpoint is unbound the question is "what is
+        # connected", and shortestPath answers it wrongly by construction: a
+        # 1-hop edge between the same pair hides every longer chain. Measured on
+        # a live graph, asking which decision applies to a system and what it
+        # superseded, shortestPath returned only the two APPLIES_TO edges and
+        # the model correctly reported that no SUPERSEDES relationship was in
+        # its results.
+        #
+        # Enumerating all paths is only safe because the relationship set is now
+        # constrained: unrestricted it returned 20 paths, mostly Chunk MENTIONS
+        # detours through the provenance layer. Constrained it returns 4, which
+        # are exactly the APPLIES_TO edges and the two SUPERSEDES chains.
+        primitive = "shortestPath" if not self.unbound_slots else ""
         return (
-            f"MATCH path = shortestPath((a{a_label})-[{rel_clause}*..{bounded_hops}]-(b{b_label}))\n"
-            "WHERE toLower(coalesce(a.name, a.uri, '')) CONTAINS toLower($from_e)\n"
-            "  AND toLower(coalesce(b.name, b.uri, '')) CONTAINS toLower($to_e)\n"
+            f"MATCH path = {primitive}((a{a_label})-[{rel_clause}*..{bounded_hops}]-{arrow}(b{b_label}))\n"
+            f"WHERE {endpoint_preds}\n"
             "  AND ($workspace_id = '' OR all(n IN nodes(path) WHERE coalesce(n._workspace_id, '') = $workspace_id))\n"
-            "RETURN [n IN nodes(path) | coalesce(n.name, n.uri)] AS nodes,\n"
+            f"RETURN [n IN nodes(path) | {self._display_expr('n', anchor_label)}] AS nodes,\n"
+            f"       [n IN nodes(path) | {self._path_props_expr('n')}] AS node_properties,\n"
             "       [r IN relationships(path) | type(r)] AS relationships\n"
             "LIMIT $limit",
-            {
-                "from_e": from_entity,
-                "to_e": to_entity,
-                "workspace_id": workspace_id,
-                "limit": limit,
-            },
+            params,
         )
 
-    def _count(self, label: str, workspace_id: str) -> Tuple[str, Dict[str, Any]]:
+    def _count(
+        self,
+        label: str,
+        workspace_id: str,
+        *,
+        anchor_entity: str = "",
+        target_label: str = "",
+        relationship_type: str = "",
+    ) -> Tuple[str, Dict[str, Any]]:
+        # Relationship-aware count: "how many <label> <relationship> <anchor>"
+        # aggregates the distinct counterparties of the anchor over that
+        # relationship. Without this, such questions collapse into a full-label
+        # scan and report the total node count.
+        if anchor_entity and relationship_type in self.ontology.relationships:
+            src_label = target_label if target_label in self.ontology.nodes else label
+            src_clause = f":{quote_identifier(src_label)}" if src_label else ""
+            rel_clause = f":{quote_identifier(relationship_type)}"
+            # Anchor label matters twice: it makes the pattern index-eligible and it
+            # tells us which identity key to compare against.
+            anchor_label = label if label in self.ontology.nodes else src_label
+            anchor_clause = f":{quote_identifier(anchor_label)}" if anchor_label else ""
+            sargable = self._sargable_anchor("anchor", anchor_label, anchor_entity)
+            if sargable is not None:
+                predicate, params = sargable
+            else:
+                predicate = (
+                    "(toLower(coalesce(anchor.name, anchor.uri, anchor.id, '')) CONTAINS toLower($entity)\n"
+                    "   OR toLower(coalesce(anchor.name, anchor.uri, anchor.id, '')) CONTAINS toLower($entity_norm))"
+                )
+                params = {"entity": anchor_entity, "entity_norm": normalize_entity(anchor_entity)}
+            params["workspace_id"] = workspace_id
+            # The anchor was previously always the arrow's target, i.e. every count was an
+            # in-degree. That is right for "how many metrics does company X have"
+            # (Company -> Metric) and wrong for "how many accounts did X transfer to",
+            # which the schema cannot distinguish when both ends share a label. When the
+            # ontology declares the anchor as the source end, emit the edge the other way.
+            if getattr(self, "anchor_role", "") == "source":
+                pattern = f"MATCH (anchor{anchor_clause})-[{rel_clause}]->(src{src_clause})"
+            else:
+                pattern = f"MATCH (src{src_clause})-[{rel_clause}]->(anchor{anchor_clause})"
+            return (
+                f"{pattern}\n"
+                f"WHERE {predicate}\n"
+                "  AND ($workspace_id = '' OR coalesce(src._workspace_id, '') = $workspace_id)\n"
+                f"  AND {active_graph_predicate('src')}\n"
+                f"  AND {active_graph_predicate('anchor')}\n"
+                "RETURN count(DISTINCT src) AS count",
+                params,
+            )
+
         label_clause = f":{quote_identifier(label)}" if label else ""
         return (
             f"MATCH (n{label_clause})\n"
@@ -610,12 +1082,147 @@ class CypherBuilder:
             {"workspace_id": workspace_id},
         )
 
-    def _list_all(self, label: str, workspace_id: str, limit: int) -> Tuple[str, Dict[str, Any]]:
+    def _declared_props_expr(self, alias: str, label: str = "") -> str:
+        """Project the properties the ontology declares, not the whole node.
+
+        `properties(n)` returns everything the writer put there, and most of it
+        is this pipeline's own bookkeeping: _workspace_id, _sources, _source_id,
+        _writer_agent, _writer_ts, and eight _ontology_* fields. Measured on a
+        two-row answer against a live graph, 23 keys were returned of which the
+        ontology declared 2 -- 80% of the answer context was provenance the
+        model cannot use and must still read.
+
+        Cost is the smaller half. The larger half is that a model given twenty
+        internal keys alongside two meaningful ones has to guess which carry the
+        answer, and `status` -- the property the question was about -- arrives
+        with the same weight as `_ontology_glossary_hash`.
+
+        Falls back to the whole map when the label is unknown, because returning
+        nothing is worse than returning too much.
+        """
+        node = self.ontology.nodes.get(label) if label else None
+        declared = list(getattr(node, "properties", {}) or {}) if node is not None else []
+        if not declared:
+            return f"properties({alias})"
+        pairs = ", ".join(
+            f"{quote_identifier(name)}: {alias}.{quote_identifier(name)}"
+            for name in declared
+        )
+        # Plain Cypher rather than apoc.map.clean: a projection is not worth a
+        # procedure dependency, and the read path refuses procedure calls
+        # (enforce_read_workspace_scope) precisely so it does not have to reason
+        # about what they can do. An unset optional property comes back null,
+        # which the answer layer already handles.
+        return f"{{{pairs}}}"
+
+    def _path_props_expr(self, alias: str, *, max_keys: int = 12) -> str:
+        """Map projection over every property name the ontology declares.
+
+        A path crosses several labels, so a per-label projection is not
+        available statically. The union of declared names is, and it is bounded
+        by the ontology rather than by what the writer happened to store -- which
+        is the property that matters, since the alternative (`properties(n)`)
+        returns this pipeline's _workspace_id/_sources/_ontology_* bookkeeping on
+        every node of every path.
+
+        Identity properties come first so the cap, if it binds, keeps the keys
+        that identify a node over the ones that describe it.
+        """
+        identity: List[str] = []
+        rest: List[str] = []
+        for node in (self.ontology.nodes or {}).values():
+            keys = list(getattr(node, "properties", {}) or {})
+            for key in getattr(node, "effective_identity_keys", None) or []:
+                if key in keys and key not in identity:
+                    identity.append(key)
+            for key in keys:
+                if key not in identity and key not in rest:
+                    rest.append(key)
+        names = (identity + rest)[:max_keys]
+        if not names:
+            return self._display_expr(alias)
+        projection = ", ".join(f".{quote_identifier(name)}" for name in names)
+        return f"{alias}{{{projection}}}"
+
+    def _display_expr(self, alias: str, label: str = "") -> str:
+        """Ontology-aware display expression for a node.
+
+        ``name``/``uri`` are the conventional display properties, but a schema may
+        key its nodes on something else (``Channel.code``, ``Account.id``).
+        Falling straight through to ``elementId`` in that case leaks raw internal
+        identifiers into answers, so consult the ontology for the label's UNIQUE
+        (identity) properties before giving up.
+        """
+        candidates = ["name", "uri"]
+        node = self.ontology.nodes.get(label) if label else None
+        if node is not None:
+            for prop_name, prop in getattr(node, "properties", {}).items():
+                if getattr(prop, "unique", False) and prop_name not in candidates:
+                    candidates.append(prop_name)
+            for key in getattr(node, "identity_keys", []) or []:
+                if key not in candidates:
+                    candidates.append(key)
+        chain = ", ".join(f"{alias}.{quote_identifier(c)}" for c in candidates)
+        return f"coalesce({chain}, elementId({alias}))"
+
+    def _list_all(
+        self,
+        label: str,
+        workspace_id: str,
+        limit: int,
+        *,
+        anchor_entity: str = "",
+        target_label: str = "",
+        relationship_type: str = "",
+    ) -> Tuple[str, Dict[str, Any]]:
+        # "List the <target> reached from <anchor> over <relationship>" is a
+        # traversal, not a label dump. Without this the relationship/target slots
+        # are discarded and every node of the anchor label is listed instead.
+        if relationship_type in self.ontology.relationships and target_label in self.ontology.nodes:
+            src_clause = f":{quote_identifier(label)}" if label else ""
+            anchor_filter = ""
+            params: Dict[str, Any] = {"workspace_id": workspace_id, "limit": limit}
+            if anchor_entity:
+                tokens = [tok.strip() for tok in re.split(r"[,\s]+", anchor_entity) if tok.strip()]
+                # Prefer `key IN $list` — index-eligible — over CONTAINS per token.
+                membership = self._sargable_anchor_in("src", label, tokens)
+                if membership is not None:
+                    predicate, extra = membership
+                    anchor_filter = f"  AND {predicate}\n"
+                    params.update(extra)
+                else:
+                    anchor_filter = (
+                        "  AND any(tok IN $anchor_tokens WHERE "
+                        f"toLower({self._display_expr('src', label)}) CONTAINS toLower(tok))\n"
+                    )
+                    params["anchor_tokens"] = tokens
+            # Mirror of the count template. Here the anchor is already the arrow's source
+            # and the listed rows are its targets — the outgoing reading — so only the
+            # opposite phrasing ("which accounts transferred *to* X") needs the flip.
+            rel_ref = quote_identifier(relationship_type)
+            if getattr(self, "anchor_role", "") == "target":
+                pattern = (f"MATCH (src{src_clause})<-[:{rel_ref}]-"
+                           f"(tgt:{quote_identifier(target_label)})")
+            else:
+                pattern = (f"MATCH (src{src_clause})-[:{rel_ref}]->"
+                           f"(tgt:{quote_identifier(target_label)})")
+            return (
+                f"{pattern}\n"
+                "WHERE ($workspace_id = '' OR coalesce(src._workspace_id, '') = $workspace_id)\n"
+                f"{anchor_filter}"
+                f"  AND {active_graph_predicate('src')}\n"
+                f"RETURN DISTINCT {self._display_expr('tgt', target_label)} AS name,\n"
+                "       labels(tgt) AS labels\n"
+                "ORDER BY name\n"
+                "LIMIT $limit",
+                params,
+            )
+
         label_clause = f":{quote_identifier(label)}" if label else ""
         return (
             f"MATCH (n{label_clause})\n"
             "WHERE $workspace_id = '' OR coalesce(n._workspace_id, '') = $workspace_id\n"
-            "RETURN coalesce(n.name, n.uri, elementId(n)) AS name, labels(n) AS labels\n"
+            f"RETURN {self._display_expr('n', label)} AS name, labels(n) AS labels\n"
             "ORDER BY name\n"
             "LIMIT $limit",
             {"workspace_id": workspace_id, "limit": limit},
@@ -728,6 +1335,259 @@ class CypherBuilder:
             if local:
                 return f"{self._ns_prefix}__{local}"
         return f"{self._ns_prefix}__{rel_type}" if self._ns_prefix else rel_type
+
+    def identity_candidates(self, question: str, label: str) -> List[Tuple[str, Any]]:
+        """Tokens in the question that fit a declared identity key's type.
+
+        Deterministic and free: the ontology already says which properties identify a node
+        and what type they are, so a question naming "account 14079" yields 14079 without an
+        extra model call.
+
+        This exists because validated generation was given only ``workspace_id`` and
+        ``limit`` as parameters. With no parameter for the anchor the model had to inline it
+        as a literal — contradicting its own instruction never to insert literal IDs — and
+        nothing downstream checked that an anchor was bound at all. One generated query
+        dropped it entirely, matching every Account and expanding two hops from each:
+        38,867,373 db hits for a question about a single account.
+        """
+        node = self.ontology.nodes.get(label) if getattr(self, "ontology", None) else None
+        if node is None:
+            return []
+        # Which key the value belongs to has to travel with it. Passing the bare number left
+        # the model to guess the property, and it chose `id` — a string like "Account:44957" —
+        # so an integer compared against it matched nothing: one index seek, zero rows, and an
+        # answer of 0 that looks like a real finding.
+        numeric_key = next(
+            (k for k in (getattr(node, "effective_identity_keys", []) or [])
+             if str(getattr(getattr(node.properties.get(k), "type", None), "value", "")).upper()
+             in {"INTEGER", "FLOAT"}), None)
+        if numeric_key is None:
+            return []
+        # A digit run alone is not an identifier. "below 10000000" is a reporting threshold
+        # and "within 7 days" is a window; binding either as the anchor is worse than binding
+        # nothing, because a wrong anchor answers a different question confidently. So the
+        # number has to be introduced by the node's own vocabulary — its label or an alias —
+        # which is the same declared vocabulary `_strip_label_words` uses.
+        vocabulary = [label] + list(getattr(node, "aliases", []) or [])
+        words = "|".join(re.escape(w) for w in vocabulary if w)
+        if not words:
+            return []
+        # Allows "account 14079", "Account #14079", "account number 14079" — the wording a
+        # question actually uses — while "below 10000000" has no such introducer.
+        pattern = rf"(?:{words})\s*(?:number|no\.?|#|id)?\s*[:#]?\s*(\d+)"
+        return [(numeric_key, int(v))
+                for v in re.findall(pattern, question or "", flags=re.IGNORECASE)]
+
+    @staticmethod
+    def _strip_label_words(entity: str, label: str, node: Any) -> str:
+        """Drop a node-type word that the question wrapped around an identifier.
+
+        Only the label and its declared aliases are removed, and only from the ends, so this
+        cannot turn prose into a false identifier: "Samsung Electronics" contains no label
+        word and survives unchanged, keeping its correct text-matching path.
+
+        Both spellings matter — a question may say "Account 42" or "account 42" — so the
+        comparison is case-insensitive while the returned value keeps its original case, which
+        a string identity key may depend on.
+        """
+        words = [label] + list(getattr(node, "aliases", []) or [])
+        vocabulary = {w.lower() for w in words if w}
+        tokens = entity.split()
+        while tokens and tokens[0].lower().strip(":#") in vocabulary:
+            tokens.pop(0)
+        while tokens and tokens[-1].lower().strip(":#") in vocabulary:
+            tokens.pop()
+        # Nothing left means the mention was only a type word and carries no identifier.
+        # Returning it unchanged would produce `id = 'Account'`, an equality that matches
+        # nothing while looking like a resolved anchor; returning empty lets the caller
+        # decline and keep its text path.
+        return " ".join(tokens)
+
+    def _sargable_anchor(
+        self, alias: str, label: str, entity: str
+    ) -> Optional[Tuple[str, Dict[str, Any]]]:
+        """Build an index-usable equality predicate for an identifying anchor.
+
+        The conventional anchor predicate is ``CONTAINS`` over
+        ``coalesce(name, uri, ...)``. It reads naturally and no index can serve it,
+        so the plan degrades to a label scan. That is invisible on a small graph and
+        fatal on a large one: measured on this schema, the scan costs 6.6M dbHits at
+        SF1000 where an index seek costs 25, and it also stopped resolving the
+        anchor correctly (answering 0 instead of 25).
+
+        When the ontology declares what identifies a node — ``identity_keys``, else
+        its UNIQUE property — and the mention looks like such an identifier, emit
+        equality on that property instead. Values are coerced to the declared
+        property type so an integer key is not compared against a string.
+
+        Returns ``None`` when no identity key applies, leaving the caller on its
+        existing text-matching path (correct for genuinely free-text mentions).
+        """
+        entity = (entity or "").strip()
+        if not entity or not label:
+            return None
+        # Templates are also exercised on uninitialised builders (schema-shape
+        # assertions that never touch an ontology), so absence of one degrades to
+        # the text path rather than raising.
+        ontology = getattr(self, "ontology", None)
+        node = ontology.nodes.get(label) if ontology is not None else None
+        if node is None:
+            return None
+
+        keys = list(getattr(node, "effective_identity_keys", []) or [])
+        for name in getattr(node, "indexed_properties", []) or []:
+            if name not in keys:
+                keys.append(name)
+        if not keys:
+            return None
+
+        # A mention may arrive with its own type word attached — "Account 42" rather than
+        # "42" — because that is how the question named it. Stripping a leading or trailing
+        # occurrence of the node's declared label or alias recovers the identifier, and uses
+        # only vocabulary the ontology already holds.
+        #
+        # This is not cosmetic. Measured on the realistic question set: an extracted anchor of
+        # 'Account 42' declined here and fell back to a text scan, while '42' from an
+        # otherwise identical question produced an index seek. The only difference in the
+        # question was that one sentence opened with "Account 42 is under review" and the
+        # other said "freezing account 42" mid-sentence. At SF1 the scan still answers, so the
+        # degradation is invisible; at SF1000 it costs 4,000,138 db hits against 130.
+        entity = self._strip_label_words(entity, label, node)
+
+        # An identifier mention is a single token. A multi-word mention that survived the
+        # strip is prose ("Samsung Electronics"), and forcing it into equality against an id
+        # would silently match nothing — worse than the slow-but-correct text match.
+        if not entity or any(ch.isspace() for ch in entity):
+            return None
+
+        clauses: List[str] = []
+        params: Dict[str, Any] = {}
+        for index, key in enumerate(keys):
+            prop = node.properties.get(key)
+            declared = str(getattr(getattr(prop, "type", None), "value", "") or "").upper()
+            # Namespace by alias: a path template anchors two nodes, and a shared
+            # prefix silently compared the second endpoint against the first one's
+            # value (b.id = $anchor_key_0), which returns nothing.
+            param = f"{alias}_key_{index}"
+            if declared in {"INTEGER", "FLOAT"}:
+                # A numeric identity key can only match a numeric mention.
+                try:
+                    params[param] = int(entity) if declared == "INTEGER" else float(entity)
+                except ValueError:
+                    continue
+            else:
+                params[param] = entity
+            clauses.append(f"{alias}.{quote_identifier(key)} = ${param}")
+
+        if not clauses:
+            return None
+        return "(" + " OR ".join(clauses) + ")", params
+
+    def _anchor_role(self, question: str, relationship_type: str,
+                     extracted: str = "") -> str:
+        """Which end of the edge the anchor sits on, per the ontology's declared phrasing.
+
+        ``_orient_relationship`` repairs endpoints when the *labels* contradict the
+        declared direction, and returns early when ``source == target`` because there is
+        nothing a label comparison can say. That early return is exactly the case where
+        direction matters most: ``TRANSFER: Account -> Account`` makes "which accounts did
+        X send to" and "which accounts sent to X" identical to the schema, and query
+        construction had to pick one. It picked anchor-as-target unconditionally, so every
+        outgoing question was answered with an in-degree — correct-looking, always wrong,
+        and invisible to label validation.
+
+        Roles break the tie without guessing. The ontology declares which phrasings place
+        the anchor at the source or the target end, and the anchor's role is read off the
+        question against that declaration. Returning ``""`` when the ontology is silent or
+        the evidence is balanced preserves the historical shape, so relationships that
+        never needed this are unaffected.
+        """
+        rel = self.ontology.relationships.get(relationship_type) if relationship_type else None
+        if rel is None:
+            return ""
+        # An explicitly extracted role wins. Substring matching against a hand-authored
+        # phrase list does not generalise — measured 0 of 6 on paraphrases ("who did X
+        # pay", "which accounts funded X") that mean the same thing in different words —
+        # and a miss falls back to the historical anchor-as-target assumption, i.e. it
+        # silently reinstates the bug. The ontology's job is to *name* the roles; mapping
+        # arbitrary phrasing onto a named role is what the model is for. Phrases stay as a
+        # deterministic fast path for the wordings a schema author cares to pin down.
+        if extracted in {"source", "target"}:
+            return extracted
+        lowered = f" {(question or '').lower()} "
+        # Longest match wins: a schema may declare both "transfer" and "transferred to",
+        # and the more specific phrase is the one carrying the direction.
+        source_hit = max(
+            (len(p) for p in rel.source_phrases if p and p.lower() in lowered), default=0)
+        target_hit = max(
+            (len(p) for p in rel.target_phrases if p and p.lower() in lowered), default=0)
+        if source_hit > target_hit:
+            return "source"
+        if target_hit > source_hit:
+            return "target"
+        return ""
+
+    def _orient_relationship(
+        self, relationship_type: str, anchor_label: str, target_label: str
+    ) -> Tuple[str, str]:
+        """Force the traversal to follow the direction the ontology declares.
+
+        A model can name the right relationship and still reverse its endpoints
+        (``anchor_label=Channel`` for ``USES_CHANNEL``, which the ontology defines
+        as ``Account -> Channel``). The resulting Cypher is syntactically valid,
+        passes label validation, and matches zero rows — a silent wrong answer.
+
+        Since the ontology is authoritative about direction, the only orientation
+        consistent with it is the declared one, so contradicting endpoints are
+        repaired rather than executed. Repairs are recorded on
+        ``self.last_orientation_repair`` so callers can measure how often the
+        guardrail rescues a given model.
+        """
+        self.last_orientation_repair: Optional[Dict[str, Any]] = getattr(
+            self, "last_orientation_repair", None
+        )
+        rel_def = self.ontology.relationships.get(relationship_type)
+        if rel_def is None:
+            return anchor_label, target_label
+
+        source, target = rel_def.source, rel_def.target
+        # "Any" endpoints impose no direction, and a self-referential
+        # relationship cannot be reversed.
+        if source in {"", "Any"} or target in {"", "Any"} or source == target:
+            self.last_orientation_repair = None
+            return anchor_label, target_label
+
+        contradicts = (
+            (anchor_label == target and target_label in {"", source})
+            or (target_label == source and anchor_label in {"", target})
+        )
+        if not contradicts:
+            self.last_orientation_repair = None
+            return anchor_label, target_label
+
+        # The anchor sits on the relationship's TARGET end. That is not an error
+        # -- "Which decisions apply to the Payments API?" legitimately anchors on
+        # the System, and the ontology says APPLIES_TO runs Decision -> System.
+        #
+        # Swapping the labels was the wrong repair, because the anchor ENTITY
+        # filter does not move with them: the generated query became
+        # `MATCH (a:Decision)-[:APPLIES_TO]-(b:System) WHERE a.name CONTAINS
+        # "Payments API"` -- a Decision named "Payments API", which does not
+        # exist. Measured on a live graph containing the answer: 0 rows, and the
+        # model then reported no data for a question the graph could answer.
+        #
+        # The labels the model gave are consistent with the entity it named. It
+        # is the TRAVERSAL that has to run backwards, which is exactly what
+        # anchor_role expresses and what every pattern builder already honours.
+        self.last_orientation_repair = {
+            "relationship_type": relationship_type,
+            "from": {"anchor_label": anchor_label, "target_label": target_label},
+            "to": {"anchor_label": anchor_label or target,
+                   "target_label": source, "anchor_role": "target"},
+            "reason": "anchor_on_relationship_target_end",
+        }
+        self.anchor_role = "target"
+        return (anchor_label or target), source
 
     def _match_relationship(self, rel_type: str, *, anchor_label: str, target_label: str) -> str:
         # 1. Exact or alias match
@@ -981,6 +1841,23 @@ class CypherBuilder:
         years: Sequence[str],
         metric_aliases: Sequence[str],
     ) -> bool:
+        # The override this gates hardcodes anchor_label="Company" and
+        # target_label="FinancialMetric", so it is only ever valid on an ontology that
+        # declares them. Without this guard it fires on any schema and then emits a pattern
+        # over labels that do not exist, which degrades to an unlabeled scan.
+        #
+        # Measured: rewriting the AML questions into the language an analyst actually uses
+        # ("Account X is under review for acting as a payment mule… how many counterparty
+        # accounts has it sent funds to?") tripped this on 15 of 24 runs. Words like *funds*
+        # and *payment* are ordinary financial vocabulary that reads as a metric question to a
+        # classifier tuned on 10-K line items. Db hits per answer went from 38,584 to
+        # 6,600,197 at SF1000 — the AllNodesScan signature — and accuracy to 0%. The synthetic
+        # phrasing had been avoiding the trigger by accident.
+        #
+        # ``_is_legal_issue_question`` immediately below already guards itself this way; this
+        # function simply never did.
+        if "FinancialMetric" not in self.ontology.nodes:
+            return False
         if raw_intent_name in {"financial_metric_lookup", "financial_metric_delta"}:
             return True
         lower = question.lower()

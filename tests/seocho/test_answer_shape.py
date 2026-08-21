@@ -1,4 +1,4 @@
-"""AnswerShape classification + terse-directive contract (opik-derived).
+"""AnswerShape classification + terse-directive contract (trace-derived).
 
 Pins the rule-based classifier and the synthesis-directive mapping that
 the FinDER T2 A/B relies on. Motivated by the baseline finding: retrieval

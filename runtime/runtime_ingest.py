@@ -17,10 +17,10 @@ import threading
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from config import graph_registry, load_pipeline_runtime_config
-from database_manager import DatabaseManager
-from exceptions import InvalidDatabaseNameError
-from raw_material_parser import MaterialParseError, parse_raw_material_record
+from extraction.config import graph_registry, load_pipeline_runtime_config
+from extraction.database_manager import DatabaseManager
+from extraction.exceptions import InvalidDatabaseNameError
+from extraction.raw_material_parser import MaterialParseError, parse_raw_material_record
 from seocho.index import CanonicalExtractionEngine
 from seocho.index.runtime_artifacts import (
     build_vocabulary_candidate,
@@ -106,7 +106,7 @@ class RuntimeRawIngestor:
         self._embedding_cache_lock = threading.Lock()
 
         try:
-            from semantic_pass_orchestrator import SemanticPassOrchestrator
+            from extraction.semantic_pass_orchestrator import SemanticPassOrchestrator
 
             cfg = load_pipeline_runtime_config()
             api_key = cfg.openai_api_key
@@ -136,7 +136,7 @@ class RuntimeRawIngestor:
             )
             if self._embedding_enabled:
                 from openai import OpenAI
-                from tracing import wrap_openai_client
+                from extraction.tracing import wrap_openai_client
 
                 self._embedding_client = wrap_openai_client(OpenAI(api_key=api_key))
             self._llm_stack_ready = True
@@ -177,7 +177,7 @@ class RuntimeRawIngestor:
         Raises:
             InvalidDatabaseNameError: If *target_database* fails name validation.
         """
-        from rule_constraints import RuleSet, apply_rules_to_graph, infer_rules_from_graph
+        from extraction.rule_constraints import RuleSet, apply_rules_to_graph, infer_rules_from_graph
 
         if not _DB_NAME_RE.match(target_database):
             raise InvalidDatabaseNameError(

@@ -1,19 +1,42 @@
 """Tests for graph-scoped multi-instance connector behavior."""
 
 import json
-import os
-import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from types import SimpleNamespace
 
-import graph_connector
-from config import GraphTarget
+from .. import graph_connector
+from ..config import GraphTarget
 
+
+def _patch_registry(monkeypatch, get_graph):
+    """Swap the module's registry reference instead of mutating the singleton.
+
+    `graph_registry` is one object shared with `runtime/server_runtime.py`. Until
+    seocho-60u it was not — `extraction/config.py` loaded twice, so patching the
+    method here reached a different object than the runtime used, and the leak
+    was invisible. With one module there is one registry, and mutating its
+    method during a test made the runtime resolve
+    `bolt://finance:7687 / password="secret"`, failing later integration tests
+    with Neo.ClientError.Security.Unauthorized.
+
+    Rebinding the module attribute keeps the fake local to this module and
+    leaves the shared object untouched.
+    """
+    monkeypatch.setattr(
+        graph_connector,
+        "graph_registry",
+        SimpleNamespace(
+            get_graph=get_graph,
+            list_graph_ids=lambda: ["finance"],
+            # Returning None keeps resolve_target on its explicit-override path,
+            # which is what these tests exercise.
+            find_by_database=lambda database: None,
+        ),
+    )
 
 def test_resolve_target_from_graph_registry(monkeypatch):
-    monkeypatch.setattr(
-        graph_connector.graph_registry,
-        "get_graph",
+    _patch_registry(
+        monkeypatch,
         lambda graph_id: GraphTarget(
             graph_id=graph_id,
             database="kgfibo",
@@ -71,9 +94,8 @@ def test_run_cypher_uses_graph_bound_driver(monkeypatch):
         def close(self):
             return None
 
-    monkeypatch.setattr(
-        graph_connector.graph_registry,
-        "get_graph",
+    _patch_registry(
+        monkeypatch,
         lambda graph_id: GraphTarget(
             graph_id=graph_id,
             database="kgfibo",
@@ -83,10 +105,14 @@ def test_run_cypher_uses_graph_bound_driver(monkeypatch):
             ontology_id="fibo",
         ),
     )
+    # Replace the module's reference, not neo4j's GraphDatabase class. Patching
+    # the class mutates global state shared with every other test in the
+    # session; until seocho-60u that leak was hidden because extraction/ loaded
+    # twice and the runtime held a different module object.
     monkeypatch.setattr(
-        graph_connector.GraphDatabase,
-        "driver",
-        lambda uri, auth: _Driver(uri, auth),
+        graph_connector,
+        "GraphDatabase",
+        SimpleNamespace(driver=lambda uri, auth: _Driver(uri, auth)),
     )
     connector = graph_connector.MultiGraphConnector()
 
@@ -132,9 +158,8 @@ def test_query_normalizes_graph_bound_driver_rows(monkeypatch):
         def close(self):
             return None
 
-    monkeypatch.setattr(
-        graph_connector.graph_registry,
-        "get_graph",
+    _patch_registry(
+        monkeypatch,
         lambda graph_id: GraphTarget(
             graph_id=graph_id,
             database="kgfibo",
@@ -144,10 +169,14 @@ def test_query_normalizes_graph_bound_driver_rows(monkeypatch):
             ontology_id="fibo",
         ),
     )
+    # Replace the module's reference, not neo4j's GraphDatabase class. Patching
+    # the class mutates global state shared with every other test in the
+    # session; until seocho-60u that leak was hidden because extraction/ loaded
+    # twice and the runtime held a different module object.
     monkeypatch.setattr(
-        graph_connector.GraphDatabase,
-        "driver",
-        lambda uri, auth: _Driver(uri, auth),
+        graph_connector,
+        "GraphDatabase",
+        SimpleNamespace(driver=lambda uri, auth: _Driver(uri, auth)),
     )
     connector = graph_connector.MultiGraphConnector()
 

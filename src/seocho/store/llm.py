@@ -33,6 +33,12 @@ class ProviderSpec:
     default_model: str = "gpt-4o"
     default_embedding_model: Optional[str] = None
     supports_embeddings: bool = False
+    # Per-provider default request timeout (seconds). Reasoning-model presets
+    # override the 120s baseline: a single-document extraction routinely runs
+    # far longer, and the timeout was tripping the heuristic fallback rather
+    # than surfacing as an error, so the run reported success on manufactured
+    # Entity/MENTIONS structure.
+    default_timeout: float = 120.0
 
 
 _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
@@ -59,6 +65,9 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         default_model="kimi-k2.5",
         default_embedding_model=None,
         supports_embeddings=False,
+        # kimi-k2.5 single-document extraction was measured at 160-1450s; the
+        # 120s baseline cut it off and silently degraded to heuristics.
+        default_timeout=900.0,
     ),
     "grok": ProviderSpec(
         name="grok",
@@ -68,6 +77,8 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         default_model="grok-4.20-reasoning",
         default_embedding_model=None,
         supports_embeddings=False,
+        # Default model is a reasoning preset — same headroom.
+        default_timeout=900.0,
     ),
     "qwen": ProviderSpec(
         name="qwen",
@@ -97,9 +108,13 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         name="mara",
         api_key_env="MARA_API_KEY",
         base_url="https://api.cloud.mara.com/v1",
-        default_model="MiniMax-M2.5",
+        default_model="MiniMax-M2.7",
         default_embedding_model=None,
         supports_embeddings=False,
+        # MiniMax-M2.x is a reasoning model and mara is the default provider
+        # for this repo, so it needs the headroom most. Added here rather than
+        # inherited: the preset postdates the kimi/grok ones.
+        default_timeout=900.0,
     ),
 }
 
@@ -129,6 +144,28 @@ def _strip_text(value: Optional[str]) -> str:
     return str(value).strip()
 
 
+_EMBED_MAX_BATCH = 2048  # OpenAI-compatible /embeddings cap inputs at ~2048 per request
+
+
+def _embed_in_batches(client: Any, model: str, texts: Sequence[str]) -> List[List[float]]:
+    """Embed ``texts`` in provider-safe sub-batches and concatenate, preserving order.
+
+    A single request for an arbitrarily large input hits the provider's per-request
+    item cap and 400s, losing the whole batch; chunking degrades gracefully instead.
+    Results are reordered by the response ``index`` so concatenation stays aligned.
+    """
+    items = list(texts)
+    out: List[List[float]] = []
+    for start in range(0, len(items), _EMBED_MAX_BATCH):
+        batch = items[start : start + _EMBED_MAX_BATCH]
+        if not batch:
+            continue
+        response = client.embeddings.create(model=model, input=batch)
+        ordered = sorted(response.data, key=lambda item: item.index)
+        out.extend(list(item.embedding) for item in ordered)
+    return out
+
+
 def _resolve_client_kwargs(
     *,
     provider: str,
@@ -144,31 +181,22 @@ def _resolve_client_kwargs(
             resolved_api_key = _strip_text(os.getenv(env_name))
             if resolved_api_key:
                 break
+    if not resolved_api_key:
+        from ..exceptions import SeochoCredentialError
+
+        env_names = " or ".join((spec.api_key_env, *spec.api_key_env_aliases))
+        raise SeochoCredentialError(
+            f"No API key found for LLM provider '{spec.name}'. "
+            f"Pass api_key=... (e.g. Seocho.local(ontology, api_key=...)) "
+            f"or set the {env_names} environment variable. "
+            f'For a local gateway that needs no key, pass api_key="EMPTY".'
+        )
     kwargs: Dict[str, Any] = {"timeout": timeout}
     if resolved_api_key:
         kwargs["api_key"] = resolved_api_key
     if resolved_base_url:
         kwargs["base_url"] = resolved_base_url
     return spec, kwargs, resolved_api_key, resolved_base_url
-
-
-def _wrap_with_opik(client: Any) -> Any:
-    try:
-        from ..tracing import is_backend_enabled
-
-        if not is_backend_enabled("opik"):
-            return client
-    except Exception:
-        return client
-
-    try:
-        from opik.integrations.openai import track_openai
-
-        return track_openai(client)
-    except ImportError:
-        return client
-    except Exception:
-        return client
 
 
 @dataclass(slots=True)
@@ -194,7 +222,18 @@ class LLMResponse:
             # parser that examines every balanced object and selects the
             # largest valid one instead of failing on the first ``{...}``.
             from ..llm_structured import extract_json_object
+            from ..metrics import get_metrics
 
+            # Every trip through the salvage parser is a repair event: the
+            # SeochoLLMRepairRegression alert watches this rate as the early
+            # signal that a provider/model stopped honouring structured output.
+            get_metrics().add(
+                "seocho.gen_ai.structured_output_repair.count",
+                attributes={
+                    "gen_ai.request.model": self.model or "unknown",
+                    "reason": "non_json_text_salvage",
+                },
+            )
             return extract_json_object(text)
 
 
@@ -348,6 +387,18 @@ def complete_with_task_hints(
         "user": user,
         "temperature": temperature,
     }
+    if max_tokens is None and _strip_text(task_hint).lower() in (
+        "json_extraction",
+        "json_extraction_retry",
+        "entity_linking",
+    ):
+        # Structured-output calls on reasoning models (MARA MiniMax-M2.7,
+        # DeepSeek) spend thousands of completion tokens thinking before the
+        # JSON payload. Leaving max_tokens to the server default truncates
+        # mid-reasoning — the response carries reasoning text and no JSON,
+        # or the provider 400s ("token limit reached before a complete JSON
+        # object"). Give these calls an explicit generous budget (seocho-ub5).
+        max_tokens = 8192
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
     if response_format is not None:
@@ -366,19 +417,33 @@ def complete_with_task_hints(
         kwargs["model"] = model
     if provider_options:
         kwargs["provider_options"] = provider_options
-    try:
-        return llm.complete(**kwargs)
-    except TypeError as exc:
-        if "unexpected keyword argument" not in str(exc):
-            raise
-        # Older backends predate mode/reasoning_mode/task_hint/model — strip
-        # them and retry so this helper stays drop-in for legacy doubles.
-        kwargs.pop("reasoning_mode", None)
-        kwargs.pop("task_hint", None)
-        kwargs.pop("mode", None)
-        kwargs.pop("model", None)
-        kwargs.pop("provider_options", None)
-        return llm.complete(**kwargs)
+    # Older backends predate some optional kwargs (mode/reasoning_mode/
+    # task_hint/model/provider_options, and the task-hint max_tokens
+    # default). Strip ONLY the kwarg each TypeError names, so a double that
+    # accepts reasoning_mode but not max_tokens keeps every kwarg it
+    # understands.
+    import re as _re
+
+    optional_kwargs = (
+        "reasoning_mode", "task_hint", "mode", "model",
+        "provider_options", "max_tokens",
+    )
+    for _ in range(len(optional_kwargs) + 1):
+        try:
+            return llm.complete(**kwargs)
+        except TypeError as exc:
+            message = str(exc)
+            if "unexpected keyword argument" not in message:
+                raise
+            match = _re.search(r"unexpected keyword argument '([^']*)'", message)
+            offender = match.group(1) if match else None
+            if offender in optional_kwargs and offender in kwargs:
+                kwargs.pop(offender)
+                continue
+            # Unparseable message — legacy blanket strip as a last resort.
+            for key in optional_kwargs:
+                kwargs.pop(key, None)
+    return llm.complete(**kwargs)
 
 
 class EmbeddingBackend(ABC):
@@ -420,8 +485,8 @@ class OpenAICompatibleBackend(LLMBackend):
             base_url=base_url,
             timeout=timeout,
         )
-        client = _wrap_with_opik(openai.OpenAI(**kwargs))
-        async_client = _wrap_with_opik(openai.AsyncOpenAI(**kwargs))
+        client = openai.OpenAI(**kwargs)
+        async_client = openai.AsyncOpenAI(**kwargs)
 
         self.provider = spec.name
         self.provider_spec = spec
@@ -502,42 +567,6 @@ class OpenAICompatibleBackend(LLMBackend):
         model = self.model.strip().lower()
         return model.startswith(("o1", "o3", "o4", "gpt-5"))
 
-    @staticmethod
-    def _translate_response_format_to_guided(
-        response_format: Optional[Dict[str, Any]],
-    ) -> Optional[Dict[str, Any]]:
-        """Translate an OpenAI ``response_format`` into a vLLM guided-decoding
-        ``extra_body`` payload (ADR-0098). Returns None if the format is
-        not translatable so the caller leaves ``response_format`` in place.
-
-        Mapping per ADR-0098 §3:
-            {"type":"json_object"}             → {"guided_json": {"type":"object"}}
-            {"type":"json_schema","json_schema":S} → {"guided_json": S}
-            {"type":"regex","pattern":P}       → {"guided_regex": P}
-            {"type":"choice","options":[...]}  → {"guided_choice": [...]}
-        """
-        if not isinstance(response_format, dict):
-            return None
-        rf_type = str(response_format.get("type") or "").lower()
-        if rf_type == "json_object":
-            return {"guided_json": {"type": "object"}}
-        if rf_type == "json_schema":
-            schema = response_format.get("json_schema") or response_format.get("schema")
-            if schema is None:
-                return None
-            return {"guided_json": schema}
-        if rf_type == "regex":
-            pattern = response_format.get("pattern")
-            if pattern is None:
-                return None
-            return {"guided_regex": pattern}
-        if rf_type == "choice":
-            options = response_format.get("options")
-            if options is None:
-                return None
-            return {"guided_choice": list(options)}
-        return None
-
     def _completion_request_kwargs(
         self,
         *,
@@ -572,26 +601,26 @@ class OpenAICompatibleBackend(LLMBackend):
                 kwargs["max_tokens"] = max_tokens
 
         normalized_mode = (mode or "").strip().lower() or None
-        # ADR-0098 V3: in pipeline mode against vLLM, translate
-        # response_format into extra_body.guided_*. In agent mode the
-        # Agents SDK tool-call structure carries shape; leave response_format
-        # alone so we never JSON-force a tool-call response. For other
-        # providers, response_format flows through unchanged in every mode.
-        guided_kwargs: Optional[Dict[str, Any]] = None
-        if (
-            normalized_mode == "pipeline"
-            and self.provider == "vllm"
-            and response_format is not None
-        ):
-            guided_kwargs = self._translate_response_format_to_guided(response_format)
-
-        if guided_kwargs is not None:
-            # Guided decoding supersedes response_format on vLLM.
-            kwargs["extra_body"] = self._merge_extra_body(
-                kwargs.get("extra_body"),
-                guided_kwargs,
-            )
-        elif response_format is not None:
+        # ADR-0098 translated response_format into extra_body.guided_* for
+        # vLLM. That was correct for vLLM 0.4-era guided decoding and is now
+        # actively harmful: `guided_json` does not exist in vLLM 0.27 (grep of
+        # the installed package returns zero hits — the API is
+        # `structured_outputs`), and OpenAIBaseModel is ConfigDict(extra="allow"),
+        # so the unknown field is accepted and dropped with only a debug log.
+        #
+        # The translation was an `elif`, so when it fired `response_format` was
+        # stripped from the request. vLLM handles `response_format` natively and
+        # correctly — structured_outputs_from_response_format maps json_object
+        # and json_schema itself, including the schema unwrap our translator got
+        # wrong. So the net effect was to convert working structured output into
+        # none at all, on exactly the self-hosted deployment we target.
+        #
+        # Three JSON safety nets keyed off `response_format` being present and
+        # therefore also disabled themselves: the doubled-budget retry, the
+        # "Return ONLY valid JSON" prompt variant, and the salvage-parser
+        # accounting. Passing response_format straight through re-arms all of
+        # them. Deleting the translation is strictly better than fixing it.
+        if response_format is not None:
             kwargs["response_format"] = response_format
 
         if "extra_body" in reasoning_overrides:
@@ -628,6 +657,42 @@ class OpenAICompatibleBackend(LLMBackend):
         content = str(messages[0].get("content", ""))
         if "Return ONLY valid JSON." not in content:
             messages[0]["content"] = f"{content}\n\nReturn ONLY valid JSON."
+
+    # Provider error text signalling "payload fine, the model ran out of
+    # budget before completing the constrained JSON" (MARA wording).
+    _JSON_GENERATION_FAILURE_MARKERS = (
+        "did not output valid json",
+        "truncated before a complete json",
+    )
+
+    @classmethod
+    def _maybe_boost_json_budget(
+        cls,
+        *,
+        exc: Exception,
+        attempt_kwargs: Dict[str, Any],
+        variants: List[Dict[str, Any]],
+        position: int,
+    ) -> bool:
+        """Insert a same-shape, doubled-budget retry for JSON-truncation 400s.
+
+        These errors are generation failures, not payload rejections: falling
+        straight down the strip ladder removes ``response_format``, and the
+        unconstrained retry produces runaway thinking-in-content prose with no
+        JSON at all (observed 43k-char responses on MARA MiniMax-M2.7). Retry
+        the SAME request shape with more budget first; the strip ladder stays
+        as the final fallback. Returns True if a variant was inserted."""
+        if "response_format" not in attempt_kwargs:
+            return False
+        message = str(exc).lower()
+        if not any(m in message for m in cls._JSON_GENERATION_FAILURE_MARKERS):
+            return False
+        boosted = cls._clone_completion_request_kwargs(attempt_kwargs)
+        boosted["max_tokens"] = max(
+            int(attempt_kwargs.get("max_tokens") or 0) * 2, 16384
+        )
+        variants.insert(position, boosted)
+        return True
 
     def _completion_retry_variants(self, kwargs: Dict[str, Any]) -> List[Dict[str, Any]]:
         variants = [self._clone_completion_request_kwargs(kwargs)]
@@ -747,6 +812,7 @@ class OpenAICompatibleBackend(LLMBackend):
             tags=["gen_ai", f"provider:{self.provider}"],
         ) as span:
             last_exc: Optional[Exception] = None
+            budget_boosted = False
             for attempt, attempt_kwargs in enumerate(variants, start=1):
                 try:
                     resp = self._client.chat.completions.create(**attempt_kwargs)
@@ -797,6 +863,16 @@ class OpenAICompatibleBackend(LLMBackend):
                     return result
                 except Exception as exc:
                     last_exc = exc
+                    if not budget_boosted:
+                        # list.insert during iteration is safe here: the
+                        # boosted variant lands at the position the loop
+                        # visits next.
+                        budget_boosted = self._maybe_boost_json_budget(
+                            exc=exc,
+                            attempt_kwargs=attempt_kwargs,
+                            variants=variants,
+                            position=attempt,
+                        )
                     if attempt < len(variants):
                         metrics.add(
                             "seocho.gen_ai.retry.count",
@@ -878,6 +954,7 @@ class OpenAICompatibleBackend(LLMBackend):
             tags=["gen_ai", f"provider:{self.provider}"],
         ) as span:
             last_exc: Optional[Exception] = None
+            budget_boosted = False
             for attempt, attempt_kwargs in enumerate(variants, start=1):
                 try:
                     resp = await self._async_client.chat.completions.create(**attempt_kwargs)
@@ -928,6 +1005,16 @@ class OpenAICompatibleBackend(LLMBackend):
                     return result
                 except Exception as exc:
                     last_exc = exc
+                    if not budget_boosted:
+                        # list.insert during iteration is safe here: the
+                        # boosted variant lands at the position the loop
+                        # visits next.
+                        budget_boosted = self._maybe_boost_json_budget(
+                            exc=exc,
+                            attempt_kwargs=attempt_kwargs,
+                            variants=variants,
+                            position=attempt,
+                        )
                     if attempt < len(variants):
                         metrics.add(
                             "seocho.gen_ai.retry.count",
@@ -962,11 +1049,7 @@ class OpenAICompatibleBackend(LLMBackend):
                 f"Provider '{self.provider}' does not define a default embedding model. "
                 "Pass an explicit embedding model or use a dedicated embedding backend."
             )
-        response = self._client.embeddings.create(
-            model=resolved_model,
-            input=list(texts),
-        )
-        return [list(item.embedding) for item in response.data]
+        return _embed_in_batches(self._client, resolved_model, texts)
 
     def to_embedding_backend(
         self,
@@ -1047,12 +1130,22 @@ class OpenAICompatibleBackend(LLMBackend):
                 "total_tokens": int(getattr(resp.usage, "total_tokens", 0) or 0),
                 "cached_tokens": int(cached_tokens or 0),
             }
-        # Reasoning models (e.g. Kimi K2.5) may return the answer in
-        # ``reasoning_content`` when ``content`` is empty — typically
-        # when the generation was cut short by max_tokens.
+        # Reasoning models may return the answer in a reasoning field when
+        # ``content`` is empty — typically when generation was cut short by
+        # max_tokens. Field name varies by provider: ``reasoning_content``
+        # (Kimi K2.5) vs ``reasoning`` (MARA MiniMax-M2.7). Unknown fields
+        # land in the SDK model's ``model_extra``, so check both surfaces.
         text = getattr(choice.message, "content", "") or ""
         if not text:
-            text = getattr(choice.message, "reasoning_content", "") or ""
+            extra = getattr(choice.message, "model_extra", None) or {}
+            for field_name in ("reasoning_content", "reasoning"):
+                text = (
+                    getattr(choice.message, field_name, "")
+                    or extra.get(field_name)
+                    or ""
+                )
+                if text:
+                    break
         return LLMResponse(
             text=text,
             model=getattr(resp, "model", "") or "",
@@ -1104,7 +1197,7 @@ class OpenAICompatibleEmbeddingBackend(EmbeddingBackend):
         self._api_key_env = spec.api_key_env
         self._base_url = resolved_base_url
         self._timeout = timeout
-        self._client = _wrap_with_opik(openai.OpenAI(**kwargs))
+        self._client = openai.OpenAI(**kwargs)
 
     def embed(
         self,
@@ -1113,11 +1206,7 @@ class OpenAICompatibleEmbeddingBackend(EmbeddingBackend):
         model: Optional[str] = None,
     ) -> List[List[float]]:
         resolved_model = _strip_text(model) or self.model
-        response = self._client.embeddings.create(
-            model=resolved_model,
-            input=list(texts),
-        )
-        return [list(item.embedding) for item in response.data]
+        return _embed_in_batches(self._client, resolved_model, texts)
 
     def __repr__(self) -> str:
         return (
@@ -1224,7 +1313,7 @@ class MaraBackend(OpenAICompatibleBackend):
     def __init__(
         self,
         *,
-        model: str = "MiniMax-M2.5",
+        model: str = "MiniMax-M2.7",
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         timeout: float = 120.0,
@@ -1287,11 +1376,21 @@ def create_llm_backend(
     model: Optional[str] = None,
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
-    timeout: float = 120.0,
+    timeout: Optional[float] = None,
 ) -> OpenAICompatibleBackend:
-    """Create an OpenAI-compatible LLM backend by provider preset."""
+    """Create an OpenAI-compatible LLM backend by provider preset.
+
+    When ``timeout`` is None the provider preset's ``default_timeout`` applies,
+    so reasoning presets (mara, kimi, grok) get more headroom than the 120s
+    baseline. Pass an explicit timeout to override.
+    """
 
     provider_key = str(provider).strip().lower() or "openai"
+    if timeout is None:
+        try:
+            timeout = get_provider_spec(provider_key).default_timeout
+        except ValueError:
+            timeout = 120.0
     if provider_key == "openai":
         return OpenAIBackend(
             model=model or get_provider_spec("openai").default_model,

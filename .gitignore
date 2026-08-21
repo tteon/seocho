@@ -102,6 +102,7 @@ neo4j/logs/
 neostore*
 *.lock
 !scripts/profiling/agent_memory_rust/Cargo.lock
+!dataplane/oxigraph_read_model/Cargo.lock
 
 # Docker volumes and mounts
 workspace/
@@ -147,8 +148,15 @@ examples/untitled.txt
 # Per-PR scratch bodies (the actual PR description lives on GitHub)
 PR_BODY.md
 
-# root dataset/ is a non-tracked public surface (CLAUDE.md Public Repo Hygiene)
-dataset/
+# root dataset/ is a non-tracked public surface (CLAUDE.md Public Repo Hygiene).
+# Leading slash matters: unanchored these match a directory of that name at ANY
+# depth. `ontology/` silently swallowed `src/seocho/ontology/__init__.py` when
+# that package was created (ADR-0170) — the 16 `git mv`d modules stayed tracked
+# because git mv stages explicitly, so the package looked complete locally and
+# resolved as a namespace package in CI: "cannot import name 'Ontology' from
+# 'seocho.ontology' (unknown location)".
+/dataset/
+/ontology/
 
-# root ontology/ is a non-tracked public surface (CLAUDE.md Public Repo Hygiene)
-ontology/
+# Rust build output from the neo4rs driver probe
+scripts/finbench/neo4rs_probe/target/

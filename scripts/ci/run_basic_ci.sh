@@ -20,13 +20,15 @@ python3 -m py_compile $py_compile_files
 
 uv run ruff check \
   scripts/ci \
-  src/seocho/cli.py \
+  src/seocho/cli \
   src/seocho/connectors \
   src/seocho/e2e.py \
   src/seocho/index/file_reader.py \
   src/seocho/run_spec.py \
   src/seocho/scaffold.py \
   tests/seocho/test_connectors.py \
+  tests/seocho/test_pattern_trace_schema.py \
+  tests/seocho/test_cache_simulator.py \
   tests/seocho/test_e2e_runner.py \
   tests/seocho/test_run_spec.py \
   tests/seocho/test_scaffold.py \
@@ -56,16 +58,41 @@ uv run pytest \
   tests/seocho/test_query_proxy_workspace_enforcement.py \
   tests/seocho/test_ontology_context.py \
   tests/seocho/test_session_agent.py \
+  tests/seocho/test_stream_async_in_thread.py \
+  tests/seocho/test_extraction_category_per_call.py \
+  tests/seocho/test_financial_delta_direction.py \
+  tests/seocho/test_neo4j_store_close.py \
   tests/seocho/test_response_cache_wiring.py \
   tests/seocho/test_user_facing_edge_cases.py \
   tests/seocho/test_connectors.py \
+  tests/seocho/test_cli_parser_contract.py \
+  tests/seocho/test_pattern_trace_schema.py \
+  tests/seocho/test_cache_simulator.py \
+  tests/seocho/test_ontology_import.py \
+  tests/seocho/test_operating_layer.py \
+  tests/seocho/test_serving_image_hardening.py \
   tests/seocho/test_semantic_query_phase_a.py \
   extraction/tests/test_sdk_evaluation.py \
   tests/seocho/test_agent_design.py \
   tests/seocho/test_benchmarking.py \
+  tests/seocho/test_erb_edge_source.py \
+  tests/seocho/test_context_arms.py \
+  tests/seocho/test_run_arms.py \
+  tests/seocho/test_question_set_strata.py \
+  tests/seocho/test_bench_annotation.py \
   tests/seocho/test_finder_benchmark_script.py \
   tests/seocho/test_indexing_design.py \
+  tests/seocho/test_indexing_quality_metrics.py \
+  tests/seocho/test_declared_vocabulary_reaches_extraction.py \
+  tests/seocho/test_dedup_scope.py \
+  tests/seocho/test_indexing_fallback_honesty.py \
+  tests/seocho/test_provider_timeout_defaults.py \
+  tests/seocho/test_faiss_vector_store.py \
+  tests/seocho/test_faiss_delete.py \
+  tests/seocho/test_delete_source_vectors.py \
   tests/seocho/test_llm_backends.py \
+  tests/seocho/test_semantic_artifact_lifecycle.py \
+  tests/seocho/test_semantic_artifact_durability.py \
   tests/seocho/test_llm_model_override.py \
   tests/seocho/test_model_router.py \
   tests/seocho/test_reflection.py \
@@ -75,8 +102,15 @@ uv run pytest \
   tests/seocho/test_debate_quorum.py \
   tests/seocho/test_graph_loop_model_routing.py \
   tests/seocho/test_tracing.py \
-  tests/seocho/test_tracing_opik_regression.py \
+  tests/seocho/test_observability_wiring.py \
+  tests/seocho/test_metrics_never_fail_the_work.py \
+  tests/seocho/test_histogram_buckets.py \
+  tests/seocho/test_trace_span_context.py \
+  tests/seocho/test_observability_contract.py \
+  tests/seocho/test_golden_signal_emitters.py \
   tests/seocho/test_cypher_builder.py \
+  tests/seocho/test_plan_profile_harvest.py \
+  tests/seocho/test_plan_grader_classification.py \
   tests/seocho/test_cypher_builder_ontology_aware.py \
   tests/seocho/test_extraction_engine.py \
   tests/seocho/test_graph_ensure_database.py \
@@ -88,23 +122,46 @@ uv run pytest \
   tests/seocho/test_finder_cache_synergy.py \
   tests/seocho/test_ontology_extraction_firewall.py \
   tests/seocho/test_ontology_lint.py \
+  tests/seocho/test_index_coverage.py \
+  tests/seocho/test_shacl_enum_range.py \
+  tests/seocho/test_ontology_merge_conflicts.py \
+  tests/seocho/test_extraction_type_scoring.py \
   tests/seocho/test_ontology_subclass_ttl.py \
   tests/seocho/test_ontology_reasoner.py \
   tests/seocho/test_ontology_iso704_cq.py \
+  tests/seocho/test_relationship_direction.py \
+  tests/seocho/test_semantic_agents_cypher_escaping.py \
+  tests/seocho/test_label_distribution_workspace_scope.py \
+  tests/seocho/test_anchor_orientation.py \
+  tests/seocho/test_unbound_slot.py \
+  tests/seocho/test_query_projection.py \
+  tests/seocho/test_text2cypher_literals.py \
+  tests/seocho/test_prompt_prefix_stability.py \
   tests/seocho/test_run_spec.py \
   tests/seocho/test_e2e_runner.py \
   tests/seocho/test_scaffold.py \
   tests/seocho/test_ontology_enforcement.py \
+  tests/seocho/test_generic_label_coercion.py \
+  tests/seocho/test_generic_relationship_coercion.py \
+  tests/seocho/test_extraction_split_retry.py \
   tests/seocho/test_run_template.py \
   tests/seocho/test_sweep.py \
   tests/seocho/test_entity_identity.py \
   tests/seocho/test_triage_metadata.py \
+  tests/seocho/test_plan_quality_explain.py \
+  tests/seocho/test_import_boundaries.py \
+  tests/seocho/test_ontology_package_surface.py \
+  tests/seocho/test_package_completeness.py \
+  tests/seocho/test_client_namespaces.py \
+  tests/seocho/test_env_contract.py \
   -q
 
 git diff --check
 scripts/ci/check-runtime-shell-contract.sh
 bash scripts/ci/check-module-ownership-contract.sh
+python3 scripts/ci/check-import-boundaries.py
 scripts/ci/check-root-hierarchy-contract.sh
+python3 scripts/ci/check-env-contract.py
 scripts/pm/lint-agent-docs.sh
 
 # Keep real-world identities out of tracked content and commit metadata.

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from config import graph_registry
+from extraction.config import graph_registry
 from runtime.middleware import get_request_id
 from runtime.policy import require_runtime_permission
 from seocho.runtime_contract import (

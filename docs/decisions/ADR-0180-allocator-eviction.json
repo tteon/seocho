@@ -1,0 +1,25 @@
+{
+  "steps": 4000,
+  "byte_budget": 15000,
+  "tenant_floor": 1,
+  "naive_lru": {
+    "hit_rate": 0.3528,
+    "recompute_ms_incurred": 59160.0,
+    "recompute_ms_avoided": 56440.0,
+    "hot_shared_hit_rate": 0.8656,
+    "hot_shared_resident_at_end": true
+  },
+  "cost_aware_fair": {
+    "entries": 7,
+    "bytes": 14400,
+    "byte_budget": 15000,
+    "hits": 1924,
+    "misses": 2076,
+    "hit_rate": 0.481,
+    "recompute_ms_incurred": 38640.0,
+    "recompute_ms_avoided": 76960.0,
+    "evictions": 2069,
+    "hot_shared_hit_rate": 0.999,
+    "hot_shared_resident_at_end": true
+  }
+}

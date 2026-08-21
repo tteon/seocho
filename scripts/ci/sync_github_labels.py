@@ -15,7 +15,8 @@ HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
 
 
 def load_labels(path: Path) -> list[dict[str, str]]:
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    with path.open("r", encoding="utf-8") as f:
+        raw = json.load(f)
     if not isinstance(raw, list):
         raise ValueError(f"{path} must contain a JSON array")
 

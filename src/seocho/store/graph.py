@@ -2,16 +2,13 @@
 Graph store abstraction — pluggable backend for writing and querying
 knowledge graphs.
 
-Currently ships with :class:`LadybugGraphStore` for embedded local use and
-:class:`Neo4jGraphStore` for DozerDB / Neo4j.
+Ships with :class:`Neo4jGraphStore` for DozerDB / Neo4j.
 
 Usage::
 
     from seocho import Ontology
-    from seocho.graph_store import LadybugGraphStore, Neo4jGraphStore
+    from seocho.graph_store import Neo4jGraphStore
 
-    store = LadybugGraphStore(".seocho/local.lbug")
-    # or:
     store = Neo4jGraphStore("bolt://localhost:7687", "neo4j", "password")
     store.ensure_constraints(ontology)
     store.write(nodes, relationships, database="mydb")
@@ -23,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import time
 from abc import ABC, abstractmethod
@@ -80,6 +78,153 @@ class WorkspaceFilterMissingError(ValueError):
             "<var>._workspace_id = $workspace_id' to scope the query."
         )
         self.cypher = cypher
+
+
+class WorkspaceScopeViolationError(ValueError):
+    """Raised by the governed read path when a query would escape workspace
+    scope or read-safety despite naming ``$workspace_id``.
+
+    Distinct from ``WorkspaceFilterMissingError`` (which only means the token
+    is absent): this fires when the token is present but the surrounding Cypher
+    smuggles a widening tautology, a write, or a procedure call past the naive
+    substring check that the security review (2026-08-15) demonstrated was
+    bypassable via ``... OR true`` and comment-embedded ``$workspace_id``.
+
+    NOTE (honest scope): this is a defense-in-depth *blocklist* run after
+    comment stripping, not a proof of workspace binding. A blocklist cannot be
+    complete; the sound fix is parse/AST-level verification that every returned
+    binding is constrained to ``_workspace_id = $workspace_id``, or DB-side
+    per-workspace databases/credentials. Tracked as a follow-up ticket.
+    """
+
+    def __init__(self, cypher: str, reason: str) -> None:
+        super().__init__(
+            f"Cypher rejected by governed read path ({reason}); refusing to run "
+            "with enforce_workspace_filter=True."
+        )
+        self.cypher = cypher
+        self.reason = reason
+
+
+# Line (// ...) and block (/* ... */) comment strippers. Comment smuggling —
+# `MATCH (n) RETURN n /* $workspace_id */` — otherwise satisfies the token
+# check while contributing nothing to scoping.
+_LINE_COMMENT_RE = re.compile(r"//[^\n]*")
+_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+
+# Widening tautologies that neutralize a WHERE scope even when $workspace_id is
+# named elsewhere. Matched on comment-stripped, whitespace-normalized, upper-
+# cased text. Defense-in-depth, not exhaustive.
+_TAUTOLOGY_RE = re.compile(
+    r"\bOR\b\s+(?:TRUE\b|\d+\s*=\s*\d+|'[^']*'\s*=\s*'[^']*'|\d+\b(?!\s*=))"
+)
+
+# Write/procedure tokens matched on word boundaries (not space-padding, which
+# `CALL{CREATE...}` slipped) over comment-stripped uppercased text. apoc/n10s
+# write-capable procedures are refused on the read path; the ontology guardrail
+# owns the fine-grained allow-list.
+_WRITE_TOKEN_RE = re.compile(
+    r"\b(CREATE|MERGE|DELETE|DETACH|SET|REMOVE|DROP|FOREACH|LOAD\s+CSV)\b"
+)
+_PROC_CALL_RE = re.compile(r"\bCALL\b")
+
+
+def _strip_cypher_comments(cypher: str) -> str:
+    return _BLOCK_COMMENT_RE.sub(" ", _LINE_COMMENT_RE.sub(" ", cypher))
+
+
+# Constructs that rebind variables (WITH), fuse result sets (UNION), or expand
+# rows (UNWIND). Binding verification below cannot reason about them safely, so
+# it declines to analyze such queries rather than risk a false rejection — it
+# only ever ADDS rejections for queries it can positively prove are unscoped.
+_REBIND_CONSTRUCTS_RE = re.compile(r"\b(WITH|UNION|UNWIND)\b", re.IGNORECASE)
+# MATCH clause body up to the next clause keyword (where node patterns bind).
+_MATCH_SEGMENT_RE = re.compile(
+    r"\bMATCH\b(.*?)(?=\b(?:WHERE|RETURN|WITH|MATCH|OPTIONAL|ORDER|SKIP|LIMIT|"
+    r"UNION|CALL|UNWIND)\b|$)", re.IGNORECASE | re.DOTALL)
+# A node variable is the identifier immediately after a pattern '(' .
+_NODE_VAR_RE = re.compile(r"\(\s*([A-Za-z_]\w*)")
+_RETURN_CLAUSE_RE = re.compile(
+    r"\bRETURN\b(.*?)(?=\b(?:ORDER|SKIP|LIMIT|UNION)\b|$)",
+    re.IGNORECASE | re.DOTALL)
+_IDENT_RE = re.compile(r"[A-Za-z_]\w*")
+
+
+def _bound_node_vars(stripped: str) -> set:
+    vars_: set = set()
+    for seg in _MATCH_SEGMENT_RE.finditer(stripped):
+        vars_.update(_NODE_VAR_RE.findall(seg.group(1)))
+    return vars_
+
+
+def _var_is_workspace_scoped(var: str, stripped: str) -> bool:
+    # WHERE style: var._workspace_id = $workspace_id
+    if re.search(rf"\b{re.escape(var)}\._workspace_id\s*=\s*\$workspace_id",
+                 stripped):
+        return True
+    # Inline pattern style: (var ... {_workspace_id: $workspace_id})
+    if re.search(rf"\(\s*{re.escape(var)}\b[^()]*\{{[^}}]*_workspace_id\s*:\s*"
+                 r"\$workspace_id", stripped):
+        return True
+    return False
+
+
+def verify_workspace_binding(cypher: str) -> None:
+    """Best-effort proof that every RETURNed node is scoped to the workspace.
+
+    Closes the class the token-presence check misses: ``$workspace_id`` appears
+    but constrains the *wrong* node, e.g. ``MATCH (n),(m) WHERE m._workspace_id
+    = $workspace_id RETURN n`` — token present, ``n`` returned unscoped. This
+    finds the node variables bound in MATCH, the node variables named in RETURN,
+    and rejects when a returned node variable has no ``_workspace_id =
+    $workspace_id`` binding (WHERE or inline).
+
+    Conservative by construction: if the query rebinds variables (WITH / UNION /
+    UNWIND) it is not analyzed — declined, never falsely rejected. So this only
+    ADDS rejections for queries it can positively prove unscoped; it never
+    refuses a query it cannot understand. Still NOT a full AST proof (see
+    ``WorkspaceScopeViolationError``); the sound form is DB-side per-workspace
+    enforcement.
+    """
+    stripped = _strip_cypher_comments(cypher)
+    if _REBIND_CONSTRUCTS_RE.search(stripped):
+        return
+    ret = _RETURN_CLAUSE_RE.search(stripped)
+    if not ret:
+        return
+    bound = _bound_node_vars(stripped)
+    if not bound:
+        return
+    returned_idents = set(_IDENT_RE.findall(ret.group(1)))
+    for var in bound & returned_idents:
+        if not _var_is_workspace_scoped(var, stripped):
+            raise WorkspaceScopeViolationError(cypher, "unbound_return")
+
+
+def enforce_read_workspace_scope(cypher: str) -> None:
+    """Gate a query on the governed read path.
+
+    Order matters: strip comments first, then require the ``$workspace_id``
+    token in the *stripped* text (so comment-embedded tokens don't count), then
+    reject widening tautologies, writes, and procedure calls, then verify that
+    the token actually binds the returned nodes. Raises
+    ``WorkspaceFilterMissingError`` or ``WorkspaceScopeViolationError``.
+
+    This does not prove the query is scope-safe (see
+    ``WorkspaceScopeViolationError``); it removes the specific bypasses the
+    security review found and pairs with the driver-level READ access mode.
+    """
+    stripped = _strip_cypher_comments(cypher)
+    if "$workspace_id" not in stripped:
+        raise WorkspaceFilterMissingError(cypher)
+    normalized = " " + re.sub(r"\s+", " ", stripped.upper()) + " "
+    if _TAUTOLOGY_RE.search(normalized):
+        raise WorkspaceScopeViolationError(cypher, "widening_tautology")
+    if _WRITE_TOKEN_RE.search(normalized):
+        raise WorkspaceScopeViolationError(cypher, "write_on_read_path")
+    if _PROC_CALL_RE.search(normalized):
+        raise WorkspaceScopeViolationError(cypher, "procedure_call_on_read_path")
+    verify_workspace_binding(cypher)
 
 
 class EnsureConstraintsError(RuntimeError):
@@ -377,6 +522,7 @@ class Neo4jGraphStore(GraphStore):
 
         _log_packstream_codec_once()
         self._driver = GraphDatabase.driver(uri, auth=(user, password))
+        self._closed = False
         self._uri = uri
         self._user = user
         self._schema_cache: Dict[str, Dict[str, Any]] = {}
@@ -396,6 +542,32 @@ class Neo4jGraphStore(GraphStore):
         triples: Optional[Sequence[Dict[str, Any]]] = None,
         graph_model: str = "lpg",
     ) -> Dict[str, Any]:
+        # The Python SDK remains the ontology/policy control plane.  When this
+        # explicit opt-in socket is configured, the canonical DozerDB projection
+        # crosses the OS boundary to the Rust Bolt driver and fails closed.
+        # Reading, query safety, and schema management remain in this adapter.
+        rust_socket = os.environ.get("SEOCHO_RUST_PROJECTOR_SOCKET")
+        if rust_socket:
+            if graph_model == "rdf" and triples:
+                raise RuntimeError("seochod supports approved LPG projection only")
+            from ..dataplane.seochod import SeochodProjectionClient
+
+            result = SeochodProjectionClient(rust_socket).project(
+                nodes,
+                relationships,
+                database=database,
+                workspace_id=workspace_id,
+                source_id=source_id,
+            )
+            self.invalidate_schema_cache(database)
+            return {
+                "nodes_created": result.get("nodes_created", 0),
+                "relationships_created": result.get("relationships_created", 0),
+                "errors": result.get("errors", []),
+                "merge_conflicts": result.get("merge_conflicts", []),
+                "driver": result.get("driver", "rust-neo4j"),
+            }
+
         # Validate database name (skip for default 'neo4j')
         if database != "neo4j":
             validate_database_name(database)
@@ -502,7 +674,12 @@ class Neo4jGraphStore(GraphStore):
                         )
 
                 batch_q = (
-                    f"UNWIND $rows AS row MERGE (n:{label} {{id: row.id}})"
+                    # seocho review-#6: scope node identity by (id, _workspace_id) so
+                    # two tenants' identical id (e.g. the source-agnostic ~xs|<name>
+                    # from cross-source convergence) NEVER MERGE onto one physical
+                    # node in a shared graph. _workspace_id is always set on props
+                    # (below), so existing nodes still match — no migration break.
+                    f"UNWIND $rows AS row MERGE (n:{label} {{id: row.id, _workspace_id: $ws}})"
                     + _conflict_with("row.props", "n, row")
                     + " SET n += CASE WHEN n._writer_ts IS NULL "
                     "OR n._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END"
@@ -510,14 +687,17 @@ class Neo4jGraphStore(GraphStore):
                     + " RETURN row.id AS id, _conflicts AS conflicts"
                 )
                 try:
-                    for record in session.run(batch_q, rows=rows):
-                        summary["nodes_created"] += 1
+                    _res = session.run(batch_q, rows=rows, ws=workspace_id)
+                    for record in _res:
                         _collect_conflicts(record)
+                    # Real created count, not one-per-submitted-row (a MERGE onto
+                    # an existing node creates zero). audit 2026-08-17.
+                    summary["nodes_created"] += _res.consume().counters.nodes_created
                 except Exception:
                     for row in rows:
                         try:
                             single_q = (
-                                f"MERGE (n:{label} {{id: $id}})"
+                                f"MERGE (n:{label} {{id: $id, _workspace_id: $ws}})"
                                 + _conflict_with("$props", "n")
                                 + " SET n += CASE WHEN "
                                 "n._writer_ts IS NULL OR n._writer_ts <= $props._writer_ts "
@@ -525,9 +705,10 @@ class Neo4jGraphStore(GraphStore):
                                 + sources_clause.format(p="$props")
                                 + " RETURN $id AS id, _conflicts AS conflicts"
                             )
-                            for record in session.run(single_q, id=row["id"], props=row["props"]):
+                            _res = session.run(single_q, id=row["id"], props=row["props"], ws=workspace_id)
+                            for record in _res:
                                 _collect_conflicts(record)
-                            summary["nodes_created"] += 1
+                            summary["nodes_created"] += _res.consume().counters.nodes_created
                         except Exception as exc:
                             summary["errors"].append(f"Node {row['id']}: {exc}")
 
@@ -539,29 +720,43 @@ class Neo4jGraphStore(GraphStore):
                     "WHEN NOT {p}._source_id IN r._sources THEN r._sources + {p}._source_id "
                     "ELSE r._sources END"
                 )
-                source_pattern = f"(a:{source_label} {{id: row.src}})" if source_label else "(a {id: row.src})"
-                target_pattern = f"(b:{target_label} {{id: row.tgt}})" if target_label else "(b {id: row.tgt})"
+                # endpoints matched within the SAME workspace (review-#6): a rel
+                # never bridges two tenants' nodes even when they share an id.
+                source_pattern = (f"(a:{source_label} {{id: row.src, _workspace_id: $ws}})"
+                                  if source_label else "(a {id: row.src, _workspace_id: $ws})")
+                target_pattern = (f"(b:{target_label} {{id: row.tgt, _workspace_id: $ws}})"
+                                  if target_label else "(b {id: row.tgt, _workspace_id: $ws})")
                 batch_q = (f"UNWIND $rows AS row MATCH {source_pattern}, {target_pattern} "
                            f"MERGE (a)-[r:{rtype}]->(b) "
                            "SET r += CASE WHEN r._writer_ts IS NULL "
                            "OR r._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END"
                            + rel_sources_clause.format(p="row.props"))
                 try:
-                    session.run(batch_q, rows=rows)
-                    summary["relationships_created"] += len(rows)
+                    # Count edges ACTUALLY created (not submitted rows): the
+                    # batch is MATCH (a),(b) MERGE, so a row whose endpoint node
+                    # is absent creates zero edges, and a MERGE onto an existing
+                    # edge creates zero. len(rows) counted both as writes,
+                    # inflating total_relationships and masking the exact
+                    # orphan-drop the survival census exists to catch (audit
+                    # 2026-08-17). Read the real server counter, as execute_write
+                    # already does.
+                    _res = session.run(batch_q, rows=rows, ws=workspace_id)
+                    summary["relationships_created"] += _res.consume().counters.relationships_created
                 except Exception:
                     for row in rows:
                         try:
-                            source_single = f"(a:{source_label} {{id: $src}})" if source_label else "(a {id: $src})"
-                            target_single = f"(b:{target_label} {{id: $tgt}})" if target_label else "(b {id: $tgt})"
-                            session.run(
+                            source_single = (f"(a:{source_label} {{id: $src, _workspace_id: $ws}})"
+                                             if source_label else "(a {id: $src, _workspace_id: $ws})")
+                            target_single = (f"(b:{target_label} {{id: $tgt, _workspace_id: $ws}})"
+                                             if target_label else "(b {id: $tgt, _workspace_id: $ws})")
+                            _res = session.run(
                                 f"MATCH {source_single}, {target_single} "
                                 f"MERGE (a)-[r:{rtype}]->(b) SET r += CASE WHEN "
                                 "r._writer_ts IS NULL OR r._writer_ts <= $props._writer_ts "
                                 "THEN $props ELSE {} END"
                                 + rel_sources_clause.format(p="$props"),
-                                src=row["src"], tgt=row["tgt"], props=row["props"])
-                            summary["relationships_created"] += 1
+                                src=row["src"], tgt=row["tgt"], props=row["props"], ws=workspace_id)
+                            summary["relationships_created"] += _res.consume().counters.relationships_created
                         except Exception as exc:
                             summary["errors"].append(
                                 f"Rel {row['src']}-[{rtype}]->{row['tgt']}: {exc}")
@@ -569,6 +764,67 @@ class Neo4jGraphStore(GraphStore):
         if summary["nodes_created"] or summary["relationships_created"]:
             self.invalidate_schema_cache(database)
         return summary
+
+    def explain_plan(
+        self,
+        cypher: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        database: str = "neo4j",
+    ) -> Optional[Dict[str, Any]]:
+        """Compile the query and return its plan tree. Does NOT execute it.
+
+        Separate from `query` because the plan lives on the result summary and
+        `query` is contracted to return records; widening that return type to
+        smuggle a plan out would change every caller. Returns None when the
+        backend reports no plan, so a caller can tell "no signal" from "bad
+        plan" rather than conflating them.
+
+        Verified against DozerDB 5.26.3: EXPLAIN yields args.EstimatedRows and
+        no dbHits, with operators suffixed as `NodeByLabelScan@neo4j`.
+        """
+        try:
+            with self._driver.session(
+                    database=database, default_access_mode="READ") as session:
+                summary = session.run(f"EXPLAIN {cypher}",
+                                      parameters=dict(params or {})).consume()
+                plan = getattr(summary, "plan", None)
+                return dict(plan) if plan else None
+        except Exception:  # noqa: BLE001 — planning is advisory; never fail a caller
+            logger.debug("EXPLAIN unavailable for query: %s", cypher[:120])
+            return None
+
+    def profile_plan(
+        self,
+        cypher: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        database: str = "neo4j",
+    ) -> Optional[Dict[str, Any]]:
+        """Execute the query and return its profiled plan tree, with real counters.
+
+        Same reason `explain_plan` exists: the profile lives on the ResultSummary,
+        not in the result rows, and `query()` returns `[record.data() ...]` and
+        discards the summary. Sending `PROFILE <cypher>` through `query()` and
+        then scanning the rows for a `profile` key -- which is what the sampling
+        path did -- can never find one. It collected nothing while paying for a
+        second full execution of the query.
+
+        EXPLAIN gives estimates; this gives dbHits, rows and page-cache counters,
+        which is what separates "the planner was wrong" from "the query was
+        wrong". Executes, so callers must sample.
+        """
+        try:
+            with self._driver.session(
+                    database=database, default_access_mode="READ") as session:
+                result = session.run(f"PROFILE {cypher}",
+                                     parameters=dict(params or {}))
+                result.consume()  # drain before the summary is complete
+                profile = getattr(result.consume(), "profile", None)
+                return dict(profile) if profile else None
+        except Exception:  # noqa: BLE001 — profiling is advisory; never fail a caller
+            logger.debug("PROFILE unavailable for query: %s", cypher[:120])
+            return None
 
     def query(
         self,
@@ -599,8 +855,8 @@ class Neo4jGraphStore(GraphStore):
         merged_params = dict(params or {})
         if workspace_id is not None and "workspace_id" not in merged_params:
             merged_params["workspace_id"] = workspace_id
-        if enforce_workspace_filter and "$workspace_id" not in cypher:
-            raise WorkspaceFilterMissingError(cypher)
+        if enforce_workspace_filter:
+            enforce_read_workspace_scope(cypher)
 
         from ..tracing import (
             capture_text,
@@ -610,8 +866,14 @@ class Neo4jGraphStore(GraphStore):
         )
 
         ws = workspace_id or merged_params.get("workspace_id") or ""
+        # This method's contract is read-only (docstring + CLAUDE.md read-safety
+        # guardrail). Pin the driver session to READ so a write that slips the
+        # token blocklist still cannot reach the database — enforcement at the
+        # driver, not just a naming convention. Routing a write here now errors
+        # at Bolt rather than mutating the graph. (Security review 2026-08-15.)
         if not is_tracing_enabled():
-            with self._driver.session(database=database) as session:
+            with self._driver.session(
+                database=database, default_access_mode="READ") as session:
                 result = session.run(cypher, parameters=merged_params)
                 return [record.data() for record in result]
 
@@ -624,7 +886,8 @@ class Neo4jGraphStore(GraphStore):
             metadata={"db.system": "neo4j", "db.name": database, "workspace_id": ws},
             tags=["db"],
         ) as span:
-            with self._driver.session(database=database) as session:
+            with self._driver.session(
+                    database=database, default_access_mode="READ") as session:
                 started = time.perf_counter()
                 result = session.run(cypher, parameters=merged_params)
                 rows = [record.data() for record in result]
@@ -648,7 +911,34 @@ class Neo4jGraphStore(GraphStore):
                 if stmt:
                     attrs["db.statement"] = stmt
             span.set_metadata(attrs)
+            # Spans carry the per-query detail; the histogram is what a p95
+            # panel can aggregate. server_share preserves the ADR-0111
+            # server-vs-hydration split without a second histogram of the
+            # same wall time.
+            self._record_client_metrics("query", wall_ms, server_ms)
             return rows
+
+    @staticmethod
+    def _record_client_metrics(
+        operation: str, wall_ms: float, server_ms: Optional[float]
+    ) -> None:
+        try:
+            from seocho.metrics import get_metrics
+
+            metrics = get_metrics()
+            metrics.record(
+                "db.client.operation.duration",
+                wall_ms / 1000.0,
+                {"db.system": "neo4j", "operation": operation, "outcome": "ok"},
+            )
+            if server_ms is not None and wall_ms > 0:
+                metrics.record(
+                    "db.client.operation.server_share",
+                    max(0.0, min(1.0, server_ms / wall_ms)),
+                    {"db.system": "neo4j", "operation": operation},
+                )
+        except Exception:  # metrics must never fail a query
+            pass
 
     def execute_write(
         self,
@@ -664,16 +954,21 @@ class Neo4jGraphStore(GraphStore):
         merged_params = dict(params or {})
         if workspace_id is not None and "workspace_id" not in merged_params:
             merged_params["workspace_id"] = workspace_id
-        if enforce_workspace_filter and "$workspace_id" not in cypher:
-            raise WorkspaceFilterMissingError(cypher)
+        if enforce_workspace_filter:
+            enforce_read_workspace_scope(cypher)
         from ..tracing import is_tracing_enabled, start_span
 
         ws = workspace_id or merged_params.get("workspace_id") or ""
 
         def _run() -> Any:
+            started = time.perf_counter()
             with self._driver.session(database=database) as session:
                 result = session.run(cypher, parameters=merged_params)
-                return result.consume().counters
+                counters = result.consume().counters
+            self._record_client_metrics(
+                "write", (time.perf_counter() - started) * 1000.0, None
+            )
+            return counters
 
         if is_tracing_enabled():
             with start_span(
@@ -1219,1009 +1514,30 @@ class Neo4jGraphStore(GraphStore):
             return []
 
     def close(self) -> None:
-        self._driver.close()
+        # Idempotent: releasing the driver's connection pool more than once
+        # (e.g. explicit close() then __del__/__exit__) must be a no-op.
+        if not getattr(self, "_closed", True):
+            self._closed = True
+            self._driver.close()
+
+    def __enter__(self) -> "Neo4jGraphStore":
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        # Best-effort safety net so a store that goes out of scope without an
+        # explicit close()/with-block does not leak its connection pool for the
+        # process lifetime (issue #135). Guarded: __del__ can run during
+        # interpreter shutdown when modules/globals are already torn down.
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def __repr__(self) -> str:
         return f"Neo4jGraphStore(uri={self._uri!r})"
 
 
 # ---------------------------------------------------------------------------
-# LadybugDB / embedded implementation — zero-config, pip-installable
-# ---------------------------------------------------------------------------
-
-_LADYBUG_TYPE_MAP = {
-    "string": "STRING",
-    "integer": "INT64",
-    "float": "DOUBLE",
-    "number": "DOUBLE",
-    "boolean": "BOOL",
-    "datetime": "STRING",
-    "date": "STRING",
-}
-_LADYBUG_COMMON_NODE_STRING_COLUMNS = (
-    "name",
-    "linked_id",
-    "title",
-    "uri",
-    "ticker",
-    "period",
-    "description",
-    "content",
-    "content_preview",
-    "memory_id",
-    "source_id",
-    "workspace_id",
-    "status",
-    "category",
-    "source_type",
-    "created_at",
-    "updated_at",
-    "archived_at",
-    "metadata_json",
-    "user_id",
-    "agent_id",
-    "session_id",
-    "_ontology_context_hash",
-    "_ontology_artifact_hash",
-    "_ontology_glossary_hash",
-    "_ontology_id",
-    "_ontology_name",
-    "_ontology_version",
-    "_ontology_profile",
-    "_ontology_graph_model",
-    "_ontology_schema_fingerprint",
-    "_ontology_version_valid",
-    "_out_of_ontology",
-    "_workspace_id",
-    "_source_id",
-)
-_LADYBUG_COMMON_REL_STRING_COLUMNS = (
-    "type",
-    "memory_id",
-    "source_id",
-    "workspace_id",
-    "_workspace_id",
-    "_source_id",
-    "_ontology_context_hash",
-    "_ontology_artifact_hash",
-    "_ontology_glossary_hash",
-    "_ontology_id",
-    "_ontology_name",
-    "_ontology_version",
-    "_ontology_profile",
-    "_ontology_graph_model",
-    "_ontology_schema_fingerprint",
-    "_ontology_version_valid",
-    "_out_of_ontology",
-)
-_LADYBUG_NODE_PROJECTION_KEYS = (
-    "id",
-    "name",
-    "linked_id",
-    "title",
-    "uri",
-    "description",
-    "content",
-    "content_preview",
-    "memory_id",
-    "source_id",
-    "workspace_id",
-    "status",
-    "category",
-    "source_type",
-    "created_at",
-    "updated_at",
-    "archived_at",
-    "_ontology_context_hash",
-    "_ontology_artifact_hash",
-    "_ontology_glossary_hash",
-    "_ontology_id",
-    "_ontology_name",
-    "_ontology_version",
-    "_ontology_profile",
-    "_ontology_graph_model",
-)
-_LADYBUG_REL_PROJECTION_KEYS = (
-    "type",
-    "memory_id",
-    "source_id",
-    "workspace_id",
-    "_workspace_id",
-    "_source_id",
-    "_ontology_context_hash",
-    "_ontology_artifact_hash",
-    "_ontology_glossary_hash",
-    "_ontology_id",
-    "_ontology_name",
-    "_ontology_version",
-    "_ontology_profile",
-    "_ontology_graph_model",
-)
-_LADYBUG_FULLTEXT_SHOW_PATTERNS = (
-    "SHOW FULLTEXT INDEXES",
-    "SHOW INDEXES",
-)
-_LADYBUG_REL_TABLE_DELIM = "__seocho__"
-
-
-def _ladybug_column_names(columns: Sequence[str]) -> set[str]:
-    names: set[str] = set()
-    for column in columns:
-        match = re.match(r"`([^`]+)`\s+", str(column))
-        if match:
-            names.add(match.group(1))
-    return names
-
-
-def _append_ladybug_string_columns(columns: List[str], names: Sequence[str]) -> None:
-    existing = _ladybug_column_names(columns)
-    for name in names:
-        if name in existing:
-            continue
-        columns.append(f"`{name}` STRING")
-        existing.add(name)
-
-
-def _ladybug_rel_table_name(rel_type: str, source_label: str, target_label: str) -> str:
-    return f"{rel_type}{_LADYBUG_REL_TABLE_DELIM}{source_label}{_LADYBUG_REL_TABLE_DELIM}{target_label}"
-
-
-def _ladybug_semantic_rel_type(table_name: str) -> str:
-    if _LADYBUG_REL_TABLE_DELIM not in table_name:
-        return table_name
-    return table_name.split(_LADYBUG_REL_TABLE_DELIM, 1)[0]
-
-
-def _ladybug_property_projection(variable: str, *, relation: bool) -> str:
-    keys = _LADYBUG_REL_PROJECTION_KEYS if relation else _LADYBUG_NODE_PROJECTION_KEYS
-    items = ", ".join(f"{key}: coalesce({variable}.{key}, '')" for key in keys)
-    return "{" + items + "}"
-
-
-def _ladybug_expand_param_predicate(
-    cypher: str,
-    params: Dict[str, Any],
-    *,
-    pattern: str,
-    param_name: str,
-    param_prefix: str,
-    clause_factory: Callable[[str], str],
-    joiner: str,
-) -> str:
-    values = [str(value) for value in (params.get(param_name) or []) if str(value).strip()]
-    if not re.search(pattern, cypher, flags=re.IGNORECASE):
-        return cypher
-    if not values:
-        return re.sub(pattern, "TRUE", cypher, flags=re.IGNORECASE)
-
-    clauses: List[str] = []
-    for index, value in enumerate(values):
-        key = f"{param_prefix}_{index}"
-        params[key] = value
-        clauses.append(clause_factory(key))
-    replacement = "(" + joiner.join(clauses) + ")"
-    return re.sub(pattern, replacement, cypher, flags=re.IGNORECASE)
-
-
-def _rewrite_ladybug_query(cypher: str, params: Optional[Dict[str, Any]] = None) -> tuple[str, Dict[str, Any]]:
-    query_params = dict(params or {})
-    rewritten = _ladybug_expand_param_predicate(
-        cypher,
-        query_params,
-        pattern=(
-            r"\(\$relationship_candidates\s*=\s*\[\]\s+OR\s+type\(r\)\s+IN\s+\$relationship_candidates\s*\)"
-        ),
-        param_name="relationship_candidates",
-        param_prefix="__ladybug_relationship_candidate",
-        clause_factory=lambda key: f"coalesce(r.type, '') = ${key}",
-        joiner=" OR ",
-    )
-    rewritten = _ladybug_expand_param_predicate(
-        rewritten,
-        query_params,
-        pattern=(
-            r"\(\$metric_aliases\s*=\s*\[\]\s+OR\s+ANY\(\s*alias\s+IN\s+\$metric_aliases\s+WHERE\s+"
-            r"toLower\(coalesce\(m\.name,\s*m\.uri,\s*''\)\)\s+CONTAINS\s+alias\s*\)\s*\)"
-        ),
-        param_name="metric_aliases",
-        param_prefix="__ladybug_metric_alias",
-        clause_factory=lambda key: f"toLower(coalesce(m.name, m.uri, '')) CONTAINS ${key}",
-        joiner=" OR ",
-    )
-    rewritten = _ladybug_expand_param_predicate(
-        rewritten,
-        query_params,
-        pattern=(
-            r"\(\$metric_scope_tokens\s*=\s*\[\]\s+OR\s+ALL\(\s*token\s+IN\s+\$metric_scope_tokens\s+WHERE\s+"
-            r"toLower\(coalesce\(m\.name,\s*m\.uri,\s*''\)\)\s+CONTAINS\s+token\s*\)\s*\)"
-        ),
-        param_name="metric_scope_tokens",
-        param_prefix="__ladybug_metric_scope_token",
-        clause_factory=lambda key: f"toLower(coalesce(m.name, m.uri, '')) CONTAINS ${key}",
-        joiner=" AND ",
-    )
-    # seocho-g85: the financial-metric template moved its scope-token guard
-    # to a soft ANY(...) ranking signal in ORDER BY; expand that form too,
-    # or an empty token list reaches the engine as an untypeable [] param.
-    rewritten = _ladybug_expand_param_predicate(
-        rewritten,
-        query_params,
-        pattern=(
-            r"\(\$metric_scope_tokens\s*=\s*\[\]\s+OR\s+ANY\(\s*token\s+IN\s+\$metric_scope_tokens\s+WHERE\s+"
-            r"toLower\(coalesce\(m\.name,\s*m\.uri,\s*''\)\)\s+CONTAINS\s+token\s*\)\s*\)"
-        ),
-        param_name="metric_scope_tokens",
-        param_prefix="__ladybug_metric_scope_token_any",
-        clause_factory=lambda key: f"toLower(coalesce(m.name, m.uri, '')) CONTAINS ${key}",
-        joiner=" OR ",
-    )
-    rewritten = _ladybug_expand_param_predicate(
-        rewritten,
-        query_params,
-        pattern=(
-            r"\(\$years\s*=\s*\[\]\s+OR\s+ANY\(\s*year\s+IN\s+\$years\s+WHERE\s+"
-            r"coalesce\(toString\(m\.year\),\s*''\)\s*=\s*year\s+OR\s+"
-            r"(?:toLower\(coalesce\(toString\(m\.period\),\s*''\)\)\s+CONTAINS\s+year\s+OR\s+)?"
-            r"toLower\(coalesce\(m\.name,\s*m\.uri,\s*''\)\)\s+CONTAINS\s+year\s*\)\s*\)"
-        ),
-        param_name="years",
-        param_prefix="__ladybug_year",
-        clause_factory=(
-            lambda key: (
-                f"(coalesce(m.year, '') = ${key} OR "
-                f"toLower(coalesce(m.period, '')) CONTAINS ${key} OR "
-                f"toLower(coalesce(m.name, m.uri, '')) CONTAINS ${key})"
-            )
-        ),
-        joiner=" OR ",
-    )
-    # seocho-g85: real_ladybug 0.15.3 asserts (parsed_parameter_expression.h:21,
-    # UNREACHABLE_CODE) when a $param appears inside a quantifier predicate
-    # body. labels() is scalar in ladybug (one table per node), so the
-    # membership test collapses to a top-level IN — stays fully
-    # parameterized, no literal inlining.
-    rewritten = re.sub(
-        r"ANY\(\s*(\w+)\s+IN\s+labels\((\w+)\)\s+WHERE\s+\1\s+IN\s+(\$\w+)\s*\)",
-        lambda match: f"labels({match.group(2)}) IN {match.group(3)}",
-        rewritten,
-        flags=re.IGNORECASE,
-    )
-    rewritten = re.sub(
-        r"elementId\((\w+)\)",
-        lambda match: f"coalesce({match.group(1)}.id, '')",
-        rewritten,
-    )
-    rewritten = re.sub(
-        r"coalesce\(toString\(([^)]+)\),\s*''\)",
-        lambda match: f"coalesce({match.group(1)}, '')",
-        rewritten,
-    )
-    rewritten = re.sub(r"toString\(\$(\w+)\)", lambda match: f"${match.group(1)}", rewritten)
-    rewritten = re.sub(r"toString\((\w+\.\w+)\)", lambda match: f"coalesce({match.group(1)}, '')", rewritten)
-    rewritten = re.sub(
-        r"CASE\s+WHEN\s+(\w+\.\w+)\s+IS\s+NULL\s+THEN\s+''\s+ELSE\s+toString\(\1\)\s+END",
-        lambda match: f"coalesce({match.group(1)}, '')",
-        rewritten,
-        flags=re.IGNORECASE,
-    )
-    rewritten = re.sub(r"type\((\w+)\)", lambda match: f"coalesce({match.group(1)}.type, '')", rewritten)
-    rewritten = re.sub(
-        r"properties\((\w+)\)\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)",
-        lambda match: (
-            f"{_ladybug_property_projection(match.group(1), relation=match.group(1).lower() in {'r', 'rel', 'relationship'})} "
-            f"AS {match.group(2)}"
-        ),
-        rewritten,
-    )
-    return rewritten, query_params
-
-
-def _lbug_type(py_value: Any) -> str:
-    if isinstance(py_value, bool):
-        return "BOOL"
-    if isinstance(py_value, int):
-        return "INT64"
-    if isinstance(py_value, float):
-        return "DOUBLE"
-    return "STRING"
-
-
-class LadybugGraphStore(GraphStore):
-    """Embedded graph store backed by LadybugDB.
-
-    Zero-config, file-based, Cypher-native. Install with::
-
-        pip install "seocho[local]"      # or: pip install "seocho[embedded]"
-
-    Usage::
-
-        from seocho.store.graph import LadybugGraphStore
-        store = LadybugGraphStore("./mygraph.lbug")
-        store.ensure_constraints(ontology)   # creates NODE/REL tables
-        store.write(nodes, relationships)
-
-    Unlike Neo4j, LadybugDB is **schema-first** — node and relationship
-    tables must exist before writes. ``ensure_constraints(ontology)`` uses
-    the provided :class:`~seocho.ontology.Ontology` to declare all
-    NODE/REL tables up front.
-
-    For ad-hoc writes without a pre-registered ontology, tables are
-    auto-declared on first use with best-effort property typing.
-
-    Parameters
-    ----------
-    path:
-        Filesystem path where the Ladybug database files live.
-        Defaults to ``.seocho/local.lbug`` in the current directory.
-    """
-
-    def __init__(self, path: str = ".seocho/local.lbug") -> None:
-        try:
-            import real_ladybug as _lb
-        except ImportError as exc:
-            raise ImportError(
-                "LadybugGraphStore requires 'real_ladybug'. "
-                "Install it with: pip install 'seocho[local]'"
-            ) from exc
-
-        import os as _os
-        import threading as _threading
-
-        self._lb = _lb
-        self._path = path
-        _os.makedirs(_os.path.dirname(_os.path.abspath(path)) or ".", exist_ok=True)
-        self._db = _lb.Database(path)
-        self._conn = _lb.Connection(self._db)
-        # seocho-sdtq: Ladybug's Connection is not thread-safe — concurrent
-        # writes from multiple threads can corrupt or interleave statements.
-        # An RLock is sufficient because seocho's hot path is mostly
-        # write-then-query, not high-contention read parallelism. Real
-        # contention (e.g. ThreadPoolExecutor extraction in
-        # runtime/runtime_ingest.py) serialises through this lock; other
-        # patterns (one Session per request) see no contention.
-        self._conn_lock = _threading.RLock()
-        self._declared_node_tables: set = set()
-        # seocho-sdtq helper installed below init via class method.
-        self._declared_rel_tables: set = set()
-        self._semantic_rel_types: set = set()
-        self._rel_signature_to_table: Dict[tuple[str, str, str], str] = {}
-        # seocho-8ct: node-table PRIMARY KEY column per label. MERGE must key
-        # on the declared PK — keying on ``id`` while the PK is a unique
-        # ontology property (usually ``name``) turns every cross-document
-        # re-mention of an entity into a duplicate-PK write failure.
-        self._node_table_pk: Dict[str, str] = {}
-        # issue #183: node tables verified to carry the _sources column.
-        self._sources_column_ready: set = set()
-        self._load_existing_schema()
-
-    def _locked_execute(self, *args, **kwargs):
-        """Thread-safe wrapper around self._conn.execute (seocho-sdtq).
-
-        The Ladybug ``Connection`` is not safe for concurrent use; serialising
-        through this lock prevents cross-thread interleaving on a single
-        store instance. Reads and writes share the same lock because Ladybug
-        does not separate reader / writer connections.
-        """
-        with self._conn_lock:
-            return self._conn.execute(*args, **kwargs)
-
-    def _load_existing_schema(self) -> None:
-        """Populate declared-table sets from the existing database."""
-        try:
-            result = self._locked_execute("CALL show_tables() RETURN *")
-            for row in result:
-                row_list = row if isinstance(row, list) else list(row)
-                if len(row_list) >= 2:
-                    table_name = str(row_list[1])
-                    table_type = str(row_list[2]).upper() if len(row_list) > 2 else ""
-                    if "NODE" in table_type:
-                        self._declared_node_tables.add(table_name)
-                        self._node_table_pk[table_name] = self._discover_table_pk(table_name)
-                    elif "REL" in table_type:
-                        self._declared_rel_tables.add(table_name)
-                        self._semantic_rel_types.add(_ladybug_semantic_rel_type(table_name))
-        except Exception:
-            # CALL show_tables() may not be supported; ignore
-            pass
-
-    def _discover_table_pk(self, table_name: str) -> str:
-        """Return the PRIMARY KEY column of an existing node table.
-
-        ``table_info`` rows end with a primary-key flag; if the call or the
-        shape is unsupported, fall back to ``id`` (the lazy-declared default).
-        """
-        try:
-            result = self._locked_execute(f"CALL table_info('{table_name}') RETURN *")
-            for row in result:
-                row_list = row if isinstance(row, list) else list(row)
-                if len(row_list) >= 2 and bool(row_list[-1]):
-                    return str(row_list[1])
-        except Exception:
-            pass
-        return "id"
-
-    def _ensure_node_table(self, label: str, sample_props: Dict[str, Any]) -> None:
-        if label in self._declared_node_tables or not _LABEL_RE.match(label):
-            return
-        cols: List[str] = []
-        for key, value in (sample_props or {}).items():
-            if not _LABEL_RE.match(key):
-                continue
-            cols.append(f"`{key}` {_lbug_type(value)}")
-        _append_ladybug_string_columns(cols, _LADYBUG_COMMON_NODE_STRING_COLUMNS)
-        # Primary key: prefer ``id`` if present, else auto-generated ``_node_id``
-        pk = "id" if "id" in (sample_props or {}) else "_node_id"
-        if pk == "_node_id":
-            cols.append("`_node_id` STRING")
-        col_list = ", ".join(cols)
-        try:
-            self._locked_execute(
-                f"CREATE NODE TABLE IF NOT EXISTS `{label}` ({col_list}, PRIMARY KEY (`{pk}`))"
-            )
-            self._declared_node_tables.add(label)
-            self._node_table_pk[label] = pk
-        except Exception as exc:
-            logger.warning("Failed to create node table %s: %s", label, exc)
-
-    def _ensure_rel_table(
-        self,
-        rel_type: str,
-        source_label: str,
-        target_label: str,
-        sample_props: Dict[str, Any],
-    ) -> Optional[str]:
-        if not _LABEL_RE.match(rel_type):
-            return None
-        if source_label not in self._declared_node_tables:
-            return None
-        if target_label not in self._declared_node_tables:
-            return None
-        signature = (rel_type, source_label, target_label)
-        if signature in self._rel_signature_to_table:
-            return self._rel_signature_to_table[signature]
-
-        if rel_type in self._declared_rel_tables:
-            physical_name = _ladybug_rel_table_name(rel_type, source_label, target_label)
-        else:
-            physical_name = rel_type
-        cols: List[str] = []
-        for key, value in (sample_props or {}).items():
-            if not _LABEL_RE.match(key):
-                continue
-            cols.append(f"`{key}` {_lbug_type(value)}")
-        _append_ladybug_string_columns(cols, _LADYBUG_COMMON_REL_STRING_COLUMNS)
-        col_list = (", " + ", ".join(cols)) if cols else ""
-        if physical_name not in self._declared_rel_tables:
-            try:
-                self._locked_execute(
-                    f"CREATE REL TABLE IF NOT EXISTS `{physical_name}`(FROM `{source_label}` TO `{target_label}`{col_list})"
-                )
-                self._declared_rel_tables.add(physical_name)
-            except Exception as exc:
-                logger.warning("Failed to create rel table %s: %s", physical_name, exc)
-                return None
-        self._semantic_rel_types.add(rel_type)
-        self._rel_signature_to_table[signature] = physical_name
-        return physical_name
-
-    # issue #183: Ladybug coerces string values that LOOK like JSON arrays
-    # ('["a"]' comes back as '[a]'), so the JSON list is stored behind a
-    # "json:" prefix, which round-trips verbatim.
-    _SOURCES_PREFIX = "json:"
-
-    @classmethod
-    def _encode_sources(cls, sources: List[str]) -> str:
-        return cls._SOURCES_PREFIX + json.dumps(sources)
-
-    @classmethod
-    def _decode_sources(cls, raw: Any) -> List[str]:
-        text = str(raw or "")
-        if text.startswith(cls._SOURCES_PREFIX):
-            text = text[len(cls._SOURCES_PREFIX):]
-        if not text:
-            return []
-        try:
-            parsed = json.loads(text)
-        except (TypeError, ValueError):
-            return []
-        if isinstance(parsed, list):
-            return [str(s) for s in parsed if s]
-        return []
-
-    def _ensure_sources_column(self, label: str) -> None:
-        """Make sure the node table carries the ``_sources`` column.
-
-        Tables created before issue #183 lack it; Ladybug supports
-        ``ALTER TABLE ... ADD`` so it is added lazily, once per label.
-        """
-        if label in self._sources_column_ready:
-            return
-        try:
-            self._locked_execute(f"ALTER TABLE `{label}` ADD `_sources` STRING")
-        except Exception:
-            # Column already exists (new tables declare it) — fine either way.
-            pass
-        self._sources_column_ready.add(label)
-
-    def _accumulated_sources_json(
-        self, label: str, merge_col: str, merge_value: Any, source_id: str
-    ) -> str:
-        """Existing ``_sources`` of the upsert target plus ``source_id``."""
-        sources: List[str] = []
-        try:
-            rows = self._locked_execute(
-                f"MATCH (n:`{label}` {{`{merge_col}`: $v}}) "
-                "RETURN n._sources, n._source_id",
-                {"v": merge_value},
-            )
-            for row in rows:
-                row_list = row if isinstance(row, list) else list(row)
-                existing_json = row_list[0] if row_list else None
-                existing_single = row_list[1] if len(row_list) > 1 else None
-                if existing_json:
-                    sources = self._decode_sources(existing_json)
-                if not sources and existing_single:
-                    # Legacy node written before #183: seed from _source_id.
-                    sources = [str(existing_single)]
-                break
-        except Exception:
-            # No such node / legacy table — no history to merge.
-            pass
-        if source_id and source_id not in sources:
-            sources.append(source_id)
-        return self._encode_sources(sources)
-
-    def _detect_merge_conflicts(
-        self,
-        label: str,
-        merge_col: str,
-        merge_value: Any,
-        props: Dict[str, Any],
-        *,
-        source_id: str,
-    ) -> List[Dict[str, Any]]:
-        """seocho-uxs.1: value-divergence on an upsert target.
-
-        When this MERGE lands on an existing node and a user-facing property
-        already holds a different non-empty value, the single-key MERGE would
-        silently last-writer-wins. Returns one record per diverging property
-        so the caller can surface it instead of overwriting blind. Empty when
-        the node is new or nothing diverges. Internal (``_``-prefixed) and the
-        merge key itself are not compared.
-        """
-        compare_keys = [
-            k for k in props
-            if _LABEL_RE.match(k) and not k.startswith("_")
-            and k not in (merge_col, "id")
-        ]
-        if not compare_keys:
-            return []
-        projection = ", ".join(f"n.`{k}`" for k in compare_keys)
-        try:
-            rows = self._locked_execute(
-                f"MATCH (n:`{label}` {{`{merge_col}`: $v}}) RETURN {projection}",
-                {"v": merge_value},
-            )
-        except Exception:
-            return []
-        conflicts: List[Dict[str, Any]] = []
-        for row in rows:
-            row_list = row if isinstance(row, list) else list(row)
-            for key, existing in zip(compare_keys, row_list):
-                incoming = props.get(key)
-                if existing in (None, "") or incoming in (None, ""):
-                    continue
-                if str(existing) != str(incoming):
-                    conflicts.append({
-                        "label": label,
-                        "key": str(merge_value),
-                        "property": key,
-                        "existing": str(existing),
-                        "incoming": str(incoming),
-                        "source_id": source_id,
-                    })
-            break  # PK MERGE target is unique — one row at most
-        return conflicts
-
-    def write(
-        self,
-        nodes: Sequence[Dict[str, Any]],
-        relationships: Sequence[Dict[str, Any]],
-        *,
-        database: str = "neo4j",
-        workspace_id: str = "default",
-        source_id: str = "",
-        **_kwargs: Any,
-    ) -> Dict[str, Any]:
-        # seocho-uxs.1: merge_conflicts surfaces silent last-writer-wins
-        # value divergence on single-key MERGE targets (audit signal).
-        summary = {
-            "nodes_created": 0,
-            "relationships_created": 0,
-            "errors": [],
-            "merge_conflicts": [],
-        }
-        node_label_by_id: Dict[str, str] = {}
-
-        for node in nodes:
-            label = str(node.get("label", "Entity"))
-            if not _LABEL_RE.match(label):
-                summary["errors"].append(f"Invalid label: {label}")
-                continue
-            props = dict(node.get("properties", {}))
-            node_id = str(node.get("id") or props.get("name") or "")
-            if not node_id:
-                continue
-            props.setdefault("id", node_id)
-            props["_workspace_id"] = workspace_id
-            props["_source_id"] = source_id
-
-            self._ensure_node_table(label, props)
-            node_label_by_id[node_id] = label
-
-            # seocho-8ct: MERGE on the table's declared PRIMARY KEY. When the
-            # PK is a unique ontology property (usually ``name``), keying on
-            # ``id`` misses cross-document re-mentions of the same entity
-            # (LLM-generated ids differ per document) and the CREATE then
-            # violates the PK constraint, failing the whole file. The engine
-            # also rejects SET on the PK column, so it must stay out of the
-            # SET map (which previously pushed every MERGE into the CREATE
-            # fallback path).
-            pk_col = self._node_table_pk.get(label, "id")
-            if pk_col != "id" and props.get(pk_col):
-                merge_col, merge_value = pk_col, props[pk_col]
-            else:
-                merge_col, merge_value = "id", node_id
-            # issue #183: accumulate multi-document provenance. _source_id
-            # stays single-valued (latest writer — keeps the count/delete
-            # filters working) while _sources is a JSON-encoded list of every
-            # document that mentioned this node.
-            self._ensure_sources_column(label)
-            # seocho-uxs.1: detect divergence BEFORE the SET overwrites it.
-            summary["merge_conflicts"].extend(
-                self._detect_merge_conflicts(
-                    label, merge_col, merge_value, props, source_id=source_id
-                )
-            )
-            props["_sources"] = self._accumulated_sources_json(
-                label, merge_col, merge_value, source_id
-            )
-            prop_keys = [k for k in props if _LABEL_RE.match(k)]
-            set_keys = [k for k in prop_keys if k != merge_col]
-            set_clause = ", ".join(f"`{k}`: $p_{i}" for i, k in enumerate(set_keys))
-            set_params = {f"p_{i}": props[k] for i, k in enumerate(set_keys)}
-            create_clause = ", ".join(f"`{k}`: $c_{i}" for i, k in enumerate(prop_keys))
-            create_params = {f"c_{i}": props[k] for i, k in enumerate(prop_keys)}
-            statement = f"MERGE (n:`{label}` {{`{merge_col}`: $merge_key}})"
-            if set_clause:
-                statement += f" SET n = {{{set_clause}}}"
-            try:
-                self._locked_execute(statement, {"merge_key": merge_value, **set_params})
-                summary["nodes_created"] += 1
-            except Exception:
-                # Fallback: CREATE if MERGE dialect differs
-                try:
-                    self._locked_execute(
-                        f"CREATE (n:`{label}` {{{create_clause}}})",
-                        create_params,
-                    )
-                    summary["nodes_created"] += 1
-                except Exception as exc:
-                    summary["errors"].append(f"Node {node_id}: {exc}")
-
-        for rel in relationships:
-            rtype = str(rel.get("type", "RELATED_TO"))
-            src_id = str(rel.get("source", ""))
-            tgt_id = str(rel.get("target", ""))
-            if not (src_id and tgt_id and _LABEL_RE.match(rtype)):
-                continue
-            src_label = node_label_by_id.get(src_id)
-            tgt_label = node_label_by_id.get(tgt_id)
-            if not (src_label and tgt_label):
-                continue
-
-            rprops = dict(rel.get("properties", {}))
-            rprops.setdefault("type", rtype)
-            rprops["_workspace_id"] = workspace_id
-            rprops["_source_id"] = source_id
-
-            physical_rtype = self._ensure_rel_table(rtype, src_label, tgt_label, rprops)
-            if physical_rtype is None:
-                summary["errors"].append(
-                    f"Rel {src_id}-[{rtype}]->{tgt_id}: unable to declare rel table"
-                )
-                continue
-
-            prop_keys = [k for k in rprops if _LABEL_RE.match(k)]
-            set_clause = (
-                "{" + ", ".join(f"`{k}`: $p_{i}" for i, k in enumerate(prop_keys)) + "}"
-                if prop_keys else ""
-            )
-            params = {"src": src_id, "tgt": tgt_id,
-                      **{f"p_{i}": rprops[k] for i, k in enumerate(prop_keys)}}
-            try:
-                self._locked_execute(
-                    f"MATCH (a:`{src_label}` {{id: $src}}), (b:`{tgt_label}` {{id: $tgt}}) "
-                    f"CREATE (a)-[r:`{physical_rtype}`{(' ' + set_clause) if set_clause else ''}]->(b)",
-                    params,
-                )
-                summary["relationships_created"] += 1
-            except Exception as exc:
-                summary["errors"].append(f"Rel {src_id}-[{rtype}]->{tgt_id}: {exc}")
-
-        return summary
-
-    def query(
-        self,
-        cypher: str,
-        *,
-        params: Optional[Dict[str, Any]] = None,
-        database: str = "neo4j",
-        workspace_id: Optional[str] = None,
-        enforce_workspace_filter: bool = False,
-    ) -> List[Dict[str, Any]]:
-        # seocho-y4at: same workspace_id contract as Neo4jGraphStore.query.
-        merged_params = dict(params or {})
-        if workspace_id is not None and "workspace_id" not in merged_params:
-            merged_params["workspace_id"] = workspace_id
-        if enforce_workspace_filter and "$workspace_id" not in cypher:
-            raise WorkspaceFilterMissingError(cypher)
-        params = merged_params
-        compact = " ".join(str(cypher).upper().split())
-        if any(compact.startswith(pattern) for pattern in _LADYBUG_FULLTEXT_SHOW_PATTERNS):
-            return []
-        if "CALL DB.INDEX.FULLTEXT.QUERYNODES" in compact:
-            return []
-        cypher, query_params = _rewrite_ladybug_query(cypher, params=params)
-        try:
-            result = self._locked_execute(cypher, query_params)
-            out: List[Dict[str, Any]] = []
-            # Ladybug returns rows as lists; convert to dicts using column names.
-            # real_ladybug exposes get_column_names() as a method (not an
-            # attribute) — calling it preserves user-supplied RETURN aliases
-            # instead of falling through to positional col_0/col_1 keys.
-            col_names_getter = getattr(result, "get_column_names", None)
-            col_names: List[str] = []
-            if callable(col_names_getter):
-                try:
-                    col_names = list(col_names_getter())
-                except Exception:
-                    col_names = []
-            if not col_names:
-                col_names = list(getattr(result, "column_names", None) or [])
-            for row in result:
-                row_list = row if isinstance(row, list) else list(row)
-                if col_names and len(col_names) == len(row_list):
-                    out.append({name: val for name, val in zip(col_names, row_list)})
-                else:
-                    out.append({f"col_{i}": val for i, val in enumerate(row_list)})
-            return out
-        except Exception as exc:
-            logger.warning("Ladybug query failed: %s", exc)
-            return []
-
-    def execute_write(
-        self,
-        cypher: str,
-        *,
-        params: Optional[Dict[str, Any]] = None,
-        database: str = "neo4j",
-        workspace_id: Optional[str] = None,
-        enforce_workspace_filter: bool = False,
-    ) -> Dict[str, Any]:
-        # seocho-y4at: workspace-scoped write parameter merge + opt-in enforcement.
-        merged_params = dict(params or {})
-        if workspace_id is not None and "workspace_id" not in merged_params:
-            merged_params["workspace_id"] = workspace_id
-        if enforce_workspace_filter and "$workspace_id" not in cypher:
-            raise WorkspaceFilterMissingError(cypher)
-        params = merged_params
-        try:
-            self._locked_execute(cypher, params or {})
-            return {"nodes_affected": 0, "relationships_affected": 0, "properties_set": 0}
-        except Exception as exc:
-            return {"error": str(exc)}
-
-    def ensure_constraints(
-        self,
-        ontology: Ontology,
-        *,
-        database: str = "neo4j",
-        strict: bool = False,
-        transactional: bool = False,
-    ) -> Dict[str, Any]:
-        """Create NODE/REL tables declared by the ontology.
-
-        ``strict`` (seocho-hvoe): when True, raise ``EnsureConstraintsError``
-        if any individual table-create fails. Default False keeps the
-        partial-success summary for back-compat.
-
-        ``transactional`` (seocho-c2ck): no-op for LadybugGraphStore at
-        the moment — the embedded engine does not expose explicit
-        transaction control through the seocho contract. Accepted for
-        API parity with Neo4jGraphStore.
-        """
-        summary = {"success": 0, "errors": []}
-
-        for label, node_def in ontology.nodes.items():
-            if not _LABEL_RE.match(label):
-                continue
-            cols: List[str] = []
-            pk_col: Optional[str] = None
-            for prop_name, prop in node_def.properties.items():
-                if not _LABEL_RE.match(prop_name):
-                    continue
-                py_type = str(prop.property_type.value).lower()
-                lbug_type = _LADYBUG_TYPE_MAP.get(py_type, "STRING")
-                cols.append(f"`{prop_name}` {lbug_type}")
-                if prop.unique and pk_col is None:
-                    pk_col = prop_name
-
-            _append_ladybug_string_columns(cols, ("id", * _LADYBUG_COMMON_NODE_STRING_COLUMNS))
-            # seocho-uxs: with a composite identity declared, no single
-            # property is the identity — key on the synthesized composite
-            # ``id`` (the pipeline rewrites it to label|v1|v2|...), so two
-            # entities sharing one member (e.g. name) do not collapse.
-            if getattr(node_def, "identity_keys", None):
-                pk_col = "id"
-            pk_col = pk_col or "id"
-
-            try:
-                self._locked_execute(
-                    f"CREATE NODE TABLE IF NOT EXISTS `{label}` "
-                    f"({', '.join(cols)}, PRIMARY KEY (`{pk_col}`))"
-                )
-                self._declared_node_tables.add(label)
-                self._node_table_pk.setdefault(label, pk_col)
-                summary["success"] += 1
-            except Exception as exc:
-                summary["errors"].append(f"Node table {label}: {exc}")
-
-        for rtype, rel_def in ontology.relationships.items():
-            if not _LABEL_RE.match(rtype):
-                continue
-            src, tgt = rel_def.source, rel_def.target
-            if src not in self._declared_node_tables or tgt not in self._declared_node_tables:
-                continue
-            try:
-                self._locked_execute(
-                    f"CREATE REL TABLE IF NOT EXISTS `{rtype}`"
-                    f"(FROM `{src}` TO `{tgt}`, {', '.join(f'`{name}` STRING' for name in _LADYBUG_COMMON_REL_STRING_COLUMNS)})"
-                )
-                self._declared_rel_tables.add(rtype)
-                self._semantic_rel_types.add(rtype)
-                self._rel_signature_to_table[(rtype, src, tgt)] = rtype
-                summary["success"] += 1
-            except Exception as exc:
-                summary["errors"].append(f"Rel table {rtype}: {exc}")
-
-        # seocho-hvoe: opt-in loud failure for Ladybug too.
-        if strict and summary["errors"]:
-            raise EnsureConstraintsError(summary)
-        return summary
-
-    def get_schema(self, *, database: str = "neo4j") -> Dict[str, Any]:
-        return {
-            "labels": sorted(self._declared_node_tables),
-            "relationship_types": sorted(self._semantic_rel_types or self._declared_rel_tables),
-            "property_keys": [],
-        }
-
-    def delete_by_source(self, source_id: str, *, database: str = "neo4j") -> Dict[str, Any]:
-        before = self.count_by_source(source_id, database=database)
-        summary = {
-            "nodes_deleted": before["nodes"],
-            "relationships_deleted": before["relationships"],
-            "errors": [],
-        }
-
-        try:
-            self._locked_execute(
-                "MATCH ()-[r]->() WHERE r._source_id = $sid DELETE r",
-                {"sid": source_id},
-            )
-        except Exception as exc:
-            summary["errors"].append(f"relationship delete: {exc}")
-
-        # issue #183: a node mentioned by several documents must survive
-        # until its LAST source is deleted. Per node table: retire this
-        # source from multi-source nodes (repointing _source_id when it was
-        # the latest writer), DETACH DELETE only sole-source nodes. Legacy
-        # nodes without _sources keep the old _source_id semantics.
-        nodes_deleted = 0
-        needle = json.dumps(source_id)  # JSON-quoted match inside the list
-        for label in sorted(self._declared_node_tables):
-            pk_col = self._node_table_pk.get(label, "id")
-            if not (_LABEL_RE.match(label) and _LABEL_RE.match(pk_col)):
-                continue
-            try:
-                rows = self._locked_execute(
-                    f"MATCH (n:`{label}`) WHERE n._source_id = $sid "
-                    "OR (n._sources IS NOT NULL AND n._sources CONTAINS $needle) "
-                    f"RETURN n.`{pk_col}`, n._sources",
-                    {"sid": source_id, "needle": needle},
-                )
-                pending = [row if isinstance(row, list) else list(row) for row in rows]
-            except Exception:
-                # Legacy table without the _sources column.
-                try:
-                    rows = self._locked_execute(
-                        f"MATCH (n:`{label}`) WHERE n._source_id = $sid "
-                        f"RETURN n.`{pk_col}`",
-                        {"sid": source_id},
-                    )
-                    pending = [
-                        [(row if isinstance(row, list) else list(row))[0], None]
-                        for row in rows
-                    ]
-                except Exception as exc:
-                    summary["errors"].append(f"{label} scan: {exc}")
-                    continue
-
-            for key_value, sources_json in pending:
-                remaining = [
-                    s for s in self._decode_sources(sources_json) if s != source_id
-                ]
-                if remaining:
-                    try:
-                        self._locked_execute(
-                            f"MATCH (n:`{label}` {{`{pk_col}`: $k}}) "
-                            "SET n._sources = $srcs, n._source_id = $latest",
-                            {"k": key_value, "srcs": self._encode_sources(remaining),
-                             "latest": remaining[-1]},
-                        )
-                    except Exception as exc:
-                        summary["errors"].append(f"{label} retire: {exc}")
-                else:
-                    try:
-                        self._locked_execute(
-                            f"MATCH (n:`{label}` {{`{pk_col}`: $k}}) DETACH DELETE n",
-                            {"k": key_value},
-                        )
-                        nodes_deleted += 1
-                    except Exception as exc:
-                        summary["errors"].append(f"{label} delete: {exc}")
-
-        after = self.count_by_source(source_id, database=database)
-        # Retired (multi-source) nodes survive on purpose — count only the
-        # physical deletions, not the before/after _source_id diff.
-        summary["nodes_deleted"] = nodes_deleted
-        summary["relationships_deleted"] = max(0, before["relationships"] - after["relationships"])
-        return summary
-
-    def count_by_source(self, source_id: str, *, database: str = "neo4j") -> Dict[str, int]:
-        node_total = 0
-        relationship_total = 0
-
-        for label in self._declared_node_tables:
-            try:
-                result = self._locked_execute(
-                    f"MATCH (n:`{label}`) WHERE n._source_id = $sid RETURN count(n)",
-                    {"sid": source_id},
-                )
-                for row in result:
-                    node_total += int(row[0] if isinstance(row, list) else list(row)[0])
-            except Exception:
-                pass
-
-        try:
-            result = self._locked_execute(
-                "MATCH ()-[r]->() WHERE r._source_id = $sid RETURN count(r)",
-                {"sid": source_id},
-            )
-            for row in result:
-                relationship_total += int(row[0] if isinstance(row, list) else list(row)[0])
-        except Exception:
-            pass
-
-        return {"nodes": node_total, "relationships": relationship_total}
-
-    def close(self) -> None:
-        try:
-            del self._conn
-            del self._db
-        except Exception:
-            pass
-
-    def __repr__(self) -> str:
-        return f"LadybugGraphStore(path={self._path!r})"

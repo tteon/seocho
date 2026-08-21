@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from platform_agents import PlatformSessionStore, BackendSpecialistAgent, FrontendSpecialistAgent
+from ..platform_agents import PlatformSessionStore, BackendSpecialistAgent, FrontendSpecialistAgent
 
 
 def test_session_store_append_and_clear():

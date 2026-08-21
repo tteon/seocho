@@ -312,7 +312,7 @@ def run_one(
         return answer
 
     try:
-        bc.run_under_opik_track(name=name, tags=tags, metadata=metadata, work_fn=_work)
+        bc.run_traced(name=name, tags=tags, metadata=metadata, work_fn=_work)
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
 
@@ -324,7 +324,7 @@ def run_one(
     judge: dict = {"score": -1, "rationale": "(skipped)"}
     if answer:
         try:
-            judge = bc.run_under_opik_track(
+            judge = bc.run_traced(
                 name=judge_name, tags=judge_tags, metadata=metadata,
                 work_fn=lambda: llm_io.llm_judge(
                     client=judge_client,

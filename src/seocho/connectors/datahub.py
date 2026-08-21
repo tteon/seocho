@@ -207,6 +207,49 @@ class DataHubGraphQLClient:
             if len(results) < count:
                 break
 
+    def iter_glossary_terms(
+        self,
+        *,
+        query_text: str = "*",
+        page_size: int = 50,
+        max_results: int = 200,
+    ) -> Iterator[dict[str, Any]]:
+        search_query = """
+        query SeochoGlossaryTermSearch($query: String!, $start: Int!, $count: Int!) {
+          search(input: { type: GLOSSARY_TERM, query: $query, start: $start, count: $count }) {
+            searchResults {
+              entity {
+                urn
+                type
+                ... on GlossaryTerm {
+                  name
+                  properties { name description }
+                  tags { tags { tag { urn name } } }
+                  isRelatedTerms: relationships(input: { types: ["IsA"], direction: OUTGOING, count: 10 }) {
+                    relationships { entity { ... on GlossaryTerm { urn properties { name } } } }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+        start = 0
+        while start < max_results:
+            count = min(max(page_size, 1), max_results - start)
+            data = self.query(search_query, {"query": query_text, "start": start, "count": count})
+            search = data.get("search") if isinstance(data.get("search"), Mapping) else {}
+            results = _items(search.get("searchResults"))
+            if not results:
+                break
+            for result in results:
+                entity = result.get("entity") if isinstance(result, Mapping) else None
+                if isinstance(entity, dict):
+                    yield entity
+            start += len(results)
+            if len(results) < count:
+                break
+
 
 def fetch_dataset_records(
     *,
@@ -223,9 +266,111 @@ def fetch_dataset_records(
     ]
 
 
+# --------------------------------------------------------------------------
+# Glossary pull (seocho-v6w.3): read reviewed glossary terms back so the human
+# approval loop closes. This is the INBOUND half of the DataHub round-trip; the
+# output shape is the neutral ``term_records`` contract consumed by
+# ``datahub_export.datahub_glossary_to_mapping_spec`` — no urn:li or aspect
+# names cross out of this module (ADR-0216 seam rule).
+# --------------------------------------------------------------------------
+
+# The approval signal is a tag on the term (ADR-0216): SEOCHO never writes the
+# globalTags aspect, so a human's approval mark cannot be clobbered by re-export.
+DEFAULT_APPROVED_TAG = "seocho:approved"
+
+
+def _tag_names(entity: Mapping[str, Any]) -> list[str]:
+    tags = entity.get("tags") if isinstance(entity.get("tags"), Mapping) else {}
+    out: list[str] = []
+    for t in _items(tags.get("tags")):
+        if not isinstance(t, Mapping):
+            continue
+        tag = t.get("tag") if isinstance(t.get("tag"), Mapping) else {}
+        name = tag.get("name") or (str(tag.get("urn", "")).rsplit(":", 1)[-1])
+        if name:
+            out.append(str(name))
+    return out
+
+
+def _parent_term_name(entity: Mapping[str, Any]) -> str:
+    """First is-a parent's name, from the aliased ``isRelatedTerms`` relationships
+    block (``relationships[].entity.properties.name``)."""
+    rel = entity.get("isRelatedTerms") if isinstance(entity.get("isRelatedTerms"), Mapping) else {}
+    for r in _items(rel.get("relationships")):
+        if not isinstance(r, Mapping):
+            continue
+        term = r.get("entity") if isinstance(r.get("entity"), Mapping) else {}
+        props = term.get("properties") if isinstance(term.get("properties"), Mapping) else {}
+        name = props.get("name") or term.get("name")
+        if name:
+            return str(name)
+    return ""
+
+
+def glossary_term_to_record(
+    entity: Mapping[str, Any],
+    *,
+    known_labels: frozenset[str] = frozenset(),
+    approved_tag: str = DEFAULT_APPROVED_TAG,
+) -> dict[str, Any]:
+    """Normalize a DataHub glossary-term entity into a SEOCHO ``term_record``.
+
+    - ``review_status`` = APPROVED iff the approval tag is present, else PROPOSED
+      (the tag is the human signal; a definition edit alone is not approval).
+    - ``action`` = ``annotate`` when the term names a class SEOCHO already has
+      (a definition edit on an existing class), else ``new_class``.
+    - ``description`` carries the human-authored definition back.
+    The result is exactly what ``datahub_glossary_to_mapping_spec`` consumes."""
+    props = entity.get("properties") if isinstance(entity.get("properties"), Mapping) else {}
+    name = str(props.get("name") or entity.get("name") or "").strip()
+    description = str(props.get("description") or props.get("definition") or "").strip()
+    approved = approved_tag in _tag_names(entity)
+    action = "annotate" if name in known_labels else "new_class"
+    rec: dict[str, Any] = {
+        "name": name,
+        "review_status": "APPROVED" if approved else "PROPOSED",
+        "action": action,
+        "target": name,
+        "description": description,
+    }
+    if action == "new_class":
+        parent = _parent_term_name(entity)
+        if parent:
+            rec["parent"] = parent
+    return rec
+
+
+def fetch_glossary_term_records(
+    *,
+    server: str,
+    token_env: str = "DATAHUB_TOKEN",
+    query_text: str = "*",
+    limit: int = 200,
+    known_labels: frozenset[str] = frozenset(),
+    approved_tag: str = DEFAULT_APPROVED_TAG,
+    urn_prefix: str = "",
+) -> list[dict[str, Any]]:
+    """Pull reviewed glossary terms from a live GMS as ``term_records`` ready for
+    ``datahub_glossary_to_mapping_spec`` → ``apply_mapping_spec``.
+
+    ``urn_prefix`` scopes the pull to one ontology's terms (see
+    ``datahub_export.package_term_urn_prefix``). Without it a GMS holding two
+    SEOCHO ontologies would leak ontology B's approved terms into ontology A's
+    apply — the search is server-wide and the record does not carry the URN."""
+    client = DataHubGraphQLClient(server=server, token_env=token_env)
+    return [
+        glossary_term_to_record(entity, known_labels=known_labels, approved_tag=approved_tag)
+        for entity in client.iter_glossary_terms(query_text=query_text, max_results=limit)
+        if not urn_prefix or str(entity.get("urn") or "").startswith(urn_prefix)
+    ]
+
+
 __all__ = [
     "ConnectorAPIError",
+    "DEFAULT_APPROVED_TAG",
     "DataHubGraphQLClient",
     "dataset_entity_to_record",
     "fetch_dataset_records",
+    "fetch_glossary_term_records",
+    "glossary_term_to_record",
 ]

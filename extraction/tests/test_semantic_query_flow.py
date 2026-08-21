@@ -5,13 +5,13 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from semantic_query_flow import (
+from ..semantic_query_flow import (
     QueryRouterAgent,
     SemanticAgentFlow,
     SemanticEntityResolver,
 )
-from semantic_artifact_store import approve_semantic_artifact, save_semantic_artifact
-from semantic_run_store import get_semantic_run, list_semantic_runs
+from ..semantic_artifact_store import approve_semantic_artifact, save_semantic_artifact
+from ..semantic_run_store import get_semantic_run, list_semantic_runs
 
 
 class FakeConnector:

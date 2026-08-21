@@ -15,11 +15,8 @@ Multiple backends supported::
     # Console output (debugging)
     enable_tracing(backend="console")
 
-    # Opik exporter (hosted or self-hosted)
-    enable_tracing(backend="opik", project_name="my-project")
-
     # Multiple backends at once
-    enable_tracing(backend=["opik", "jsonl"], output="./traces/seocho.jsonl")
+    enable_tracing(backend=["otlp", "jsonl"], output="./traces/seocho.jsonl")
 
     # Custom backend
     class MyTracer(TracingBackend):
@@ -47,10 +44,9 @@ logger = logging.getLogger(__name__)
 
 TRACE_BACKEND_ENV = "SEOCHO_TRACE_BACKEND"
 TRACE_JSONL_PATH_ENV = "SEOCHO_TRACE_JSONL_PATH"
-TRACE_OPIK_MODE_ENV = "SEOCHO_TRACE_OPIK_MODE"
 TRACE_OTLP_ENDPOINT_ENV = "SEOCHO_TRACE_OTLP_ENDPOINT"
 TRACE_CONTENT_CAPTURE_ENV = "SEOCHO_TRACE_CAPTURE_CONTENT"
-_VALID_BACKEND_NAMES = {"none", "console", "jsonl", "opik", "otlp"}
+_VALID_BACKEND_NAMES = {"none", "console", "jsonl", "otlp"}
 _TRUTHY = {"1", "true", "yes", "on"}
 
 # Module-level state
@@ -118,135 +114,6 @@ class TracingBackend(ABC):
 # ======================================================================
 # Built-in backends
 # ======================================================================
-
-_OPIK_VERSION_WARNED = False
-# Opik SDK major version known-compatible with current Opik servers (>=2.x).
-# SDK 1.x against a 2.x server silently drops trace payloads (all-null traces).
-_OPIK_MIN_MAJOR = 2
-
-
-def _warn_opik_version_once(opik_mod: Any) -> None:
-    """Emit a one-time warning if the installed Opik SDK major version is older
-    than the era of current Opik servers. SDK 1.x talking to a 2.x server lands
-    traces with null name/tags/metadata (observed 2026-05-30)."""
-    global _OPIK_VERSION_WARNED
-    if _OPIK_VERSION_WARNED:
-        return
-    _OPIK_VERSION_WARNED = True
-    ver = str(getattr(opik_mod, "__version__", "") or "")
-    try:
-        major = int(ver.split(".", 1)[0])
-    except (ValueError, IndexError):
-        return
-    if major < _OPIK_MIN_MAJOR:
-        logger.warning(
-            "Opik SDK version %s (<%d.x) may be incompatible with current Opik "
-            "servers: traces can land with null name/tags/metadata. "
-            "Run `pip install -U opik` to match the server release.",
-            ver, _OPIK_MIN_MAJOR,
-        )
-
-
-class OpikBackend(TracingBackend):
-    """Opik tracing backend — follows icml2026 verified patterns.
-
-    Relies on ``~/.opik.config`` for workspace/url configuration.
-    Does NOT call ``opik.configure()`` to avoid config conflicts.
-
-    Set these in ``~/.opik.config``::
-
-        [opik]
-        url_override = https://www.comet.com/opik/api/
-        workspace = your_workspace
-        api_key = your_api_key
-
-    Or via env vars: ``OPIK_API_KEY``, ``OPIK_PROJECT_NAME``.
-    """
-
-    def __init__(
-        self,
-        *,
-        url: Optional[str] = None,
-        workspace: Optional[str] = None,
-        project_name: Optional[str] = None,
-        api_key: Optional[str] = None,
-        mode: Optional[str] = None,
-    ) -> None:
-        try:
-            import opik as _opik
-            self._opik = _opik
-        except ImportError:
-            raise ImportError("OpikBackend requires opik: pip install opik")
-        _warn_opik_version_once(self._opik)
-
-        self._url = url or os.getenv("OPIK_URL_OVERRIDE", "") or os.getenv("OPIK_URL", "")
-        self._workspace = workspace or os.getenv("OPIK_WORKSPACE", "")
-        self._project = project_name or os.getenv("OPIK_PROJECT_NAME", "seocho-sdk")
-        self._api_key = api_key or os.getenv("OPIK_API_KEY", "")
-        self._mode = str(
-            mode
-            or os.getenv(TRACE_OPIK_MODE_ENV, "")
-            or ("self_host" if self._url else "hosted")
-        ).strip().lower()
-
-        # Set env vars so the SDK client can resolve hosted vs self-hosted config
-        if self._url:
-            os.environ["OPIK_URL_OVERRIDE"] = self._url
-        if self._workspace:
-            os.environ["OPIK_WORKSPACE"] = self._workspace
-        os.environ["OPIK_PROJECT_NAME"] = self._project
-        if self._api_key:
-            os.environ["OPIK_API_KEY"] = self._api_key
-
-        try:
-            self._client = self._opik.Opik(project_name=self._project)
-            self._init_error: Optional[str] = None
-        except Exception as exc:
-            logger.warning("Opik client init failed: %s", exc)
-            self._client = None
-            self._init_error = f"{type(exc).__name__}: {exc}"
-
-    def log_span(
-        self,
-        name: str,
-        *,
-        input_data: Optional[Dict[str, Any]] = None,
-        output_data: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-    ) -> None:
-        if self._client is None:
-            return
-        try:
-            # Pass end_time in the single create call instead of calling
-            # trace.end() right after creation. With opik's batched message
-            # manager (SDK >= 2.0), create-then-immediate-end() races and the
-            # create payload (name/tags/metadata) is silently dropped — the
-            # trace lands with all fields null. See:
-            # https://www.comet.com/docs/opik/tracing/batching_and_updates
-            self._client.trace(
-                name=name,
-                input=input_data or {},
-                output=output_data or {},
-                metadata=metadata or {},
-                tags=tags or [],
-                end_time=datetime.now(timezone.utc),
-            )
-        except Exception as exc:
-            logger.debug("Opik trace failed: %s", exc)
-
-    def flush(self) -> None:
-        """Flush pending traces to Opik cloud."""
-        if self._client is None:
-            return
-        try:
-            self._client.flush()
-        except Exception:
-            pass
-
-    def close(self) -> None:
-        self.flush()
-
 
 class JSONLBackend(TracingBackend):
     """Write traces as JSON lines to a file. No dependencies needed."""
@@ -345,8 +212,8 @@ def _flatten_attributes(
 class OTLPBackend(TracingBackend):
     """Export spans over OTLP gRPC to an OpenTelemetry Collector (ADR-0144).
 
-    The lightweight local alternative to self-hosted Opik: spans flow to a
-    Collector and on to Tempo (traces) / Prometheus (metrics) / Grafana. Opik
+    The vendor-neutral default: spans flow to a Collector and on to
+    Tempo (traces) / Prometheus (metrics) / Grafana. A hosted SaaS backend
     stays the cloud team backend; both can run together via a backend list.
 
     Requires the OTel SDK + OTLP exporter::
@@ -396,9 +263,9 @@ class OTLPBackend(TracingBackend):
         self._Status = Status
         self._StatusCode = StatusCode
 
-        self._meter = None
-        self._meter_provider = None
-        self._counters: Dict[str, Any] = {}
+        # Counters that used to live on a private meter here now flow through
+        # the ADR-0146 registry (seocho.metrics) — one provider, one naming
+        # scheme, one env switch. This backend owns spans only.
         try:
             resource_attributes = {"service.name": self._service_name}
             if instance_id := os.getenv("OTEL_SERVICE_INSTANCE_ID"):
@@ -413,29 +280,6 @@ class OTLPBackend(TracingBackend):
             self._provider = provider
             self._tracer = provider.get_tracer("seocho.tracing")
             self._init_error: Optional[str] = None
-            # Metrics pipeline (ADR-0144 §6): isolated so a missing/old metrics
-            # SDK never disables tracing.
-            try:
-                from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
-                    OTLPMetricExporter,
-                )
-                from opentelemetry.sdk.metrics import MeterProvider
-                from opentelemetry.sdk.metrics.export import (
-                    PeriodicExportingMetricReader,
-                )
-
-                reader = PeriodicExportingMetricReader(
-                    OTLPMetricExporter(
-                        endpoint=self._endpoint,
-                        insecure=self._endpoint.startswith("http://"),
-                    )
-                )
-                self._meter_provider = MeterProvider(
-                    resource=resource, metric_readers=[reader]
-                )
-                self._meter = self._meter_provider.get_meter("seocho.tracing")
-            except Exception as exc:
-                logger.debug("OTLP meter init skipped: %s", exc)
         except Exception as exc:
             logger.warning("OTLP backend init failed: %s", exc)
             self._provider = None
@@ -523,46 +367,36 @@ class OTLPBackend(TracingBackend):
             except Exception:
                 pass
 
-    def record_metric(
-        self,
-        name: str,
-        value: float = 1,
-        *,
-        attributes: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Add to a monotonic counter (Prometheus appends ``_total``)."""
-        if self._meter is None:
-            return
-        try:
-            counter = self._counters.get(name)
-            if counter is None:
-                counter = self._meter.create_counter(name)
-                self._counters[name] = counter
-            counter.add(value, attributes or {})
-        except Exception as exc:
-            logger.debug("OTLP record_metric failed: %s", exc)
-
     def flush(self) -> None:
         if self._provider is not None:
             try:
                 self._provider.force_flush()
             except Exception:
-                pass
-        if self._meter_provider is not None:
-            try:
-                self._meter_provider.force_flush()
-            except Exception:
-                pass
+                self._count_export_failure("traces")
+
+    @staticmethod
+    def _count_export_failure(signal: str) -> None:
+        """Count a telemetry export failure via the *other* pipeline.
+
+        Deliberately routed through the ADR-0146 registry, not this backend's
+        own meter: when this exporter is the thing failing, incrementing a
+        counter that exports through it would report nothing. Import is lazy
+        to keep tracing importable without the metrics module and vice versa.
+        """
+        try:
+            from .metrics import get_metrics
+
+            get_metrics().add(
+                "seocho.observability.export_failure.count",
+                attributes={"signal": signal, "exporter": "otlp"},
+            )
+        except Exception:  # pragma: no cover - last-resort guard
+            pass
 
     def close(self) -> None:
         if self._provider is not None:
             try:
                 self._provider.shutdown()
-            except Exception:
-                pass
-        if self._meter_provider is not None:
-            try:
-                self._meter_provider.shutdown()
             except Exception:
                 pass
 
@@ -572,7 +406,6 @@ class OTLPBackend(TracingBackend):
 # ======================================================================
 
 _BACKEND_MAP = {
-    "opik": OpikBackend,
     "jsonl": JSONLBackend,
     "console": ConsoleBackend,
     "otlp": OTLPBackend,
@@ -617,7 +450,7 @@ def tracing_degraded_reasons() -> List[str]:
     """
     reasons: List[str] = []
     for backend, name in zip(_BACKENDS, _BACKEND_NAMES):
-        # OpikBackend exposes _init_error; other backends don't (currently) fail init silently.
+        # Some backends expose _init_error; others don't (currently) fail init silently.
         init_error = getattr(backend, "_init_error", None)
         if init_error:
             reasons.append(f"{name}: {init_error}")
@@ -633,7 +466,7 @@ def configure_tracing_from_env() -> bool:
     """Enable tracing from the repository's env contract.
 
     Supported values for ``SEOCHO_TRACE_BACKEND``:
-    ``none | console | jsonl | opik | otlp``.
+    ``none | console | jsonl | otlp``.
     """
     backend_name = str(os.getenv(TRACE_BACKEND_ENV, "none") or "none").strip().lower()
     if backend_name not in _VALID_BACKEND_NAMES:
@@ -653,11 +486,6 @@ def configure_tracing_from_env() -> bool:
     return enable_tracing(
         backend=backend_name,
         output=os.getenv(TRACE_JSONL_PATH_ENV) or "./traces/seocho.jsonl",
-        url=os.getenv("OPIK_URL_OVERRIDE", "") or os.getenv("OPIK_URL", ""),
-        workspace=os.getenv("OPIK_WORKSPACE", ""),
-        project_name=os.getenv("OPIK_PROJECT_NAME", ""),
-        api_key=os.getenv("OPIK_API_KEY", ""),
-        opik_mode=os.getenv(TRACE_OPIK_MODE_ENV, "") or None,
     )
 
 
@@ -665,11 +493,6 @@ def enable_tracing(
     *,
     backend: Union[str, TracingBackend, List[Union[str, TracingBackend]]] = "console",
     output: Optional[str] = None,
-    url: Optional[str] = None,
-    workspace: Optional[str] = None,
-    project_name: Optional[str] = None,
-    api_key: Optional[str] = None,
-    opik_mode: Optional[str] = None,
     endpoint: Optional[str] = None,
     service_name: Optional[str] = None,
 ) -> bool:
@@ -680,17 +503,12 @@ def enable_tracing(
     backend:
         Backend name(s) or instance(s):
         - ``"none"`` — disable tracing
-        - ``"opik"`` — Opik hosted/self-hosted
         - ``"jsonl"`` — raw JSON lines file
         - ``"console"`` — stdout
         - ``TracingBackend`` instance — custom
         - list of above — multiple backends
     output:
         File path for JSONL backend.
-    url, workspace, project_name:
-        Opik-specific configuration.
-    opik_mode:
-        ``"hosted"`` or ``"self_host"``. Used only for the Opik backend.
     endpoint, service_name:
         OTLP collector endpoint and OTel service name. Environment defaults are
         used when omitted.
@@ -715,14 +533,7 @@ def enable_tracing(
 
         if isinstance(b, str):
             try:
-                if b == "opik":
-                    new_backends.append(OpikBackend(
-                        url=url, workspace=workspace,
-                        project_name=project_name, api_key=api_key,
-                        mode=opik_mode,
-                    ))
-                    active_backend_names.append("opik")
-                elif b == "jsonl":
+                if b == "jsonl":
                     new_backends.append(JSONLBackend(output=output or "./traces/seocho.jsonl"))
                     active_backend_names.append("jsonl")
                 elif b == "console":
@@ -756,13 +567,6 @@ def flush_tracing() -> None:
                 b.flush()
             except Exception:
                 pass
-    if is_backend_enabled("opik"):
-        try:
-            import opik
-
-            opik.flush_tracker()
-        except Exception:
-            pass
 
 
 def disable_tracing() -> None:
@@ -795,18 +599,62 @@ def log_span(
     metadata: Optional[Dict[str, Any]] = None,
     tags: Optional[List[str]] = None,
 ) -> None:
-    """Log a span to ALL active backends."""
+    """Log a point-in-time span to ALL active backends.
+
+    Unlike :func:`start_span` this does not time anything — the caller already
+    finished the work and knows how long it took. What it must still do is
+    attach to the enclosing trace, and it did not: `sdk.extraction` and
+    `sdk.query` were emitted with no `trace_id` and no `parent_span_id`, so
+    they landed as orphan records beside the `rag.*` tree instead of inside it.
+
+    Stage attribution is exactly the ability to ask "which part of *this*
+    request was slow or wrong", and an orphan span cannot answer it however
+    complete its own attributes are. So the current trace context is stamped on
+    here, and `elapsed_seconds` in the caller's metadata is promoted to
+    `duration_ms` so the record is placeable on a waterfall.
+    """
+    enriched = dict(metadata or {})
+
+    stack = _span_stack.get()
+    if stack:
+        enriched.setdefault("trace_id", stack[0])
+        if len(stack) > 1:
+            enriched.setdefault("parent_span_id", stack[-1])
+    enriched.setdefault("span_id", uuid.uuid4().hex[:16])
+
+    # Callers of log_extraction/log_query already measured the work.
+    elapsed = enriched.get("elapsed_seconds")
+    if "duration_ms" not in enriched and isinstance(elapsed, (int, float)):
+        enriched["duration_ms"] = round(float(elapsed) * 1000, 2)
+
     for b in _BACKENDS:
         try:
             b.log_span(
                 name,
                 input_data=input_data,
                 output_data=output_data,
-                metadata=metadata,
+                metadata=enriched,
                 tags=tags,
             )
         except Exception:
             pass
+
+
+# ADR-0144 §6 counters were emitted through this module's own OTel meter with
+# their own naming scheme, env switch, and no label validation — a second
+# metrics pipeline next to the ADR-0146 registry. The legacy names now map
+# onto catalog specs and everything funnels through seocho.metrics (one
+# provider, one naming convention, label budget enforced everywhere).
+_LEGACY_METRIC_MAP = {
+    "seocho_validation_errors": "seocho.index.validation_errors.count",
+    "seocho_observations_reified": "seocho.index.observations_reified.count",
+    "seocho_arbiter_route": "seocho.arbiter.route.count",
+    "seocho_query_plan": "seocho.query.plan.count",
+    "seocho_query_db_hits": "seocho.query.db_hits.count",
+    "seocho_query_scan": "seocho.query.scan.count",
+    "seocho_query_plan_route": "seocho.query.plan_route.count",
+    "seocho_query_generation_declined": "seocho.query.generation_declined.count",
+}
 
 
 def record_metric(
@@ -815,20 +663,24 @@ def record_metric(
     *,
     attributes: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Record a counter metric on backends that support metrics (OTLP → Prometheus).
+    """Legacy counter shim: delegate to the ADR-0146 metrics registry.
 
-    No-op on flat backends. Counter names are emitted as-is; the OTel→Prometheus
-    exporter appends ``_total`` (so ``seocho_validation_errors`` →
-    ``seocho_validation_errors_total``). ADR-0144 §6.
+    Accepts either a legacy ADR-0144 snake_case name or a catalog spec name.
+    Anything outside the catalog is dropped with a debug log — an arbitrary
+    name would bypass the registry's label budget, which is the whole reason
+    the two pipelines were unified. New code should call
+    :func:`seocho.metrics.get_metrics` directly.
     """
-    for b in _BACKENDS:
-        fn = getattr(b, "record_metric", None)
-        if fn is None:
-            continue
-        try:
-            fn(name, value, attributes=attributes)
-        except Exception:
-            pass
+    from .metrics import METRIC_SPECS, get_metrics
+
+    spec_name = _LEGACY_METRIC_MAP.get(name, name)
+    if spec_name not in METRIC_SPECS:
+        logger.debug("record_metric dropped uncataloged metric: %s", name)
+        return
+    try:
+        get_metrics().add(spec_name, value, attributes=attributes)
+    except Exception as exc:
+        logger.debug("record_metric failed for %s: %s", name, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -895,7 +747,7 @@ def start_span(
 
     Backends exposing ``open_span``/``close_span`` (OTLP) get real nested spans
     via the OTel context, so an ``ask()`` lands as a tree in Tempo. Flat
-    backends (JSONL, console, Opik) receive one record at span close, carrying
+    backends (JSONL, console, OTLP) receive one record at span close, carrying
     ``span_id`` / ``parent_span_id`` / ``trace_id`` / ``duration_ms`` so the
     tree is reconstructable offline.
 
@@ -1029,19 +881,66 @@ def log_extraction(
     validation_errors: int,
     elapsed_seconds: float,
     metadata: Optional[Dict[str, Any]] = None,
+    system_prompt: Optional[str] = None,
+    user_prompt: Optional[str] = None,
+    completion: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+    provider: Optional[str] = None,
+    stage: str = "extraction",
 ) -> None:
-    """Log an extraction event."""
+    """Log an extraction event.
+
+    The span carried counts and a bare model name, so it could show that an
+    extraction happened but not what was asked or which tenant asked it. With
+    the prompt body and the semantic context (stage, ontology, workspace,
+    provider-qualified model) one span is enough to audit an extraction, and
+    traces can be filtered per tenant.
+
+    Prompt and completion bodies go through :func:`capture_text`, so they appear
+    only when content capture is enabled and are omitted entirely otherwise --
+    the same opt-in policy every other content field obeys. Passing them here
+    does not decide that they are recorded.
+    """
+    model_tag = f"{provider}/{model}" if provider else model
+    input_data: Dict[str, Any] = {
+        "text_preview": text_preview[:200],
+        "ontology": ontology_name,
+        "model": model_tag,
+    }
+    captured_system = capture_text(system_prompt)
+    if captured_system is not None:
+        input_data["system_prompt"] = captured_system
+    captured_user = capture_text(user_prompt)
+    if captured_user is not None:
+        input_data["user_prompt"] = captured_user
+
+    output_data: Dict[str, Any] = {
+        "nodes": nodes_count,
+        "relationships": relationships_count,
+        "score": round(score, 3),
+        "validation_errors": validation_errors,
+    }
+    captured_completion = capture_text(completion)
+    if captured_completion is not None:
+        output_data["completion"] = captured_completion
+
+    tags = [
+        "extraction", f"stage:{stage}",
+        f"model:{model_tag}", f"ontology:{ontology_name}",
+    ]
+    if workspace_id:
+        tags.append(f"workspace:{workspace_id}")
+
     log_span(
         "sdk.extraction",
-        input_data={"text_preview": text_preview[:200], "ontology": ontology_name, "model": model},
-        output_data={
-            "nodes": nodes_count,
-            "relationships": relationships_count,
-            "score": round(score, 3),
-            "validation_errors": validation_errors,
+        input_data=input_data,
+        output_data=output_data,
+        metadata={
+            "elapsed_seconds": round(elapsed_seconds, 2),
+            "workspace_id": workspace_id,
+            **(metadata or {}),
         },
-        metadata={"elapsed_seconds": round(elapsed_seconds, 2), **(metadata or {})},
-        tags=["extraction", f"model:{model}"],
+        tags=tags,
     )
 
 
@@ -1056,8 +955,35 @@ def log_query(
     reasoning_attempts: int = 0,
     elapsed_seconds: float = 0.0,
     metadata: Optional[Dict[str, Any]] = None,
+    answer: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+    provider: Optional[str] = None,
+    stage: str = "query",
 ) -> None:
-    """Log a query event."""
+    """Log a query event.
+
+    Carries the provider-qualified model, stage / ontology / workspace tags and,
+    when content capture is on, the synthesized ``answer``. Without the
+    workspace tag a trace could not be filtered per tenant, which is what makes
+    a shared deployment auditable.
+    """
+    model_tag = f"{provider}/{model}" if provider else model
+    output_data: Dict[str, Any] = {
+        "cypher_preview": cypher[:200],
+        "result_count": result_count,
+        "reasoning_attempts": reasoning_attempts,
+    }
+    captured_answer = capture_text(answer)
+    if captured_answer is not None:
+        output_data["answer"] = captured_answer
+
+    tags = [
+        "query", f"stage:{stage}",
+        f"model:{model_tag}", f"ontology:{ontology_name}",
+    ]
+    if workspace_id:
+        tags.append(f"workspace:{workspace_id}")
+
     log_span(
         "sdk.query",
         input_data={
@@ -1065,17 +991,14 @@ def log_query(
             "ontology": ontology_name,
             **({"ontology_package": ontology_package} if ontology_package else {}),
         },
-        output_data={
-            "cypher_preview": cypher[:200],
-            "result_count": result_count,
-            "reasoning_attempts": reasoning_attempts,
-        },
+        output_data=output_data,
         metadata={
-            "model": model,
+            "model": model_tag,
             "elapsed_seconds": round(elapsed_seconds, 2),
+            "workspace_id": workspace_id,
             **(metadata or {}),
         },
-        tags=["query", f"model:{model}"],
+        tags=tags,
     )
 
 
@@ -1113,7 +1036,7 @@ class SessionTrace:
     """A session-level parent trace that groups operations.
 
     All spans logged within a session are children of this trace,
-    giving a single workflow view in Opik / JSONL.
+    giving a single workflow view in the JSONL and OTLP backends.
     """
 
     def __init__(self, session_id: str, name: str = "") -> None:
@@ -1121,21 +1044,6 @@ class SessionTrace:
         self.name = name or f"session:{session_id}"
         self._spans: List[Dict[str, Any]] = []
         self._start_time = datetime.now(timezone.utc)
-        self._opik_trace: Any = None
-
-        # Start Opik parent trace if backend is active
-        for b in _BACKENDS:
-            if isinstance(b, OpikBackend) and b._client is not None:
-                try:
-                    self._opik_trace = b._client.trace(
-                        name=self.name,
-                        input={"session_id": session_id},
-                        metadata={"session": True},
-                        tags=["session"],
-                    )
-                except Exception as exc:
-                    logger.debug("Opik session trace start failed: %s", exc)
-                break
 
     def log_span(
         self,
@@ -1158,20 +1066,7 @@ class SessionTrace:
         }
         self._spans.append(record)
 
-        # Log to Opik as child span
-        if self._opik_trace is not None:
-            try:
-                self._opik_trace.span(
-                    name=name,
-                    input=input_data or {},
-                    output=output_data or {},
-                    metadata=metadata or {},
-                    tags=tags or [],
-                )
-            except Exception:
-                pass
-
-        # Also log to all backends
+        # Fan out to all backends
         enriched_meta = {**(metadata or {}), "session_id": self.session_id}
         log_span(name, input_data=input_data, output_data=output_data,
                  metadata=enriched_meta, tags=tags)
@@ -1186,16 +1081,6 @@ class SessionTrace:
             "total_spans": len(self._spans),
             "elapsed_seconds": round(elapsed, 2),
         }
-
-        # End Opik parent trace
-        if self._opik_trace is not None:
-            try:
-                self._opik_trace.end(
-                    output=summary,
-                    metadata={"elapsed_seconds": round(elapsed, 2)},
-                )
-            except Exception:
-                pass
 
         log_span(
             "sdk.session.end",
@@ -1214,7 +1099,7 @@ def begin_session(session_id: str, name: str = "") -> SessionTrace:
     """Start a new session-level trace.
 
     Returns a SessionTrace that groups all subsequent operations
-    into a single parent trace in Opik.
+    into a single parent trace.
     """
     trace = SessionTrace(session_id, name)
     log_span(

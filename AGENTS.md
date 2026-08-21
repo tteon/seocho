@@ -148,6 +148,7 @@ shared.
 | Docs contract only | `bash scripts/ci/check-doc-contracts.sh` |
 | Runtime shell/import ownership | `bash scripts/ci/check-runtime-shell-contract.sh` |
 | SDK/extraction ownership | `bash scripts/ci/check-module-ownership-contract.sh` |
+| Package import boundaries | `python3 scripts/ci/check-import-boundaries.py` |
 | Root layout or public GitHub surface | `scripts/ci/check-root-hierarchy-contract.sh` |
 | Python import smoke | `uv run python -c "import seocho; print(seocho.__file__)"` |
 

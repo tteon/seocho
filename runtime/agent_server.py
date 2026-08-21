@@ -14,11 +14,11 @@ from pydantic import BaseModel, Field
 # OpenAI Agent SDK Imports (Local Shim)
 from agents import Agent, function_tool, RunContextWrapper
 
-from config import db_registry, graph_registry, validate_config
+from extraction.config import db_registry, graph_registry, validate_config
 from runtime.agent_readiness import summarize_readiness
-from agents_runtime import get_agents_runtime
-from shared_memory import SharedMemory
-from exceptions import (
+from extraction.agents_runtime import get_agents_runtime
+from extraction.shared_memory import SharedMemory
+from extraction.exceptions import (
     SeochoError,
     ConfigurationError,
     InfrastructureError,
@@ -26,9 +26,10 @@ from exceptions import (
     PipelineError,
     InvalidDatabaseNameError,
 )
-from runtime.middleware import RequestIDMiddleware
+from runtime.middleware import RequestIDMiddleware, RequestMetricsMiddleware
 from runtime.identity import PrincipalMiddleware
-from tracing import configure_opik, track, update_current_span, update_current_trace
+from seocho.metrics import enable_metrics, get_metrics
+from extraction.tracing import track, update_current_span, update_current_trace
 from runtime.policy import require_runtime_permission
 from seocho.runtime_contract import (
     DATABASE_NAME_PATTERN,
@@ -37,7 +38,7 @@ from seocho.runtime_contract import (
     RuntimePath,
     WORKSPACE_ID_PATTERN,
 )
-from rule_api import (
+from extraction.rule_api import (
     RuleInferRequest,
     RuleInferResponse,
     RuleAssessRequest,
@@ -62,7 +63,7 @@ from rule_api import (
     validate_rule_profile,
 )
 from runtime.public_memory_api import build_public_memory_router
-from debate import DebateOrchestrator
+from extraction.debate import DebateOrchestrator
 from runtime.server_runtime import (
     ServerContext,
     batch_status_file_path,
@@ -83,7 +84,7 @@ from runtime.server_runtime import (
     invalidate_semantic_vocabulary_cache,
     utc_now_iso,
 )
-from semantic_artifact_api import (
+from extraction.semantic_artifact_api import (
     SemanticArtifactApproveRequest,
     SemanticArtifactDeprecateRequest,
     SemanticArtifactListResponse,
@@ -96,7 +97,7 @@ from semantic_artifact_api import (
     read_semantic_artifacts,
     resolve_approved_artifact_payload,
 )
-from ontology_control_plane_api import (
+from extraction.ontology_control_plane_api import (
     OntologyCompiledProfileResponse,
     OntologyProfileEvaluateRequest,
     OntologyProfileEvaluationResponse,
@@ -119,7 +120,7 @@ from ontology_control_plane_api import (
     select_ontology_profile_request,
     upsert_ontology_profile,
 )
-from semantic_run_store import get_semantic_run, list_semantic_runs
+from extraction.semantic_run_store import get_semantic_run, list_semantic_runs
 from seocho.query.query_proxy import QueryRequest as GraphQueryRequest
 
 logger = logging.getLogger(__name__)
@@ -149,6 +150,11 @@ memory_service = _LazyServiceProxy(get_memory_service)
 
 # Request ID middleware
 app.add_middleware(RequestIDMiddleware)
+
+# Golden-signal boundary metrics (count/duration/in-flight per route template).
+# Registered after RequestIDMiddleware and inside CORS, so preflight OPTIONS
+# short-circuited by CORSMiddleware never pollutes the traffic signal.
+app.add_middleware(RequestMetricsMiddleware)
 
 # Identity — resolves the per-request Principal (anonymous unless
 # SEOCHO_AUTH_MODE=token). Added before CORS so CORS stays outermost and handles
@@ -211,10 +217,82 @@ async def seocho_error_handler(request: Request, exc: SeochoError):
     return JSONResponse(status_code=status_code, content=body.model_dump())
 
 
+def _customer_query_metric(query_class: str):
+    """Emit the user-facing SLI from the real serving path.
+
+    ``seocho.customer.query.count/.duration`` with ``traffic.type="production"``
+    drive the SeochoCustomerQueryFastBurn SLO; until now only a benchmark
+    script (traffic.type="evaluation") emitted them, so the pager could never
+    observe production. Outcome follows the intent-support vocabulary: the
+    response's ``support_status`` when it carries one, else "supported" on
+    success and "error" on failure — matching the SLO's ``outcome!="supported"``
+    bad-event definition.
+    """
+
+    def decorate(fn):
+        @functools.wraps(fn)
+        async def wrapper(*args, **kwargs):
+            import time as _time
+
+            started = _time.perf_counter()
+            outcome = "error"
+            try:
+                response = await fn(*args, **kwargs)
+                outcome = str(getattr(response, "support_status", "") or "supported")
+                return response
+            finally:
+                labels = {
+                    "query.class": query_class,
+                    "outcome": outcome,
+                    "traffic.type": "production",
+                }
+                metrics = get_metrics()
+                metrics.add("seocho.customer.query.count", attributes=labels)
+                metrics.record(
+                    "seocho.customer.query.duration",
+                    _time.perf_counter() - started,
+                    labels,
+                )
+
+        return wrapper
+
+    return decorate
+
+
 @app.on_event("startup")
 async def _startup():
     validate_config()
-    configure_opik()
+    # ADR-0146 metrics registry. Env-gated: SEOCHO_METRICS_BACKEND=none (the
+    # default) yields no-op instruments, so boot never depends on a collector.
+    try:
+        enable_metrics()
+    except Exception:
+        logger.warning(
+            "Metrics backend initialisation failed; instruments stay no-op.",
+            exc_info=True,
+        )
+    # Tracing was plumbed end-to-end and never switched on. SEOCHO_TRACE_BACKEND
+    # is documented in .env.example and passed by docker-compose, and nothing in
+    # the server read it, so `_BACKENDS` stayed empty and every rag.* span
+    # resolved to _NullSpan. The span tree existed, its tests passed, and no
+    # production request ever produced one — which makes stage attribution
+    # impossible however good the tree is.
+    #
+    # Same contract as metrics: SEOCHO_TRACE_BACKEND=none (the default) disables
+    # tracing, so boot never depends on a collector.
+    try:
+        from seocho.tracing import configure_tracing_from_env
+
+        if configure_tracing_from_env():
+            logger.info(
+                "Tracing enabled: backend=%s",
+                os.getenv("SEOCHO_TRACE_BACKEND", "none"),
+            )
+    except Exception:
+        logger.warning(
+            "Tracing initialisation failed; spans stay no-op.",
+            exc_info=True,
+        )
     # Phase 1.5: populate the runtime ontology registry from
     # SEOCHO_RUNTIME_ONTOLOGIES if set. Empty/missing manifest leaves the
     # registry empty so Phases 1/2/3 stay inert (their backward-compatible
@@ -1165,6 +1243,7 @@ async def platform_ingest_raw(request: PlatformRawIngestRequest):
 
 @app.post(RuntimePath.RUN_AGENT, response_model=AgentResponse)
 @track("agent_server.run_agent")
+@_customer_query_metric("router")
 async def run_agent(request: QueryRequest):
     """Legacy single-router endpoint."""
     try:
@@ -1323,6 +1402,7 @@ async def run_agent(request: QueryRequest):
 
 @app.post(RuntimePath.RUN_AGENT_SEMANTIC, response_model=SemanticAgentResponse)
 @track("agent_server.run_agent_semantic")
+@_customer_query_metric("semantic")
 async def run_agent_semantic(request: SemanticQueryRequest):
     """Semantic entity-resolution route for graph QA."""
     try:

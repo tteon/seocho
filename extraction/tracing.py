@@ -1,141 +1,63 @@
+"""Tracing seams for the legacy extraction/runtime services.
+
+This module used to be an Opik integration and nothing else: it configured the
+Opik client, wrapped OpenAI clients with Opik's tracker, and forwarded span and
+trace attributes to Opik's context. Opik was removed (`ADR-0172`) in favour of
+the SDK's own metric and tracing surface, so nothing here exports to a vendor
+any more.
+
+The functions are kept, and kept no-op, on purpose. Eight modules across
+`extraction/` and `runtime/` import `track`, `wrap_openai_client`,
+`update_current_span` and `update_current_trace`, and `@track` is applied as a
+decorator at import time. Deleting the module would break those call sites for
+no gain, and `extraction/` is a compatibility surface under `CLAUDE.md` — it
+owns legacy behaviour, not new instrumentation. Anything that should be
+measured belongs in `src/seocho/metrics.py`, which already carries the four
+golden signals, or in `src/seocho/tracing.py`.
+
+So: these are seams that do nothing, deliberately, rather than seams that
+quietly ship data to a third party.
 """
-Centralized tracing integration for extraction/runtime services.
 
-The cross-repository trace contract is vendor-neutral:
-``SEOCHO_TRACE_BACKEND=none|console|jsonl|opik``.
-
-This module currently activates the Opik exporter path only when
-``SEOCHO_TRACE_BACKEND=opik``. Other values keep runtime behavior intact
-and simply disable Opik-specific instrumentation.
-"""
-
-import logging
 import inspect
-
-from config import (
-    OPIK_API_KEY,
-    OPIK_ENABLED,
-    OPIK_MODE,
-    OPIK_PROJECT_NAME,
-    OPIK_URL,
-    OPIK_WORKSPACE,
-    TRACE_BACKEND,
-)
+import logging
+from typing import Any, Callable, TypeVar
 
 logger = logging.getLogger(__name__)
 
-_opik_configured = False
+F = TypeVar("F", bound=Callable[..., Any])
 
 
-def configure_opik() -> None:
-    """Initialise the Opik client.  Safe to call multiple times."""
-    global _opik_configured
-    if _opik_configured or not OPIK_ENABLED:
-        return
-    try:
-        import opik
-        configure_params = inspect.signature(opik.configure).parameters
-        kwargs = {}
+def wrap_openai_client(client: Any) -> Any:
+    """Return the client untouched.
 
-        # Opik configure signature changed across releases:
-        # - legacy: url_override / project_name
-        # - current: url (project is selected via runtime context/env)
-        if "url_override" in configure_params:
-            kwargs["url_override"] = OPIK_URL
-        elif "url" in configure_params:
-            kwargs["url"] = OPIK_URL
-
-        # Newer Opik SDKs can explicitly run in self-hosted mode.
-        if OPIK_MODE == "self_host":
-            if "use_local" in configure_params:
-                kwargs["use_local"] = True
-            elif "api_key" in configure_params:
-                kwargs["api_key"] = None  # legacy self-hosted path
-        elif OPIK_API_KEY and "api_key" in configure_params:
-            kwargs["api_key"] = OPIK_API_KEY
-
-        if "workspace" in configure_params:
-            kwargs["workspace"] = OPIK_WORKSPACE
-        if "project_name" in configure_params:
-            kwargs["project_name"] = OPIK_PROJECT_NAME
-
-        opik.configure(**kwargs)
-        _opik_configured = True
-        logger.info(
-            "Opik tracing configured: backend=%s mode=%s url=%s project=%s",
-            TRACE_BACKEND,
-            OPIK_MODE,
-            OPIK_URL,
-            OPIK_PROJECT_NAME,
-        )
-    except Exception as exc:
-        logger.warning("Failed to configure Opik – tracing disabled: %s", exc)
-
-
-def wrap_openai_client(client):
-    """Wrap an OpenAI client with Opik auto-tracing.
-
-    Returns the original client unchanged unless Opik tracing is explicitly enabled.
+    Previously wrapped it in Opik's `track_openai`. Returning the client as-is
+    keeps every caller's type and behaviour identical.
     """
-    if not OPIK_ENABLED:
-        return client
-    try:
-        from opik.integrations.openai import track_openai
-
-        return track_openai(client)
-    except Exception as exc:
-        logger.warning("Could not wrap OpenAI client with Opik: %s", exc)
-        return client
+    return client
 
 
-def track(name: str):
-    """Decorator for function-level tracing.
+def track(name: str) -> Callable[[F], F]:
+    """Return a decorator that leaves the function exactly as it is.
 
-    No-ops gracefully unless Opik tracing is explicitly enabled.
+    Async functions must stay async and sync stay sync, since callers await the
+    results of decorated coroutines — hence the `inspect` check rather than a
+    blanket passthrough.
     """
-    def decorator(fn):
-        if not OPIK_ENABLED:
-            return fn
-        try:
-            from opik import track as opik_track
 
-            return opik_track(name=name)(fn)
-        except Exception:
-            return fn
+    def decorator(func: F) -> F:
+        if inspect.iscoroutinefunction(func):
+            return func
+        return func
+
     return decorator
 
 
-def update_current_span(**kwargs) -> None:
-    """Attach metadata/tags to the currently active Opik span.
-
-    Accepted keyword arguments (all optional):
-        metadata: dict  — arbitrary key-value pairs shown in the Opik UI
-        input: dict     — structured input data
-        output: dict    — structured output data
-        tags: list[str] — searchable tags
-    """
-    if not OPIK_ENABLED:
-        return
-    try:
-        from opik import opik_context
-
-        opik_context.update_current_span(**kwargs)
-    except Exception as exc:
-        logger.debug("update_current_span failed (no active span?): %s", exc)
+def update_current_span(**kwargs: Any) -> None:
+    """Retained no-op; there is no current vendor span to update."""
+    return None
 
 
-def update_current_trace(**kwargs) -> None:
-    """Attach metadata/tags to the currently active Opik trace.
-
-    Accepted keyword arguments (all optional):
-        metadata: dict  — arbitrary key-value pairs
-        tags: list[str] — searchable tags
-    """
-    if not OPIK_ENABLED:
-        return
-    try:
-        from opik import opik_context
-
-        opik_context.update_current_trace(**kwargs)
-    except Exception as exc:
-        logger.debug("update_current_trace failed (no active trace?): %s", exc)
+def update_current_trace(**kwargs: Any) -> None:
+    """Retained no-op; there is no current vendor trace to update."""
+    return None

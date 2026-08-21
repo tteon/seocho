@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from semantic_run_store import get_semantic_run, list_semantic_runs, save_semantic_run
+from ..semantic_run_store import get_semantic_run, list_semantic_runs, save_semantic_run
 
 
 def test_semantic_run_store_roundtrip(tmp_path):

@@ -1,0 +1,22 @@
+{
+  "adr": "ADR-0197",
+  "claim": "The ERB graph arm was built from the dataset's grading rubric, not from SEOCHO's extraction.",
+  "items_compared": 20,
+  "stratum": "ERB_conflicting_info",
+  "edge_source_answer_facts": {
+    "edges": 115,
+    "rubric_phrased": 115,
+    "share": 1.0
+  },
+  "edge_source_extracted": {
+    "edges": 635,
+    "rubric_phrased": 1,
+    "share": 0.0016
+  },
+  "rubric_detector": "the answer|must|should|may mention (case-insensitive)",
+  "extracted_corpus": {
+    "documents_with_triples": 285,
+    "total_triples": 5348
+  },
+  "note": "ERB_conflicting_info is the only statistically significant graph-vs-vector result in the programme (McNemar p=0.0156); it is also the stratum where rubric edges are densest."
+}

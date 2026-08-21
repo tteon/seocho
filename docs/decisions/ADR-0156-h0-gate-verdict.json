@@ -1,0 +1,207 @@
+{
+  "operationalization": "WP0 gate verdict: H0 (working-set overlap) and H1 (node-appearance skew).\n\nOperationalization, stated up front because it IS the result's fine print:\n\n- DB-side working set = nodes bound by each replayed call's MATCH..WHERE\n  (shadow elementId queries). This is a *lower bound* on the page working\n  set \u2014 DozerDB CE exposes no page identities (measured 2026-08-15), and\n  index pages / scanned-but-unbound entities are invisible. A lower bound\n  biases H0 *upward* (missing DB-only nodes would only shrink overlap), so\n  a FAIL verdict is robust; a PASS near the threshold is not.\n- KV-side working set = nodes whose identity survives into the serialized\n  context (RETURN-exposed variables outside aggregates, plus nothing else:\n  a count() row carries no node into the LLM's cache).\n- H0 metric: Jaccard of the two universes, plus Jaccard of the top-decile\n  (by episode-appearance frequency) hot sets. Threshold (set here, absent\n  from the plan): top-decile Jaccard >= 0.30 \u2014 below that the hot sets are\n  mostly disjoint and there is no shared working set to co-manage.\n- H1 metric: share of context-node appearances captured by the top 10% of\n  context nodes. Plan's own gate: < 30% -> reject pin/quantization.",
+  "h0_threshold_top_decile_jaccard": 0.3,
+  "h1_threshold_top_decile_share": 0.3,
+  "per_sf": [
+    {
+      "sf": 1,
+      "episodes": 234,
+      "episodes_with_read_set": 154,
+      "db_universe": 2850,
+      "kv_universe": 736,
+      "kv_in_db_containment": 1.0,
+      "h0_jaccard_full": 0.2582,
+      "h0_jaccard_top_decile": 0.226,
+      "h1_top_decile_appearance_share": 0.2382,
+      "db_top10": [
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:0",
+          130
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:223",
+          120
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:36",
+          120
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:252",
+          120
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:1434",
+          120
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:78",
+          120
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:165",
+          120
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:637",
+          120
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:2",
+          120
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:298",
+          120
+        ]
+      ],
+      "kv_top10": [
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:165",
+          45
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:252",
+          39
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:223",
+          39
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:1434",
+          39
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:240",
+          36
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:81",
+          33
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:36",
+          33
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:139",
+          33
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:131",
+          33
+        ],
+        [
+          "4:c8ed0154-f366-494b-a4a0-e377c8e85a97:144",
+          33
+        ]
+      ]
+    },
+    {
+      "sf": 10,
+      "episodes": 234,
+      "episodes_with_read_set": 154,
+      "db_universe": 22617,
+      "kv_universe": 1157,
+      "kv_in_db_containment": 1.0,
+      "h0_jaccard_full": 0.0512,
+      "h0_jaccard_top_decile": 0.0504,
+      "h1_top_decile_appearance_share": 0.2832,
+      "db_top10": [
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:17",
+          130
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:51",
+          124
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:424",
+          124
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:3018",
+          124
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:341",
+          124
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:15",
+          124
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:65",
+          124
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:706",
+          124
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:4267",
+          124
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:2",
+          124
+        ]
+      ],
+      "kv_top10": [
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:1210",
+          44
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:1916",
+          44
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:14280",
+          41
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:65",
+          38
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:162",
+          38
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:114",
+          38
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:733",
+          35
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:341",
+          35
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:517",
+          35
+        ],
+        [
+          "4:13522601-4740-4b59-b49d-d7a58a8c5b0c:17011",
+          35
+        ]
+      ]
+    }
+  ],
+  "verdicts": {
+    "sf1": {
+      "H0": "FAIL",
+      "H1": "FAIL"
+    },
+    "sf10": {
+      "H0": "FAIL",
+      "H1": "FAIL"
+    }
+  }
+}

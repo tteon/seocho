@@ -1,0 +1,1308 @@
+{
+  "database": "finbenchl1",
+  "models": [
+    "gpt-oss-120b",
+    "gemma-4-31B-it"
+  ],
+  "gold": {
+    "company_count": 100,
+    "transfer_count": 10895,
+    "flagged": 1,
+    "risk_tier_1": 255,
+    "persons_owning": 829,
+    "transfer_sources": 2234
+  },
+  "by_model": {
+    "gpt-oss-120b": {
+      "none/soft": {
+        "composition": "none",
+        "mode": "soft",
+        "correct": 5,
+        "n": 6,
+        "emitted_queries": 6,
+        "conformant_queries": 0,
+        "conformance_rate": 0.0,
+        "drift_events": 6,
+        "tokens": 3616,
+        "avg_turns": 1.0,
+        "cases": [
+          {
+            "id": "company_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (c:Company) RETURN count(c) AS count LIMIT 1",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 602,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH ()-[r:TRANSFER]->() RETURN count(r) AS count LIMIT 1",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 598,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "flagged",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account) WHERE a.flagged = true RETURN count(a) AS cnt",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 575,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "risk_tier_1",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account) WHERE a.risk_tier = 1 RETURN count(a) AS cnt LIMIT 1",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 632,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "persons_owning",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (p:Person)-[:OWNS]->(a:Account) RETURN count(DISTINCT p) AS cnt LIMIT 1",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "unknown_relationships:OWNS",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 608,
+            "turns": 1,
+            "correct": false,
+            "error": null
+          },
+          {
+            "id": "transfer_sources",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account)-[:TRANSFER]->() RETURN count(DISTINCT a) AS cnt LIMIT 1",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 601,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          }
+        ]
+      },
+      "labels/soft": {
+        "composition": "labels",
+        "mode": "soft",
+        "correct": 6,
+        "n": 6,
+        "emitted_queries": 6,
+        "conformant_queries": 0,
+        "conformance_rate": 0.0,
+        "drift_events": 6,
+        "tokens": 5193,
+        "avg_turns": 1.0,
+        "cases": [
+          {
+            "id": "company_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (c:Company) RETURN count(c) AS count LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "missing_parameter:workspace_id",
+                  "missing_workspace_scope_expression"
+                ]
+              }
+            ],
+            "tokens": 814,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH ()-[r:TRANSFER]->() RETURN count(r) AS count LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "missing_parameter:workspace_id",
+                  "missing_workspace_scope_expression"
+                ]
+              }
+            ],
+            "tokens": 786,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "flagged",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account) WHERE a.flagged = true RETURN count(a) AS count LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "missing_parameter:workspace_id",
+                  "missing_workspace_scope_expression"
+                ]
+              }
+            ],
+            "tokens": 858,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "risk_tier_1",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account) WHERE a.risk_tier = 1 RETURN count(a) AS count LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "missing_parameter:workspace_id",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 840,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "persons_owning",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (p:Person)-[:OWN]->(a:Account) RETURN count(DISTINCT p) AS cnt LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "missing_parameter:workspace_id",
+                  "missing_workspace_scope_expression"
+                ]
+              }
+            ],
+            "tokens": 909,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_sources",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account)-[:TRANSFER]->() RETURN count(DISTINCT a) AS cnt LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "missing_parameter:workspace_id",
+                  "missing_workspace_scope_expression"
+                ]
+              }
+            ],
+            "tokens": 986,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          }
+        ]
+      },
+      "full/soft": {
+        "composition": "full",
+        "mode": "soft",
+        "correct": 6,
+        "n": 6,
+        "emitted_queries": 6,
+        "conformant_queries": 4,
+        "conformance_rate": 0.667,
+        "drift_events": 2,
+        "tokens": 13024,
+        "avg_turns": 1.0,
+        "cases": [
+          {
+            "id": "company_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (c:Company {_workspace_id: $workspace_id}) RETURN count(c) AS count LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2101,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})-[r:TRANSFER]->(b:Account {_workspace_id: $workspace_id})\nRETURN count(r) AS total\nLIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2204,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "flagged",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id}) WHERE a.flagged = true RETURN count(a) AS cnt LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2123,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "risk_tier_1",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id}) WHERE a.risk_tier = 1 RETURN count(a) AS cnt LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2114,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "persons_owning",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (p:Person {_workspace_id: $workspace_id})-[:OWN]->(a:Account {_workspace_id: $workspace_id}) RETURN count(DISTINCT p) AS cnt LIMIT 1",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:limit"
+                ]
+              }
+            ],
+            "tokens": 2259,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_sources",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})-[:TRANSFER]->() RETURN count(DISTINCT a) AS cnt LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 2223,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          }
+        ]
+      },
+      "full_examples/soft": {
+        "composition": "full_examples",
+        "mode": "soft",
+        "correct": 6,
+        "n": 6,
+        "emitted_queries": 6,
+        "conformant_queries": 6,
+        "conformance_rate": 1.0,
+        "drift_events": 0,
+        "tokens": 13365,
+        "avg_turns": 1.0,
+        "cases": [
+          {
+            "id": "company_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (c:Company {_workspace_id: $workspace_id}) RETURN count(c) AS v LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2181,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})-[:TRANSFER]->(b:Account {_workspace_id: $workspace_id}) RETURN count(*) AS v LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2271,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "flagged",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id, flagged: true}) RETURN count(a) AS v LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2205,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "risk_tier_1",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id, risk_tier: 1}) RETURN count(a) AS v LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2208,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "persons_owning",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (p:Person {_workspace_id: $workspace_id})-[:OWN]->(:Account {_workspace_id: $workspace_id}) RETURN count(DISTINCT p) AS v LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2244,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_sources",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})-[:TRANSFER]->(:Account {_workspace_id: $workspace_id}) RETURN count(DISTINCT a) AS v LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2256,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          }
+        ]
+      },
+      "full/hard": {
+        "composition": "full",
+        "mode": "hard",
+        "correct": 5,
+        "n": 6,
+        "emitted_queries": 12,
+        "conformant_queries": 5,
+        "conformance_rate": 0.417,
+        "drift_events": 7,
+        "tokens": 12151,
+        "avg_turns": 2.0,
+        "cases": [
+          {
+            "id": "company_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (c:Company {_workspace_id: $workspace_id}) RETURN count(c) AS count LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2101,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})-[r:TRANSFER]->(b:Account {_workspace_id: $workspace_id})\nRETURN count(r) AS total\nLIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2204,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "flagged",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id}) WHERE a.flagged = true RETURN count(a) AS cnt LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2123,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "risk_tier_1",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id}) WHERE a.risk_tier = 1 RETURN count(a) AS cnt LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2114,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "persons_owning",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (p:Person {_workspace_id: $workspace_id})-[:OWN]->(a:Account {_workspace_id: $workspace_id}) RETURN count(DISTINCT p) AS cnt LIMIT 1",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:limit"
+                ]
+              },
+              {
+                "cypher": "MATCH (p:Person {_workspace_id: $workspace_id})-[:OWN]->(a:Account {_workspace_id: $workspace_id}) RETURN count(DISTINCT p) AS cnt LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 3609,
+            "turns": 2,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_sources",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})-[:TRANSFER]->() RETURN count(DISTINCT a) AS cnt LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "result_limit_exceeded"
+                ]
+              },
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})-[:TRANSFER]->(b) WITH a LIMIT $limit RETURN count(DISTINCT a) AS cnt",
+                "conformant": false,
+                "violations": [
+                  "result_limit_exceeded"
+                ]
+              },
+              {
+                "cypher": "CALL { MATCH (a:Account {_workspace_id: $workspace_id})-[:TRANSFER]->() RETURN a LIMIT $limit } RETURN count(DISTINCT a) AS cnt",
+                "conformant": false,
+                "violations": [
+                  "result_limit_exceeded"
+                ]
+              },
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})-[:TRANSFER]->()\nWITH DISTINCT a LIMIT $limit\nRETURN count(a) AS cnt LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "result_limit_exceeded"
+                ]
+              },
+              {
+                "cypher": "CALL { MATCH (a:Account {_workspace_id: $workspace_id})-[:TRANSFER]->() RETURN a.id AS aid LIMIT $limit } RETURN count(DISTINCT aid) AS cnt",
+                "conformant": false,
+                "violations": [
+                  "result_limit_exceeded"
+                ]
+              },
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})-[:TRANSFER]->() RETURN DISTINCT a.id AS aid LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 0,
+            "turns": 6,
+            "correct": false,
+            "error": "MaxTurnsExceeded: Max turns (6) exceeded"
+          }
+        ]
+      }
+    },
+    "gemma-4-31B-it": {
+      "none/soft": {
+        "composition": "none",
+        "mode": "soft",
+        "correct": 6,
+        "n": 6,
+        "emitted_queries": 8,
+        "conformant_queries": 0,
+        "conformance_rate": 0.0,
+        "drift_events": 8,
+        "tokens": 3250,
+        "avg_turns": 1.33,
+        "cases": [
+          {
+            "id": "company_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (c:Company) RETURN count(c) AS companyCount",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 397,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH ()-[r:TRANSFER]->() RETURN count(r) as count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 402,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "flagged",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account) WHERE a.flagged = true RETURN count(a) AS count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 404,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "risk_tier_1",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account) WHERE a.risk_tier = 1 RETURN count(a) AS count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 420,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "persons_owning",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (p:Person)-[:OWNS]->(:Account) RETURN count(DISTINCT p) as count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "unknown_relationships:OWNS",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              },
+              {
+                "cypher": "MATCH (p:Person)-[r]->(a:Account) RETURN type(r), count(*) as count LIMIT 10",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              },
+              {
+                "cypher": "MATCH (p:Person)-[:OWN]->(:Account) RETURN count(DISTINCT p) as count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 1213,
+            "turns": 3,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_sources",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account)-[:TRANSFER]->() RETURN count(DISTINCT a) as count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:workspace_id",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression",
+                  "result_limit_exceeded"
+                ]
+              }
+            ],
+            "tokens": 414,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          }
+        ]
+      },
+      "labels/soft": {
+        "composition": "labels",
+        "mode": "soft",
+        "correct": 6,
+        "n": 6,
+        "emitted_queries": 6,
+        "conformant_queries": 0,
+        "conformance_rate": 0.0,
+        "drift_events": 6,
+        "tokens": 3560,
+        "avg_turns": 1.0,
+        "cases": [
+          {
+            "id": "company_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (c:Company) RETURN count(c) AS count LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "missing_parameter:workspace_id",
+                  "missing_workspace_scope_expression"
+                ]
+              }
+            ],
+            "tokens": 578,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH ()-[r:TRANSFER]->() RETURN count(r) as count LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "missing_parameter:workspace_id",
+                  "missing_workspace_scope_expression"
+                ]
+              }
+            ],
+            "tokens": 586,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "flagged",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account) WHERE a.flagged = true RETURN count(a) AS count LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "missing_parameter:workspace_id",
+                  "missing_workspace_scope_expression"
+                ]
+              }
+            ],
+            "tokens": 588,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "risk_tier_1",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account) WHERE a.risk_tier = 1 RETURN count(a) AS count LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "missing_parameter:workspace_id",
+                  "missing_workspace_scope_expression"
+                ]
+              }
+            ],
+            "tokens": 604,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "persons_owning",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (p:Person)-[:OWN]->(:Account)\nRETURN count(DISTINCT p) as count\nLIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "missing_parameter:workspace_id",
+                  "missing_workspace_scope_expression"
+                ]
+              }
+            ],
+            "tokens": 602,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_sources",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account)-[:TRANSFER]->()\nRETURN count(DISTINCT a) as count\nLIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "missing_parameter:workspace_id",
+                  "missing_workspace_scope_expression"
+                ]
+              }
+            ],
+            "tokens": 602,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          }
+        ]
+      },
+      "full/soft": {
+        "composition": "full",
+        "mode": "soft",
+        "correct": 5,
+        "n": 6,
+        "emitted_queries": 6,
+        "conformant_queries": 1,
+        "conformance_rate": 0.167,
+        "drift_events": 5,
+        "tokens": 12586,
+        "avg_turns": 1.0,
+        "cases": [
+          {
+            "id": "company_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (c:Company { _workspace_id: $workspace_id }) RETURN count(c) AS company_count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:limit"
+                ]
+              }
+            ],
+            "tokens": 2082,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH ()-[r:TRANSFER]->() WHERE r._workspace_id = $workspace_id RETURN count(r) AS count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression"
+                ]
+              }
+            ],
+            "tokens": 2078,
+            "turns": 1,
+            "correct": false,
+            "error": null
+          },
+          {
+            "id": "flagged",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})\nWHERE a.flagged = true\nRETURN count(a) AS count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:limit"
+                ]
+              }
+            ],
+            "tokens": 2088,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "risk_tier_1",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})\nWHERE a.risk_tier = 1\nRETURN count(a) AS count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:limit"
+                ]
+              }
+            ],
+            "tokens": 2104,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "persons_owning",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (p:Person { _workspace_id: $workspace_id })-[:OWN]->(a:Account { _workspace_id: $workspace_id })\nRETURN count(DISTINCT p) as person_count\nLIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2138,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_sources",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})-[:TRANSFER]->()\nRETURN count(DISTINCT a) as count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:limit"
+                ]
+              }
+            ],
+            "tokens": 2096,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          }
+        ]
+      },
+      "full_examples/soft": {
+        "composition": "full_examples",
+        "mode": "soft",
+        "correct": 6,
+        "n": 6,
+        "emitted_queries": 6,
+        "conformant_queries": 6,
+        "conformance_rate": 1.0,
+        "drift_events": 0,
+        "tokens": 13854,
+        "avg_turns": 1.0,
+        "cases": [
+          {
+            "id": "company_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (c:Company {_workspace_id: $workspace_id}) RETURN count(c) AS v LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2284,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (:Account {_workspace_id: $workspace_id})-[r:TRANSFER]->(:Account {_workspace_id: $workspace_id}) RETURN count(r) AS v LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2318,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "flagged",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id}) WHERE a.flagged = true RETURN count(a) AS v LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2294,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "risk_tier_1",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id}) WHERE a.risk_tier = 1 RETURN count(a) AS v LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2310,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "persons_owning",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (p:Person {_workspace_id: $workspace_id})-[:OWN]->(:Account {_workspace_id: $workspace_id}) RETURN count(DISTINCT p) AS v LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2322,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_sources",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})-[:TRANSFER]->(:Account {_workspace_id: $workspace_id}) RETURN count(DISTINCT a) AS v LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2326,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          }
+        ]
+      },
+      "full/hard": {
+        "composition": "full",
+        "mode": "hard",
+        "correct": 6,
+        "n": 6,
+        "emitted_queries": 12,
+        "conformant_queries": 6,
+        "conformance_rate": 0.5,
+        "drift_events": 6,
+        "tokens": 20522,
+        "avg_turns": 2.0,
+        "cases": [
+          {
+            "id": "company_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH (c:Company { _workspace_id: $workspace_id }) RETURN count(c) AS company_count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:limit"
+                ]
+              },
+              {
+                "cypher": "MATCH (c:Company { _workspace_id: $workspace_id }) RETURN count(c) AS company_count LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 3354,
+            "turns": 2,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_count",
+            "cat": "easy",
+            "queries": [
+              {
+                "cypher": "MATCH ()-[r:TRANSFER]->() WHERE r._workspace_id = $workspace_id RETURN count(r) AS count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:limit",
+                  "missing_workspace_scope_expression"
+                ]
+              },
+              {
+                "cypher": "MATCH (a:Account)-[r:TRANSFER]->(b:Account) WHERE a._workspace_id = $workspace_id AND b._workspace_id = $workspace_id RETURN count(r) AS count LIMIT $limit",
+                "conformant": false,
+                "violations": [
+                  "missing_workspace_scope_expression"
+                ]
+              },
+              {
+                "cypher": "MATCH (:Account { _workspace_id: $workspace_id })-[r:TRANSFER]->(:Account { _workspace_id: $workspace_id }) RETURN count(r) AS count LIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 4859,
+            "turns": 3,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "flagged",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})\nWHERE a.flagged = true\nRETURN count(a) AS count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:limit"
+                ]
+              },
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})\nWHERE a.flagged = true\nRETURN count(a) AS count\nLIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 3380,
+            "turns": 2,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "risk_tier_1",
+            "cat": "filter",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})\nWHERE a.risk_tier = 1\nRETURN count(a) AS count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:limit"
+                ]
+              },
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})\nWHERE a.risk_tier = 1\nRETURN count(a) AS count\nLIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 3406,
+            "turns": 2,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "persons_owning",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (p:Person { _workspace_id: $workspace_id })-[:OWN]->(a:Account { _workspace_id: $workspace_id })\nRETURN count(DISTINCT p) as person_count\nLIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 2138,
+            "turns": 1,
+            "correct": true,
+            "error": null
+          },
+          {
+            "id": "transfer_sources",
+            "cat": "relational",
+            "queries": [
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})-[:TRANSFER]->()\nRETURN count(DISTINCT a) as count",
+                "conformant": false,
+                "violations": [
+                  "missing_parameterized_limit",
+                  "missing_parameter:limit"
+                ]
+              },
+              {
+                "cypher": "MATCH (a:Account {_workspace_id: $workspace_id})-[:TRANSFER]->()\nRETURN count(DISTINCT a) as count\nLIMIT $limit",
+                "conformant": true,
+                "violations": []
+              }
+            ],
+            "tokens": 3385,
+            "turns": 2,
+            "correct": true,
+            "error": null
+          }
+        ]
+      }
+    }
+  }
+}

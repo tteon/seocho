@@ -1,8 +1,8 @@
 import logging
 import os
 
-from pipeline import ExtractionPipeline
-from config import configure_logging, load_pipeline_runtime_config
+from .pipeline import ExtractionPipeline
+from .config import configure_logging, load_pipeline_runtime_config
 
 
 logger = logging.getLogger(__name__)

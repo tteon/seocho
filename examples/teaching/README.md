@@ -66,7 +66,7 @@ examples/teaching/
 ├── chapter-05-debate-convergence-analysis.md   ← 수렴 + early-stop + anti-pattern
 │
 ├── _shared/                        ← 강의 공통 헬퍼
-│   ├── opik_setup.py               ← Opik + JSONL 트레이싱
+│   ├── trace_setup.py               ← Opik + JSONL 트레이싱
 │   ├── providers.py                ← 4-provider 인터페이스
 │   ├── finder_loader.py            ← SDK 우선, fallback inline
 │   ├── slide_template.py           ← Reveal.js 빌더

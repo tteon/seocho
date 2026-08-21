@@ -24,8 +24,8 @@ EXPECTED_COMMANDS = {
 
 EXPECTED_ONTOLOGY_SUBCOMMANDS = {
     "check", "export", "diff", "report", "inspect-owl", "review",
-    "datahub", "select-guardrail", "datahub-apply", "eval-answers", "import",
-    "templates", "clone", "rdf-governance",
+    "datahub", "select-guardrail", "datahub-apply", "datahub-queue",
+    "eval-answers", "import", "templates", "clone", "rdf-governance",
 }
 
 

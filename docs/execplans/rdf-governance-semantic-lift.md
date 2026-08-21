@@ -14,7 +14,7 @@ Semantic lift means that facts extracted from raw source material give an agent 
 - [x] 2026-08-21: Added deterministic `seocho.agent_semantic_scorecard.v1` to E2E reports and conservative matched-arm comparison gates.
 - [ ] Add a versioned gold semantic-case corpus with source spans, gold entities/triples, required slots, and seeded invalid candidates.
 - [ ] Define a serialization-neutral portable ontology-bundle, profile-pool, and lock contract; measure agent readability, reuse, lifecycle cost, and RDF-tool compatibility before selecting a canonical authoring format.
-- [ ] Bind immutable RDF bundle publication, active-pointer generation/fence, and projection admission together before claiming filesystem/version safety.
+- [ ] Bind immutable RDF bundle publication, active-pointer generation/fence, and projection admission together before claiming filesystem/version safety. (CLI publication, hash verification, CAS activation, and persistent single-host writer leases are now implemented; daemon admission is still not bound to the lease tuple.)
 - [ ] Execute live MARA/DozerDB A-E arms with JSONL traces, resource metrics, and blinded judging.
 - [ ] Run a single-host three-worker model/versioning workload using `MiniMax-M2.7`, `gpt-oss-120b`, and `gemma-4-31B-it`.
 - [ ] Before paid full-factorial execution, implement canonical RDF semantic identity, persistent cross-process leases, stale-projection fencing/idempotency, and a case-level gold scorer.
@@ -288,6 +288,22 @@ in the trace.
    manifest receipt, generation/fence, and filesystem-safe path or UDS handle.
    A lock response additionally has a bounded TTL and must be present in the
    projection receipt/event; `release` is idempotent and expiry is auditable.
+
+### Implemented single-host CLI slice (2026-08-21)
+
+`seocho ontology bundle build` writes a new bundle to a same-filesystem staging
+directory, verifies its manifest hashes, fsyncs artifacts, and atomically
+renames it. It refuses to overwrite an existing bundle. `bundle verify` is a
+content-free integrity check. `activate` performs the existing SQLite/WAL CAS
+using an explicit fencing token and optional `generation:epoch` expectation.
+`lease` and its `lock` compatibility spelling persist an expiring exclusive
+writer lease in the same state database; `status` exposes only the active
+pointer and live leases. `gc --dry-run` is intentionally report-only.
+
+This is a one-host operator control plane, not an etcd substitute and not yet
+projection admission. A `seochod` request still cannot prove its lease/profile/
+receipt tuple against this database, so this slice must not be used to claim
+cross-process stale-write protection end-to-end.
 9. Execute a format-neutral workload before choosing the authoring canonical:
 
    - parse the identical ontology authored/serialized as JSON-LD and Turtle;

@@ -163,3 +163,6 @@ python3 scripts/ci/check-import-boundaries.py
 scripts/ci/check-root-hierarchy-contract.sh
 python3 scripts/ci/check-env-contract.py
 scripts/pm/lint-agent-docs.sh
+
+# Keep real-world identities out of tracked content and commit metadata.
+bash scripts/ci/check-identity-contract.sh

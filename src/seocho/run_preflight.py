@@ -323,6 +323,17 @@ def _check_projection_governance(spec: RunSpec, *, online: bool) -> PreflightChe
     )
 
     socket_path = os.getenv("SEOCHO_RUST_PROJECTOR_SOCKET", "").strip() or None
+    if spec.governance_mode in {"governed", "lockdown"}:
+        bundle_dir = str(spec.governance.get("bundle_dir") or "").strip()
+        if not bundle_dir:
+            return PreflightCheck(
+                name="projection governance", status="fail",
+                detail="governed candidate staging requires governance.bundle_dir",
+                fix="set governance.bundle_dir to the immutable active RDF bundle",
+            )
+        if not Path(bundle_dir).is_dir():
+            return PreflightCheck(name="projection governance", status="fail",
+                                  detail=f"governance.bundle_dir does not exist: {bundle_dir}")
     try:
         receipt = load_projection_receipt_from_env()
         admission = load_projection_admission_from_env()

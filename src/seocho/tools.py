@@ -393,13 +393,7 @@ def make_execute_cypher_tool(
             params = {}
 
         try:
-            records = graph_store.query(
-                cypher,
-                params=params,
-                database=database,
-                workspace_id=workspace_id,
-                enforce_workspace_filter=True,
-            )
+            records = graph_store.query(cypher, params=params, database=database)
             payload = {
                 "records": records,
                 "count": len(records),

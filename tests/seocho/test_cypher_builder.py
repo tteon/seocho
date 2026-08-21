@@ -242,10 +242,10 @@ class _FakeGraphStore:
     def __init__(self) -> None:
         self.calls = []
 
-    def get_schema(self, *, database: str = "neo4j", **kwargs) -> dict:
+    def get_schema(self, *, database: str = "neo4j") -> dict:
         return {"labels": ["Company", "FinancialMetric"], "relationship_types": ["REPORTED", "reported"]}
 
-    def query(self, cypher: str, *, params=None, database: str = "neo4j", **kwargs):  # noqa: ANN001
+    def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
         self.calls.append({"cypher": cypher, "params": dict(params or {}), "database": database})
         return [
             {
@@ -309,10 +309,10 @@ def test_local_engine_relationship_answer_includes_titles_from_target_properties
             )
 
     class RelationshipGraphStore:
-        def get_schema(self, *, database: str = "neo4j", **kwargs) -> dict:
+        def get_schema(self, *, database: str = "neo4j") -> dict:
             return {"labels": ["Company", "Person"], "relationship_types": ["EMPLOYS"]}
 
-        def query(self, cypher: str, *, params=None, database: str = "neo4j", **kwargs):  # noqa: ANN001
+        def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
             return [
                 {
                     "source": "Alphabet Inc.",
@@ -360,10 +360,10 @@ def test_local_engine_legal_relationship_answer_lists_issues() -> None:
             return _FakeLLMResponse({"anchor_entity": "Microsoft"})
 
     class LegalGraphStore:
-        def get_schema(self, *, database: str = "neo4j", **kwargs) -> dict:
+        def get_schema(self, *, database: str = "neo4j") -> dict:
             return {"labels": ["Company", "LegalIssue"], "relationship_types": ["INVOLVED_IN"]}
 
-        def query(self, cypher: str, *, params=None, database: str = "neo4j", **kwargs):  # noqa: ANN001
+        def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
             return [
                 {
                     "source": "Microsoft",
@@ -432,10 +432,10 @@ def test_local_engine_legal_neighbors_answer_keeps_specific_issue_sentences() ->
             )
 
     class LegalNeighborsGraphStore:
-        def get_schema(self, *, database: str = "neo4j", **kwargs) -> dict:
+        def get_schema(self, *, database: str = "neo4j") -> dict:
             return {"labels": ["Company", "LegalIssue"], "relationship_types": ["INVOLVED_IN"]}
 
-        def query(self, cypher: str, *, params=None, database: str = "neo4j", **kwargs):  # noqa: ANN001
+        def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
             return [
                 {
                     "entity": "Microsoft",
@@ -469,10 +469,10 @@ def test_local_engine_financial_lookup_compares_multiple_years_without_currency_
             )
 
     class DeliveryGraphStore:
-        def get_schema(self, *, database: str = "neo4j", **kwargs) -> dict:
+        def get_schema(self, *, database: str = "neo4j") -> dict:
             return {"labels": ["Company", "FinancialMetric"], "relationship_types": ["REPORTED"]}
 
-        def query(self, cypher: str, *, params=None, database: str = "neo4j", **kwargs):  # noqa: ANN001
+        def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
             return [
                 {
                     "company": "Tesla",
@@ -531,10 +531,10 @@ def test_local_engine_financial_lookup_explains_nvidia_gross_margin_expansion() 
             )
 
     class GrossMarginGraphStore:
-        def get_schema(self, *, database: str = "neo4j", **kwargs) -> dict:
+        def get_schema(self, *, database: str = "neo4j") -> dict:
             return {"labels": ["Company", "FinancialMetric"], "relationship_types": ["REPORTED"]}
 
-        def query(self, cypher: str, *, params=None, database: str = "neo4j", **kwargs):  # noqa: ANN001
+        def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
             return [
                 {
                     "company": "NVIDIA",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from seocho.dataplane.seochod import SeochodProjectionClient
 from seocho.store.graph import Neo4jGraphStore
 
 
@@ -78,3 +79,19 @@ def test_rust_projection_uses_the_same_business_identity_as_python_writer(
     assert captured["nodes"][0]["properties"]["id"] == "Beta Industries"
     assert captured["relationships"][0]["source"] == "Jane"
     assert captured["relationships"][0]["target"] == "Beta Industries"
+
+
+def test_direct_projection_omits_absent_governance_fields(monkeypatch: Any) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_request(self: Any, payload: dict[str, Any]) -> dict[str, Any]:
+        captured.update(payload)
+        return {"ok": True, "nodes_created": 0, "relationships_created": 0}
+
+    monkeypatch.setattr(SeochodProjectionClient, "_request", fake_request)
+    SeochodProjectionClient("/tmp/seochod.sock").project(
+        [], [], database="neo4j", workspace_id="workspace-a", source_id="source-a"
+    )
+
+    assert "semantic_receipt" not in captured
+    assert "admission" not in captured

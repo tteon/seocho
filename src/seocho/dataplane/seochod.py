@@ -44,9 +44,14 @@ class SeochodProjectionClient:
             "writer_ts": time.time(),
             "nodes": list(nodes),
             "relationships": list(relationships),
-            "semantic_receipt": dict(semantic_receipt or {}),
-            "admission": dict(admission or {}),
         }
+        # Rust deserialises these as typed ``Option`` values.  An empty object
+        # is not absence: it is a malformed receipt/admission.  Omit optional
+        # fields entirely for direct/shadow projections.
+        if semantic_receipt is not None:
+            payload["semantic_receipt"] = dict(semantic_receipt)
+        if admission is not None:
+            payload["admission"] = dict(admission)
         payload_bytes = len(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
         from ..metrics import get_metrics
         from ..tracing import start_span

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -48,17 +49,30 @@ class GovernedCandidateStager:
         self.artifact_root = Path(artifact_root)
 
     def stage(self, nodes: Sequence[Mapping[str, Any]], relationships: Sequence[Mapping[str, Any]]) -> StagedCandidate:
+        from ..metrics import get_metrics
+        from ..tracing import start_span
+        started, outcome = time.perf_counter(), "ok"
         turtle = graph_payload_to_turtle(nodes, relationships)
         digest = hashlib.sha256(turtle.encode("utf-8")).hexdigest()
-        directory = self.artifact_root / digest
-        directory.mkdir(parents=True, exist_ok=True)
-        data_path, receipt_path = directory / "candidate.ttl", directory / "governance-receipt.json"
-        if not data_path.exists():
-            data_path.write_text(turtle, encoding="utf-8")
-        receipt = run_rdf_governance(self.bundle_dir, data_path)
-        if not receipt.promotable:
-            raise ValueError("candidate RDF is not promotable")
-        if not receipt_path.exists():
-            write_rdf_governance_receipt(receipt, receipt_path)
-        semantic = validate_projection_receipt(receipt.to_dict(), load_agent_profile(self.bundle_dir, "projection"))
-        return StagedCandidate(semantic, self.store.admission(self.lease_id), digest, str(directory))
+        with start_span("governance.candidate.stage", input_data={"nodes": len(nodes), "relationships": len(relationships), "payload_bytes": len(turtle.encode())}, metadata={"candidate.data_graph_sha256": digest}, tags=["governance", "candidate-stage"]) as span:
+            try:
+                directory = self.artifact_root / digest
+                directory.mkdir(parents=True, exist_ok=True)
+                data_path, receipt_path = directory / "candidate.ttl", directory / "governance-receipt.json"
+                if not data_path.exists(): data_path.write_text(turtle, encoding="utf-8")
+                receipt = run_rdf_governance(self.bundle_dir, data_path)
+                if not receipt.promotable: raise ValueError("candidate RDF is not promotable")
+                if not receipt_path.exists(): write_rdf_governance_receipt(receipt, receipt_path)
+                semantic = validate_projection_receipt(receipt.to_dict(), load_agent_profile(self.bundle_dir, "projection"))
+                span.set_output({"promotable": True, "data_graph_sha256": digest})
+                return StagedCandidate(semantic, self.store.admission(self.lease_id), digest, str(directory))
+            except Exception:
+                outcome = "rejected"
+                raise
+            finally:
+                elapsed = time.perf_counter() - started
+                span.set_metadata({"outcome": outcome, "duration_ms": round(elapsed * 1000, 2)})
+                metrics = get_metrics()
+                metrics.record("seocho.governance.candidate.stage.duration", elapsed, {"outcome": outcome})
+                metrics.add("seocho.governance.candidate.stage.count", attributes={"outcome": outcome})
+                metrics.record("seocho.governance.candidate.payload_bytes", len(turtle.encode()))

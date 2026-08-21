@@ -184,6 +184,18 @@ class OntologyLifecycleStore:
             result = conn.execute("DELETE FROM ontology_lease WHERE lease_id=? AND owner=?", (lease_id, owner))
         return result.rowcount == 1
 
+    def admission(self, lease_id: str) -> dict[str, Any]:
+        """Return the minimal daemon capability, without exposing filesystem paths."""
+        now = int(time.time() * 1000)
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM ontology_lease WHERE lease_id=?", (lease_id,)).fetchone()
+        if row is None:
+            raise ValueError("lifecycle lease is absent")
+        lease = OntologyLease(*row)
+        if lease.expires_at_ms <= now:
+            raise ValueError("lifecycle lease has expired")
+        return {key: getattr(lease, key) for key in ("lease_id", "fingerprint", "generation", "epoch", "fencing_token")}
+
     def status(self, workspace_id: str, package_id: str) -> dict[str, Any]:
         now = int(time.time() * 1000)
         active = self.pointer.read(workspace_id, package_id)

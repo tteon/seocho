@@ -13,6 +13,26 @@ class ProjectionReceiptError(ValueError):
     """A governance/profile receipt is not safe to project canonically."""
 
 
+def load_projection_admission_from_env() -> dict[str, Any] | None:
+    """Load a minimal, expiring lifecycle capability for the Rust daemon.
+
+    The daemon still re-reads the SQLite control plane immediately before the
+    write; this prevents this environment-supplied handle from being trusted as
+    a bearer token after expiry or activation.
+    """
+    lease_id = os.getenv("SEOCHO_ONTOLOGY_LEASE_ID", "").strip()
+    state_db = os.getenv("SEOCHO_ONTOLOGY_STATE_DB", "").strip()
+    if not lease_id and not state_db:
+        return None
+    if not lease_id or not state_db:
+        raise ProjectionReceiptError("SEOCHO_ONTOLOGY_LEASE_ID and SEOCHO_ONTOLOGY_STATE_DB must be set together")
+    from .lifecycle import OntologyLifecycleStore
+    try:
+        return OntologyLifecycleStore(state_db).admission(lease_id)
+    except ValueError as exc:
+        raise ProjectionReceiptError(str(exc)) from exc
+
+
 def load_projection_receipt_from_env() -> dict[str, Any] | None:
     """Load the optional offline-governance receipt without exposing raw RDF.
 

@@ -29,6 +29,7 @@ class SeochodProjectionClient:
         workspace_id: str,
         source_id: str,
         semantic_receipt: Mapping[str, Any] | None = None,
+        admission: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         request_id = uuid.uuid4().hex
         payload = {
@@ -41,6 +42,7 @@ class SeochodProjectionClient:
             "nodes": list(nodes),
             "relationships": list(relationships),
             "semantic_receipt": dict(semantic_receipt or {}),
+            "admission": dict(admission or {}),
         }
         payload_bytes = len(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
         from ..metrics import get_metrics
@@ -53,6 +55,7 @@ class SeochodProjectionClient:
             input_data={
                 "node_count": len(nodes), "relationship_count": len(relationships),
                 "payload_bytes": payload_bytes, "has_semantic_receipt": bool(semantic_receipt),
+                "has_lifecycle_admission": bool(admission),
             },
             metadata={"seochod.request_id": request_id, "workspace_id": workspace_id},
             tags=["projection", "driver:rust-neo4j"],

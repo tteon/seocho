@@ -17,6 +17,7 @@ Semantic lift means that facts extracted from raw source material give an agent 
 - [ ] Bind immutable RDF bundle publication, active-pointer generation/fence, and projection admission together before claiming filesystem/version safety.
 - [ ] Execute live MARA/DozerDB A-E arms with JSONL traces, resource metrics, and blinded judging.
 - [ ] Run a single-host three-worker model/versioning workload using `MiniMax-M2.7`, `gpt-oss-120b`, and `gemma-4-31B-it`.
+- [ ] Before paid full-factorial execution, implement canonical RDF semantic identity, persistent cross-process leases, stale-projection fencing/idempotency, and a case-level gold scorer.
 
 ## Surprises & Discoveries
 
@@ -24,6 +25,11 @@ Semantic lift means that facts extracted from raw source material give an agent 
   Evidence: `dataplane/oxigraph_read_model/` and `src/seocho/ontology/rdf_governance.py`.
 - Observation: `seochod` currently performs per-node/per-relationship Bolt writes, so Rust is not presumed faster.
   Evidence: `dataplane/seochod/src/main.rs`.
+- Observation: the current bundle digest is an aggregate of serialization byte
+  hashes, while the worker pin registry is process-local and `seochod` does not
+  receive generation/fence/idempotency. The current code therefore cannot prove
+  JSON-LD/Turtle semantic equality or reject a late N worker after N+1.
+  Evidence: 2026-08-21 OS, LLM, and ontology workload review.
 
 ## Decision Log
 
@@ -32,6 +38,12 @@ Semantic lift means that facts extracted from raw source material give an agent 
   Date/Author: 2026-08-21 / Codex.
 - Decision: Do not use an opaque blended score as an adoption gate.
   Rationale: a high refusal rate or lower latency can hide lost valid facts. Primary semantic, safety, and systems gates remain independently visible.
+  Date/Author: 2026-08-21 / Codex.
+- Decision: Treat the next slice as experiment-enabling correctness work, not
+  as an optimization. Do not spend on a full live factorial until the lock,
+  semantic identity, and gold-score contracts are executable.
+  Rationale: without them model/provider variance can be mistaken for ontology
+  effect, and a stale write can make a lock experiment falsely pass.
   Date/Author: 2026-08-21 / Codex.
 
 ## Outcomes & Retrospective
@@ -206,6 +218,21 @@ N+1. Stale projection is rejected and recorded.
     Canonical DozerDB projection is allowed only for a candidate with the
     matching active generation and fencing token. This measures model variance
     and proves why a single-host lock matters.
+11. Implement the four live-experiment blockers before Step 10:
+
+    - Semantic identity: canonicalize ontology, shapes, and data RDF datasets;
+      define `governance_contract_digest` over their canonical digests, profile
+      derivation, validator configuration, and named-graph/inference policy.
+    - Cross-process lease: persist read pins/leases in the local control plane
+      with process nonce, owner, TTL, complete tuple, and recovery semantics;
+      process-local refcounts remain only an in-process optimization.
+    - Projection admission: pass workspace, digest tuple, generation, epoch,
+      fence, lease, and idempotency key to `seochod`; verify admission before a
+      transactional/staged graph projection and reject stale/mismatched writes.
+    - Gold scorer: score RDF term equality, triple/slot/provenance precision and
+      recall, correct abstention, expected SHACL violation/repair, and version
+      delta outcome per case. Keep answer models, extractors, and judges
+      separately identified.
 
 ## Validation and Acceptance
 
@@ -219,6 +246,13 @@ Run focused checks:
 For every live arm, capture E2E report JSON/Markdown, JSONL observability trace, process RSS/CPU/FDs, socket bytes/queue depth, Bolt round trips, stage p50/p95/p99, and DozerDB version. A passing mock is not live-performance evidence.
 
 Pre-register initial gates: grounded answer slot accuracy and triple F1 non-inferior (paired lower confidence bound at least -0.02); evidence coverage improves by at least 0.05 and missing slots fall by at least 0.05; unsupported claims do not increase; invalid-rejection precision and recall at least 0.95; no unreceipted or stale-fence canonical write; zero torn profile/receipt reads across 10,000 swaps; Rust/Oxigraph p95 overhead no worse than 15% unless a documented quality or isolation benefit offsets it. Change these only before looking at the relevant arm results.
+
+The 40-60 case corpus is a semantic pilot, not sufficient evidence for a 95%
+rejection precision/recall gate. Maintain a separate, substantially larger
+labelled valid/invalid validation set for that gate. Randomize/counterbalance
+arm order, preserve provider retries/request IDs, and use paired case-level
+confidence intervals. Record extractor model, answer model, judge model,
+temperature, top-p, max tokens, prompt digest, and retry count separately.
 
 For F-I also record canonical/profile bytes, tokenized prompt bytes, profile
 selection correctness, profile-load/lease p50-p95-p99, cold and warm process

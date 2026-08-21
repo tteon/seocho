@@ -320,7 +320,10 @@ def render_review_sheet(clusters: List[Dict[str, Any]], *, ontology_name: str = 
             ctx_bits.append("candidates=" + ", ".join(candidates))
         lines.append(f"    context: {json.dumps('; '.join(ctx_bits), ensure_ascii=False)}")
         for ex in examples[:2]:
-            lines.append(f"    # e.g. {ex[:160]}")
+            # quarantine context preserves newlines; a multi-line example would
+            # emit an uncommented raw line -> invalid YAML at apply time.
+            first_line = str(ex).splitlines()[0] if str(ex).strip() else ""
+            lines.append(f"    # e.g. {first_line[:160]}")
     return "\n".join(lines) + "\n"
 
 

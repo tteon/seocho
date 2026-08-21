@@ -1,0 +1,11 @@
+[package]
+name = "seochod"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "SEOCHO's local Rust projection daemon for DozerDB"
+
+[dependencies]
+neo4j = "0.2.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

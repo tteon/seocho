@@ -1,5 +1,14 @@
 # Decision Log
 
+## 2026-08-21
+
+- Accepted `ADR-0219-rust-dozer-projection-daemon.md`
+  - `seochod` owns the local Unix-socket and Rust Bolt boundary for approved,
+    workspace-scoped DozerDB LPG projections; Python retains ontology/policy and
+    read/query control-plane responsibilities.
+  - APOC Extended `parallel2` is read-side only in the tested DozerDB deployment
+    because its parallel workers reject canonical writes.
+
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
@@ -1366,3 +1375,23 @@ Use this block for new entries:
   SDK is provider-agnostic (runs on MARA); tracing must stay vendor-neutral (no
   OpenAI backend); Realtime/Voice is OpenAI-only (defer). Phase 0 = wire guardrails
   onto factory agents + fix tracing + re-run hand-off (expect convergence).
+
+- [Accepted] ADR-0217 orchestration-adopt-not-build (seocho-5ny) — SEOCHO's moat is
+  the data plane; orchestration is consumed, not built. Spike proved the ADR-0215
+  non-convergence was LOOP CONTROL, not the framework: a single deterministic tool
+  (answer_from_graph) under a bounded hand-off converges where the autonomous
+  multi-tool loop hit MaxTurnsExceeded (shipped Phase 1 #607; Phase 0 guardrail
+  wiring #606). Agents SDK CAN be driven deterministically (input_filter, max_turns,
+  as_tool, or plain-Python control) so the state-machine desire is met now WITHOUT
+  LangGraph; LangGraph stays deferred behind seocho-ihg's MCP-first triple gate,
+  reconsidered only if a durable/branching/resumable StateGraph becomes required.
+  Orchestration kept a thin swappable adapter behind agent/factory + integrations.
+
+- [Experimental] ADR-0218 agentic-rag-bottleneck (seocho-5ny) — EnterpriseRAG e2e via
+  Agents SDK + MARA MiniMax-M2.7 + live DozerDB, traced to Tempo, agentic vs direct arm
+  (3 runs each). **Graph DB = ~0.1% of latency (NOT the bottleneck)**; LLM round-trips are
+  the entire cost; the **agentic layer adds >=1 removable orchestration turn/query (direct=0)
+  and holds the worst tail (177s spin)**. Implication: prefer the direct controlled query
+  agent for single-intent, Agent.as_tool over handoff, don't optimize the graph; faster
+  model / self-hosted vLLM attacks the floor. Shareable chart artifact. Caveats: n=3, high
+  variance, answer-quality is a separate axis (ADR-0214).

@@ -60,3 +60,16 @@ def test_empty_and_malformed_clusters_are_skipped():
                                 ontology_name="x")
     records = parse_review_sheet(sheet)
     assert [r["name"] for r in records] == ["Ok"]
+
+
+def test_multiline_example_stays_a_comment():
+    """Quarantine context preserves newlines; the sheet must not emit the
+    second line uncommented (invalid YAML, loud crash at apply time)."""
+    clusters = [{"surface": "Shetland pony", "frequency": 3,
+                 "examples": ["first line of context\nSECOND RAW LINE"],
+                 "candidate_labels": []}]
+    sheet = render_review_sheet(clusters)
+    assert "SECOND RAW LINE" not in sheet
+    assert "# e.g. first line of context" in sheet
+    # and the sheet still round-trips
+    assert parse_review_sheet(sheet)[0]["name"] == "Shetland pony"

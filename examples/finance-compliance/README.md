@@ -20,7 +20,7 @@ it end-to-end in a few minutes, then swap in your own ontology and docs.
 - `sample_docs/` — six short mock filings covering a quarterly disclosure,
   a regulator inquiry, an incident, control attestation, board minutes,
   and a policy update.
-- `quickstart.py` — ingests the docs into an embedded local graph and asks
+- `quickstart.py` — ingests the docs into a DozerDB/Neo4j graph and asks
   four cross-entity questions.
 
 ## Run it
@@ -28,23 +28,23 @@ it end-to-end in a few minutes, then swap in your own ontology and docs.
 ```bash
 uv pip install "seocho[local]"
 export MARA_API_KEY=...
-python examples/finance-compliance/quickstart.py
+python examples/finance-compliance/quickstart.py --graph bolt://localhost:7687
 ```
 
 Swap to another provider:
 
 ```bash
 export OPENAI_API_KEY=...
-python examples/finance-compliance/quickstart.py --llm openai/gpt-4o
+python examples/finance-compliance/quickstart.py --graph bolt://localhost:7687 --llm openai/gpt-4o
 ```
 
 Only ingest (skip Q&A, useful for inspecting the resulting graph):
 
 ```bash
-python examples/finance-compliance/quickstart.py --skip-query
+python examples/finance-compliance/quickstart.py --graph bolt://localhost:7687 --skip-query
 ```
 
-The graph is written to `.seocho/local.lbug` (embedded LadybugDB) by default.
+Use your DozerDB or Neo4j Bolt endpoint; SEOCHO no longer creates an embedded graph file.
 
 ## Example questions the graph answers
 

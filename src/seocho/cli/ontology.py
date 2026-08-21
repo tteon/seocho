@@ -429,7 +429,9 @@ def handle(args: argparse.Namespace) -> int:
             print(f"review queue: {n_terms} PROPOSED term(s) under '{package_id}.Proposed'  "
                   f"mode={result['mode']} emitted={result['emitted']}"
                   + ("  (add --gms URL --emit to publish to DataHub)" if not result["emitted"] else ""))
-        return 0
+        # Mirror the `ontology datahub` handler: a requested live emit that came
+        # back unavailable/failed must not exit 0 (silent-failure honesty).
+        return 0 if result.get("emitted") or result["mode"] == "dry_run" else 1
 
     if args.ontology_command == "select-guardrail":
         from ..ontology import Ontology

@@ -235,7 +235,6 @@ def app_module():
 
     with pytest.MonkeyPatch().context() as mp:
         mp.setenv("OPENAI_API_KEY", "test-key")
-        mp.setenv("OPIK_URL_OVERRIDE", "")
         with pytest.MonkeyPatch().context() as mp_modules:
             mp_modules.setitem(sys.modules, "neo4j", fake_neo4j)
             mp_modules.setitem(sys.modules, "neo4j.exceptions", fake_neo4j_exceptions)

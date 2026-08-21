@@ -1,0 +1,52 @@
+{
+  "tenant": "acme",
+  "other": "globex",
+  "attacks": [
+    {
+      "attack": "unscoped_all",
+      "off_leak": 3,
+      "off": "6 rows",
+      "on_leak": 0,
+      "on": "blocked:filter_missing"
+    },
+    {
+      "attack": "or_true",
+      "off_leak": 3,
+      "off": "6 rows",
+      "on_leak": 0,
+      "on": "blocked:widening_tautology"
+    },
+    {
+      "attack": "or_1eq1",
+      "off_leak": 3,
+      "off": "6 rows",
+      "on_leak": 0,
+      "on": "blocked:widening_tautology"
+    },
+    {
+      "attack": "wrong_node_binding",
+      "off_leak": 9,
+      "off": "18 rows",
+      "on_leak": 0,
+      "on": "blocked:unbound_return"
+    },
+    {
+      "attack": "comment_smuggle",
+      "off_leak": 3,
+      "off": "6 rows",
+      "on_leak": 0,
+      "on": "blocked:filter_missing"
+    },
+    {
+      "attack": "properly_scoped",
+      "off_leak": 0,
+      "off": "3 rows",
+      "on_leak": 0,
+      "on": "3 rows"
+    }
+  ],
+  "off_leaked_total": 21,
+  "on_leaked_total": 0,
+  "attacks_leaking_off": 5,
+  "attacks_leaking_on": 0
+}

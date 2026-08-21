@@ -3,7 +3,6 @@
 DOCKER_COMPOSE = docker compose
 DOCKER_COMPOSE_LIVE = docker compose -f docker-compose.yml -f docker-compose.dev.yml
 DOCKER_COMPOSE_TUTORIALS = docker compose -f docker-compose.tutorials.yml
-DOCKER_COMPOSE_OPIK = docker compose -f docker-compose.opik.yml --profile opik
 DOCKER_COMPOSE_MEMORY = docker compose -f docker-compose.memory.yml
 
 # Shared stack project name (fixed so per-instance app tiers can target its
@@ -11,7 +10,7 @@ DOCKER_COMPOSE_MEMORY = docker compose -f docker-compose.memory.yml
 SHARED_PROJECT = seocho
 SEOCHO_CLI = python3 -m seocho.cli
 
-.PHONY: up up-build up-live down restart logs clean bootstrap shell test test-integration e2e-smoke okx-release-gate lint format help apoc-extended memory-up memory-migrate memory-status memory-smoke memory-logs memory-down observability-up observability-down observability-logs opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
+.PHONY: up up-build up-live down restart logs clean bootstrap shell test test-integration e2e-smoke okx-release-gate lint format help apoc-extended memory-up memory-migrate memory-status memory-smoke memory-logs memory-down observability-up observability-down observability-logs demo-raw demo-meta demo-neo4j demo-graphrag demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
 
 ##@ Development
 
@@ -29,7 +28,7 @@ bootstrap: ## Bootstrap the development environment
 	@docker compose build
 	@echo "✅ Environment ready!"
 
-setup-env: ## Interactive .env setup (OpenAI key, Opik, ports)
+setup-env: ## Interactive .env setup (OpenAI key, ports)
 	@bash scripts/setup/init-env.sh
 
 apoc-extended: ## Install pinned APOC Extended + Arrow/Parquet dependencies
@@ -118,8 +117,8 @@ demo-meta: ## Run beginner meta/artifact demo pipeline
 demo-neo4j: ## Run beginner neo4j load/query demo pipeline
 	@bash scripts/demo/pipeline_neo4j_load.sh
 
-demo-graphrag-opik: ## Run beginner graphrag + opik demo pipeline
-	@bash scripts/demo/pipeline_graphrag_opik.sh
+demo-graphrag: ## Run the beginner graphrag demo pipeline
+	@bash scripts/demo/pipeline_graphrag.sh
 
 demo-all: ## Run all beginner demo pipelines
 	@bash scripts/demo/run_beginner_pipelines.sh
@@ -164,37 +163,19 @@ memory-logs: ## Tail authoritative PostgreSQL logs
 memory-down: ## Stop PostgreSQL memory without deleting its volume
 	@COMPOSE_PROJECT_NAME=seocho-memory $(DOCKER_COMPOSE_MEMORY) down
 
-##@ Opik Observability
+##@ Observability
 
-observability-up: ## Start the lightweight OTel + Tempo + Prometheus + Grafana stack
-	@COMPOSE_PROJECT_NAME=seocho-observability docker compose \
-		-f examples/observability/docker-compose.observability.yml \
-		--profile observability up -d --wait --remove-orphans
+OBS_SERVICES := tempo prometheus otel-collector grafana
+
+observability-up: ## Start the local OTel + Tempo + Prometheus + Grafana stack (root compose, `observability` profile, alongside the core stack)
+	docker compose --profile observability up -d --wait $(OBS_SERVICES)
 	@echo "📊 Grafana: http://$${SEOCHO_BIND_HOST:-127.0.0.1}:$${GRAFANA_PORT:-3000}"
 
-observability-down: ## Stop the lightweight observability stack
-	@COMPOSE_PROJECT_NAME=seocho-observability docker compose \
-		-f examples/observability/docker-compose.observability.yml \
-		--profile observability down
+observability-down: ## Stop and remove ONLY the observability containers (core stack + named volumes untouched)
+	docker compose --profile observability rm -fs $(OBS_SERVICES)
 
 observability-logs: ## Tail Collector, Tempo, Prometheus, and Grafana logs
-	@COMPOSE_PROJECT_NAME=seocho-observability docker compose \
-		-f examples/observability/docker-compose.observability.yml \
-		--profile observability logs -f --tail=100
-
-opik-up: ## Start core + Opik services
-	@echo "🔭 Starting Seocho with Opik observability..."
-	@$(MAKE) up
-	@COMPOSE_PROJECT_NAME=seocho-opik $(DOCKER_COMPOSE_OPIK) up -d --wait --remove-orphans
-	@echo "✅ Services started with Opik!"
-	@echo "🔭 Access Opik UI: http://localhost:5173"
-
-opik-down: ## Stop all services including Opik
-	@echo "🛑 Stopping services (including Opik)..."
-	@COMPOSE_PROJECT_NAME=seocho-opik $(DOCKER_COMPOSE_OPIK) down
-
-opik-logs: ## View Opik service logs
-	@COMPOSE_PROJECT_NAME=seocho-opik $(DOCKER_COMPOSE_OPIK) logs -f --tail=100 opik-backend opik-python-backend opik-frontend
+	docker compose --profile observability logs -f --tail=100 $(OBS_SERVICES)
 
 ##@ FinDER Tutorials
 
@@ -256,8 +237,7 @@ tutorials-test: ## Headless nbconvert run of every tutorial notebook (reads OPEN
 		set -e; mkdir -p /workspace/.seocho/test_runs; cd /workspace; \
 		for nb in examples/finder/01_vector_vs_graph_rag.ipynb \
 		           examples/finder/02_fibo_module_impact.ipynb \
-		           examples/finder/03_network_analytics.ipynb \
-		           examples/finder/04_private_opik.ipynb; do \
+		           examples/finder/03_network_analytics.ipynb; do \
 			echo "▶️  Executing $$nb"; \
 			jupyter nbconvert --to notebook --execute "$$nb" \
 				--ExecutePreprocessor.timeout=900 \

@@ -14,11 +14,11 @@ from pydantic import BaseModel, Field
 # OpenAI Agent SDK Imports (Local Shim)
 from agents import Agent, function_tool, RunContextWrapper
 
-from config import db_registry, graph_registry, validate_config
+from extraction.config import db_registry, graph_registry, validate_config
 from runtime.agent_readiness import summarize_readiness
-from agents_runtime import get_agents_runtime
-from shared_memory import SharedMemory
-from exceptions import (
+from extraction.agents_runtime import get_agents_runtime
+from extraction.shared_memory import SharedMemory
+from extraction.exceptions import (
     SeochoError,
     ConfigurationError,
     InfrastructureError,
@@ -29,7 +29,7 @@ from exceptions import (
 from runtime.middleware import RequestIDMiddleware, RequestMetricsMiddleware
 from runtime.identity import PrincipalMiddleware
 from seocho.metrics import enable_metrics, get_metrics
-from tracing import configure_opik, track, update_current_span, update_current_trace
+from extraction.tracing import track, update_current_span, update_current_trace
 from runtime.policy import require_runtime_permission
 from seocho.runtime_contract import (
     DATABASE_NAME_PATTERN,
@@ -38,7 +38,7 @@ from seocho.runtime_contract import (
     RuntimePath,
     WORKSPACE_ID_PATTERN,
 )
-from rule_api import (
+from extraction.rule_api import (
     RuleInferRequest,
     RuleInferResponse,
     RuleAssessRequest,
@@ -63,7 +63,7 @@ from rule_api import (
     validate_rule_profile,
 )
 from runtime.public_memory_api import build_public_memory_router
-from debate import DebateOrchestrator
+from extraction.debate import DebateOrchestrator
 from runtime.server_runtime import (
     ServerContext,
     batch_status_file_path,
@@ -84,7 +84,7 @@ from runtime.server_runtime import (
     invalidate_semantic_vocabulary_cache,
     utc_now_iso,
 )
-from semantic_artifact_api import (
+from extraction.semantic_artifact_api import (
     SemanticArtifactApproveRequest,
     SemanticArtifactDeprecateRequest,
     SemanticArtifactListResponse,
@@ -97,7 +97,7 @@ from semantic_artifact_api import (
     read_semantic_artifacts,
     resolve_approved_artifact_payload,
 )
-from ontology_control_plane_api import (
+from extraction.ontology_control_plane_api import (
     OntologyCompiledProfileResponse,
     OntologyProfileEvaluateRequest,
     OntologyProfileEvaluationResponse,
@@ -120,7 +120,7 @@ from ontology_control_plane_api import (
     select_ontology_profile_request,
     upsert_ontology_profile,
 )
-from semantic_run_store import get_semantic_run, list_semantic_runs
+from extraction.semantic_run_store import get_semantic_run, list_semantic_runs
 from seocho.query.query_proxy import QueryRequest as GraphQueryRequest
 
 logger = logging.getLogger(__name__)
@@ -262,7 +262,6 @@ def _customer_query_metric(query_class: str):
 @app.on_event("startup")
 async def _startup():
     validate_config()
-    configure_opik()
     # ADR-0146 metrics registry. Env-gated: SEOCHO_METRICS_BACKEND=none (the
     # default) yields no-op instruments, so boot never depends on a collector.
     try:
@@ -270,6 +269,28 @@ async def _startup():
     except Exception:
         logger.warning(
             "Metrics backend initialisation failed; instruments stay no-op.",
+            exc_info=True,
+        )
+    # Tracing was plumbed end-to-end and never switched on. SEOCHO_TRACE_BACKEND
+    # is documented in .env.example and passed by docker-compose, and nothing in
+    # the server read it, so `_BACKENDS` stayed empty and every rag.* span
+    # resolved to _NullSpan. The span tree existed, its tests passed, and no
+    # production request ever produced one — which makes stage attribution
+    # impossible however good the tree is.
+    #
+    # Same contract as metrics: SEOCHO_TRACE_BACKEND=none (the default) disables
+    # tracing, so boot never depends on a collector.
+    try:
+        from seocho.tracing import configure_tracing_from_env
+
+        if configure_tracing_from_env():
+            logger.info(
+                "Tracing enabled: backend=%s",
+                os.getenv("SEOCHO_TRACE_BACKEND", "none"),
+            )
+    except Exception:
+        logger.warning(
+            "Tracing initialisation failed; spans stay no-op.",
             exc_info=True,
         )
     # Phase 1.5: populate the runtime ontology registry from

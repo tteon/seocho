@@ -1,4 +1,4 @@
-from semantic_pass_orchestrator import SemanticPassOrchestrator
+from ..semantic_pass_orchestrator import SemanticPassOrchestrator
 
 
 class _FakeExtractor:

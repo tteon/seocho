@@ -32,6 +32,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import queue
 import threading
 import time
 import uuid
@@ -104,6 +105,53 @@ def _run_sync(
     if "error" in box:
         raise box["error"]
     return box["value"]
+
+
+def _stream_async_in_thread(make_agen):
+    """Drive an async generator from synchronous code, yielding items as they arrive.
+
+    Like :func:`_run_sync`, the work runs in a worker thread that owns its own event
+    loop, so this is safe to call from a thread that already has a running loop
+    (Jupyter, FastAPI, ``pytest-asyncio``) instead of crashing on a nested
+    ``loop.run_until_complete``. Items stream through a queue in real time; iterator
+    cleanup (``aclose`` + task cancellation on loop shutdown) happens in the worker.
+
+    ``make_agen`` is a zero-arg factory that returns the async generator; it is
+    invoked inside the worker's loop so loop-bound setup runs on the right loop.
+    """
+    items: "queue.Queue" = queue.Queue()
+
+    def _runner() -> None:
+        async def _drive() -> None:
+            agen = make_agen()
+            try:
+                async for item in agen:
+                    items.put(("item", item))
+            finally:
+                aclose = getattr(agen, "aclose", None)
+                if aclose is not None:
+                    try:
+                        await aclose()
+                    except Exception:  # noqa: BLE001
+                        pass
+
+        try:
+            asyncio.run(_drive())
+        except BaseException as exc:  # noqa: BLE001
+            items.put(("error", exc))
+        finally:
+            items.put(("done", None))
+
+    worker = threading.Thread(target=_runner, name="seocho-stream", daemon=True)
+    worker.start()
+    while True:
+        kind, payload = items.get()
+        if kind == "item":
+            yield payload
+        elif kind == "error":
+            raise payload
+        else:
+            return
 
 
 class Session:
@@ -183,6 +231,17 @@ class Session:
         self._trace = None
         self._closed = False
 
+        # Operating-layer handles, attached by ``Seocho.session()`` so this one
+        # Session object is the whole OS surface: memory (add/ask/resolve),
+        # scheduling+isolation (query), execution (agent), resources (budget).
+        # None until attached — the OS methods raise a clear error otherwise.
+        self._os = None            # the SeochoOS instance (shared admission pool)
+        self._os_session = None    # this session's OSSession handle
+        self.priority = "normal"
+        self.sdk_session = None
+        self.hooks = None
+        self.budget = None
+
         # Start session trace
         try:
             from .tracing import begin_session, is_tracing_enabled
@@ -249,7 +308,7 @@ class Session:
     def _stamp_observability_health(self, result: Dict[str, Any]) -> None:
         """Stamp degraded_observability=True on result when traces are silently dropped.
 
-        Closes seocho-qr74 (depends-on seocho-8k1h). When OpikBackend (or any
+        Closes seocho-qr74 (depends-on seocho-8k1h). When a tracing backend (any
         future backend) initialises but its underlying client fails, every
         ``log_span`` call becomes a no-op. The Session result needs to carry
         a flag so callers can fail fast when observability is required —
@@ -309,7 +368,7 @@ class Session:
             result = self._add_via_pipeline(content, db, category, metadata)
 
         # seocho-qr74: stamp degraded_observability if any tracing backend
-        # is silently dropping spans (e.g., OpikBackend init failure).
+        # is silently dropping spans (e.g. a backend that failed to initialise).
         self._stamp_observability_health(result)
 
         elapsed = time.time() - start
@@ -862,46 +921,128 @@ class Session:
             from .agents_runtime import get_agents_runtime
             agent = self._get_query_agent()
 
-            async def _stream():
-                result = get_agents_runtime().run_streamed(agent=agent, input=full_msg)
-                async for event in result.stream_events():
-                    if hasattr(event, 'data') and hasattr(event.data, 'delta'):
-                        yield event.data.delta
+            def _make_stream():
+                async def _agen():
+                    result = get_agents_runtime().run_streamed(agent=agent, input=full_msg)
+                    async for event in result.stream_events():
+                        if hasattr(event, "data") and hasattr(event.data, "delta"):
+                            yield event.data.delta
 
-            import asyncio
-            loop = asyncio.new_event_loop()
-            ait = _stream().__aiter__()
-            try:
-                while True:
-                    try:
-                        chunk = loop.run_until_complete(ait.__anext__())
-                        yield chunk
-                    except StopAsyncIteration:
-                        break
-            finally:
-                # seocho-hnf9: drain the async iterator + cancel any
-                # pending tasks before closing the loop so resources
-                # bound to the iterator (HTTP connections, etc.) are
-                # released even if the consumer raised mid-stream.
-                try:
-                    loop.run_until_complete(ait.aclose())
-                except Exception:
-                    pass
-                try:
-                    pending = asyncio.all_tasks(loop=loop)
-                    for task in pending:
-                        task.cancel()
-                    if pending:
-                        loop.run_until_complete(
-                            asyncio.gather(*pending, return_exceptions=True)
-                        )
-                except Exception:
-                    pass
-                loop.close()
+                return _agen()
+
+            # Drive the async stream from a worker thread that owns its own loop,
+            # so ask_stream is safe to call inside an already-running loop
+            # (Jupyter/FastAPI) instead of crashing on a nested run_until_complete.
+            # Chunks still stream in real time through the queue.
+            yield from _stream_async_in_thread(_make_stream)
         except Exception as exc:
             logger.warning("Streaming failed, falling back: %s", exc)
             answer = self.ask(question, database=database)
             yield answer
+
+    # -- operating-layer surface ------------------------------------------
+    # These make one Session the coherent OS object: every subsystem is a
+    # method here, not a free function taking the session as its first arg.
+    # They require the handles attached by ``Seocho.session()`` (local mode).
+
+    def _require_os(self) -> None:
+        if self._os is None or self._os_session is None:
+            from .exceptions import SeochoError
+
+            raise SeochoError(
+                "operating-layer methods need a session created by "
+                "Seocho.session() in local mode (ontology + graph_store).")
+
+    def query(self, cypher: str, **params: Any) -> List[Dict[str, Any]]:
+        """Governed graph read — the scheduling + isolation + memory-read path.
+
+        Runs through the shared admission gate (scheduling), pins this
+        session's workspace server-side (isolation), and executes fail-closed
+        (``enforce_workspace_filter``). Named parameters pass through as
+        ``$name``. Returns the row list; raises on a structured error so
+        callers see admission rejection / query failure rather than a silent
+        empty result.
+        """
+        import json as _json
+
+        self._require_os()
+        payload = self._os.execute_query(
+            self._os_session, cypher, _json.dumps(params, default=str))
+        result = _json.loads(payload)
+        if "error" in result:
+            from .exceptions import SeochoError
+
+            raise SeochoError(
+                f"query failed [{result['error']}]: {result.get('message', '')}")
+        return result.get("rows", [])
+
+    def resolve(self, mention: str, *, label: Optional[str] = None,
+                **identity_props: Any) -> Optional[Dict[str, Any]]:
+        """Resolve a surface mention to the one canonical node it denotes.
+
+        Read-time interning: this reuses the exact write-time identity
+        function (``seocho.index.identity.compute_node_identity``), so the
+        resolution recall/precision are the interning collapse/collision
+        measured in ADR-0160/0161/0162 — guaranteed-precision, model-free,
+        O(1) address lookup, scoped to this session's workspace.
+
+        Give a ``label`` (and any disambiguating identity properties) to use
+        the composite key — the precise path. With no label it falls back to a
+        normalized-name match, whose miss on un-normalized surface forms
+        (e.g. legal suffixes) is the documented recall ceiling a semantic
+        fallback would close (seocho-6l8). Returns the node dict, or ``None``.
+        """
+        self._require_os()
+        from .index.identity import _normalize_segment, compute_node_identity
+
+        nodes = getattr(self.ontology, "nodes", {}) or {}
+        if label and label in nodes:
+            node_def = nodes[label]
+            keys = list(getattr(node_def, "effective_identity_keys", [])
+                        or getattr(node_def, "identity_keys", []) or ["name"])
+            props = dict(identity_props)
+            props.setdefault("name", mention)
+            addr = compute_node_identity(label, props, keys)
+            if addr:
+                # label is validated by membership in the ontology above.
+                rows = self.query(
+                    f"MATCH (n:`{label}`) WHERE n.id = $addr "
+                    "AND n._workspace_id = $workspace_id RETURN n LIMIT 1",
+                    addr=addr)
+                if rows:
+                    node = rows[0].get("n", rows[0])
+                    return {"node": node, "address": addr, "method": "intern"}
+        # Fallback: normalized-name equality (best-effort; recall-ceiling path).
+        norm = _normalize_segment(mention)
+        rows = self.query(
+            "MATCH (n) WHERE n.name IS NOT NULL "
+            "AND n._workspace_id = $workspace_id "
+            "AND toLower(trim(n.name)) = $norm RETURN n LIMIT 5",
+            norm=norm)
+        if rows:
+            node = rows[0].get("n", rows[0])
+            return {"node": node, "address": None, "method": "normalized_name",
+                    "candidates": len(rows)}
+        return None
+
+    def agent(self, *, name: str = "seocho_agent", model: Any = None,
+              extra_tools: Sequence[Any] = ()) -> Any:
+        """An openai-agents Agent whose only graph access is this governed
+        session — the execution subsystem. Hand it to ``Runner.run(agent,
+        msg, session=sess.sdk_session, hooks=sess.hooks)`` so memory,
+        budget, and admission all ride along."""
+        self._require_os()
+        return self._os.build_agent(
+            self._os_session, name=name, model=model, extra_tools=extra_tools)
+
+    def os_stats(self) -> Dict[str, Any]:
+        """Operating-layer observability: shared pool + this session's budget."""
+        self._require_os()
+        stats = dict(self._os.stats())
+        stats["priority"] = self.priority
+        if self.budget is not None:
+            stats["budget"] = getattr(self.budget, "budget", 0)
+        return stats
 
     def close(self) -> Dict[str, Any]:
         """Close the session and finalize traces.

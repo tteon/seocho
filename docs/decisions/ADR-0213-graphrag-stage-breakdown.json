@@ -1,0 +1,58 @@
+{
+  "adr": "ADR-0213",
+  "title": "Graph agentic-RAG stage breakdown",
+  "status": "experimental (downgraded after multi-agent review 2026-08-17)",
+  "date": "2026-08-17",
+  "environment": {
+    "llm": "MARA MiniMax-M2.7 (hosted)",
+    "graph": "DozerDB 5.26.3 (live, bolt://localhost:7687)",
+    "code": "origin/main @ #589 (relationship-endpoint remap)",
+    "observability": "ADR-0144 rag.ask span tree (JSONL backend, 17 spans/ask)"
+  },
+  "prerequisite_fix_589": {
+    "instrument": "seocho.index.relationship_survival.count (_relcensus / _resolvable_rels)",
+    "root_cause": "node_lookup not keyed by original sequential id; endpoints orphaned after name-based id normalization",
+    "census_before_fix": {
+      "extracted": 11, "after_memory_shaping": 11, "after_ontology_context": 11,
+      "after_identity_keys": 11, "endpoints_resolvable": 0
+    },
+    "before_after": {"endpoints_resolvable": [0, 12], "related_to_persisted": [0, 12]}
+  },
+  "sample": {
+    "source": "An Unsentimental Journey through Cornwall",
+    "qtype": "Fact Retrieval",
+    "question": "which plant known scientifically as Erica vagans is also referred to by another common name, and what is that name?",
+    "gold": "Cornish heath",
+    "source_sentence": "the _erica vagans_ -- the lovely Cornish heath",
+    "alias_kind": "appositive"
+  },
+  "runs": [
+    {"run": 0, "ok": true, "nodes": 24, "entity_nodes": 20, "domain_edges": 17, "endpoints_resolvable": 17, "needed_edge_captured": false, "retrieval_rows": 0, "gold_hit": false},
+    {"run": 1, "ok": true, "nodes": 24, "entity_nodes": 20, "domain_edges": 17, "endpoints_resolvable": 17, "needed_edge_captured": false, "retrieval_rows": 0, "gold_hit": false},
+    {"run": 2, "ok": true, "nodes": 24, "entity_nodes": 20, "domain_edges": 17, "endpoints_resolvable": 17, "needed_edge_captured": false, "retrieval_rows": 0, "gold_hit": false}
+  ],
+  "note_needed_edge_flag": "The automated needed_edge check was too loose (any edge on the erica node), so it read true; manual inspection confirmed the specific erica<->cornish-heath alias edge was NOT captured. The 'Cornish heath' node does not exist.",
+  "attribution": {
+    "stage_1_indexing": {"verdict": "dominant_miss", "detail": "appositive alias 'Cornish heath' not lifted into structure; only in Chunk.text; no node/edge/alias-property"},
+    "stage_2_ontology": {"verdict": "contributes", "detail": "generic single-Entity + verb-in-property has no slot for an appositive alias"},
+    "stage_3_retrieval": {"verdict": "secondary_miss", "detail": "intent=entity_lookup (relationship_type empty); Cypher fetches node, no alias traversal"},
+    "stage_4_generation": {"verdict": "honest", "detail": "refused to fabricate; no hallucination"}
+  },
+  "generated_cypher_stage3": "MATCH (n:`Entity`) WHERE (toLower(coalesce(n.name,n.uri,'')) CONTAINS toLower($entity) OR toLower(coalesce(n.name,n.uri,'')) CONTAINS toLower($entity_norm)) AND ($workspace_id='' OR coalesce(n._workspace_id,'')=$workspace_id) AND coalesce(n._superseded_by,'')='' RETURN n LIMIT $limit",
+  "intent_data_stage3": {"intent": "entity_lookup", "anchor_entity": "Erica vagans", "target_entity": "", "relationship_type": ""},
+  "correction_2026_08_17": {
+    "records_zero_is_faithful": "executor feeds the same records list to synthesis and metadata; metadata cannot undercount. On the captured run the anchor was mis-selected as the book title and 0 rows returned (direct re-exec also 0).",
+    "root_cause": "stage-3 anchor-slot extraction non-deterministically picks the question framing-clause book title 'An Unsentimental Journey through Cornwall' as the anchor entity",
+    "attribution_revised": "failure spans stage-1 (alias not lifted) AND stage-3 (anchor mis-selection), non-deterministic; n=1 with no ceiling/floor control cannot attribute to one stage"
+  },
+  "gold_hit_rate": "0/3",
+  "conclusion": "For THIS sample: no answer because the fact was not reliably in the graph (stage 1) AND the anchor was mis-selected (stage 3), non-deterministically. NOT a defensible class-level claim about alias fact-retrieval (needs stratified sample + ceiling/floor controls). Lowest-complexity/highest-frequency fix: strip question framing clauses before anchor-slot extraction.",
+  "review_caveats": [
+    "graph_store.write counts submitted rows not created edges (no .consume()); written_to_store/total_relationships inflated + provenance-inclusive",
+    "gold_hit is a bare substring match (false pos on name-dropping refusal, false neg on paraphrase)",
+    "n=1, no ceiling/floor control though query_no_graph_records / indexing_no_graph_writes exist"
+  ],
+  "followups": [
+    "retrieval (highest-value): anchor-slot extraction strips question framing clauses and ranks real-subject names over quoted titles"
+  ]
+}

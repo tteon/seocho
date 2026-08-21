@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from config import load_pipeline_runtime_config
+from ..config import load_pipeline_runtime_config
 
 
 def test_load_pipeline_runtime_config_from_prompt_files(tmp_path, monkeypatch):

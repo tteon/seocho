@@ -37,7 +37,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +137,48 @@ class GuardrailLedger:
         }
 
 
+# Each deterministic violation gets a concrete repair instruction. A raw token
+# list ("result_limit_exceeded, missing_workspace_scope_expression") tells the
+# model WHAT failed but not HOW to fix it — the measured failure mode (ADR-0169)
+# was a model flailing for 6 turns rewriting the *query* when the fix was a
+# *params_json* field. The hint names the exact edit; ``{k}`` slots take the
+# violation payload (e.g. the offending label) or the policy's row cap.
+_VIOLATION_HINTS: Dict[str, str] = {
+    "forbidden_token": "remove write/DDL/procedure keywords — this is a "
+                       "read-only path ({k} is not allowed)",
+    "missing_return_clause": "add a RETURN clause",
+    "missing_parameterized_limit": "end the query with `LIMIT $limit` — the "
+                                   "literal token $limit, not a number",
+    "missing_parameter": "reference the parameter ${k} in the Cypher",
+    "missing_parameter_value": "{k} is supplied by the layer; do not set it "
+                               "yourself, but keep the reference in the query",
+    "unbounded_graph_path": "bound variable-length paths, e.g. [:REL*1..3]",
+    "graph_hop_limit_exceeded": "shorten the path — it exceeds the max hop limit",
+    "unknown_labels": "use only labels from the schema; {k} is not declared",
+    "unknown_relationships": "use only relationship types from the schema; "
+                             "{k} is not declared",
+    "unknown_properties": "use only properties from the schema; {k} is not "
+                          "declared",
+    "missing_workspace_scope_expression":
+        "scope every matched node inline: (n:Label {{_workspace_id: "
+        "$workspace_id}}) — a WHERE clause does not satisfy this check",
+    "result_limit_exceeded":
+        "set a `limit` value in params_json between 1 and {max_rows} "
+        "(e.g. {{\"limit\": 1}}) — `limit` is a params_json field, NOT written "
+        "in the Cypher; the query keeps `LIMIT $limit`",
+}
+
+
+def _actionable_reason(violation: str, *, max_rows: int) -> str:
+    """Turn a `kind:payload` violation into `kind — how to fix it`."""
+    kind, _, payload = str(violation).partition(":")
+    hint = _VIOLATION_HINTS.get(kind)
+    if not hint:
+        return violation
+    text = hint.format(k=payload or kind, max_rows=max_rows)
+    return f"{kind} — {text}"
+
+
 def make_ontology_guardrail(ontology: Any, *, ledger: Optional[GuardrailLedger] = None,
                             cypher_arg: str = "cypher"):
     """A tool-input guardrail that enforces the ontology on generated Cypher.
@@ -181,11 +223,16 @@ def make_ontology_guardrail(ontology: Any, *, ledger: Optional[GuardrailLedger] 
         violations = validate_text2cypher_fallback(cypher, params=params, policy=policy)
         ledger.record(violations)
         if violations:
+            max_rows = getattr(policy, "max_result_rows", 50)
+            reasons = "; ".join(
+                _actionable_reason(v, max_rows=max_rows) for v in violations)
+            # Actionable rejection: each violation carries HOW to fix it, so the
+            # repair loop converges in one turn instead of the model rewriting
+            # the query blindly (ADR-0169). The ledger keeps the raw kinds for
+            # the status tally.
             return ToolGuardrailFunctionOutput.reject_content(
-                "the query violates the graph schema and was not executed: "
-                + ", ".join(violations)
-                + ". Re-emit it using only the declared labels, relationship types and "
-                  "parameters.")
+                "the query was not executed — it violates the graph contract. "
+                "Fix each item and re-emit:\n- " + reasons.replace("; ", "\n- "))
         return ToolGuardrailFunctionOutput.allow()
 
     ontology_guardrail.ledger = ledger  # type: ignore[attr-defined]

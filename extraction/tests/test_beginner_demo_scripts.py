@@ -12,7 +12,7 @@ SCRIPTS = [
     "scripts/demo/pipeline_raw_data.sh",
     "scripts/demo/pipeline_meta_artifact.sh",
     "scripts/demo/pipeline_neo4j_load.sh",
-    "scripts/demo/pipeline_graphrag_opik.sh",
+    "scripts/demo/pipeline_graphrag.sh",
     "scripts/demo/run_beginner_pipelines.sh",
 ]
 

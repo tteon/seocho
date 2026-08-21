@@ -4,8 +4,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from semantic_artifact_store import approve_semantic_artifact, save_semantic_artifact
-from semantic_vocabulary import ManagedVocabularyResolver
+from ..semantic_artifact_store import approve_semantic_artifact, save_semantic_artifact
+from ..semantic_vocabulary import ManagedVocabularyResolver
 
 
 def test_managed_vocabulary_resolver_uses_global_fallback(tmp_path):

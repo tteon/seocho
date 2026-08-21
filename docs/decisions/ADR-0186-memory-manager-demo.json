@@ -1,0 +1,71 @@
+{
+  "budget_bytes": 12000,
+  "acts": {
+    "act1_fill": {
+      "entries": 4,
+      "bytes": 12000,
+      "byte_budget": 12000,
+      "hits": 5,
+      "misses": 7,
+      "hit_rate": 0.4167,
+      "recompute_ms_incurred": 320.0,
+      "recompute_ms_avoided": 400.0,
+      "evictions": 3,
+      "pinned": 0,
+      "intern": {
+        "size": 7,
+        "interns": 7,
+        "hits": 5,
+        "shards": 16
+      },
+      "hot_resident": true
+    },
+    "act2_pressure": {
+      "entries": 4,
+      "bytes": 12000,
+      "byte_budget": 12000,
+      "hits": 65,
+      "misses": 7,
+      "hit_rate": 0.9028,
+      "recompute_ms_incurred": 320.0,
+      "recompute_ms_avoided": 5200.0,
+      "evictions": 3,
+      "pinned": 0,
+      "hot_resident": true
+    },
+    "act3_pin_under_churn": {
+      "pinned_in_use_survived": true,
+      "hot_shared_still_resident": true,
+      "entries": 4,
+      "bytes": 12000,
+      "byte_budget": 12000,
+      "hits": 65,
+      "misses": 38,
+      "hit_rate": 0.6311,
+      "recompute_ms_incurred": 471.0,
+      "recompute_ms_avoided": 5200.0,
+      "evictions": 34,
+      "pinned": 0
+    },
+    "act4_after_unpin": {
+      "inflight_evictable_now": true,
+      "entries": 4,
+      "bytes": 12000,
+      "byte_budget": 12000,
+      "hits": 65,
+      "misses": 68,
+      "hit_rate": 0.4887,
+      "recompute_ms_incurred": 621.0,
+      "recompute_ms_avoided": 5200.0,
+      "evictions": 64,
+      "pinned": 0
+    }
+  },
+  "invariants": {
+    "pinned_in_use_never_evicted": true,
+    "hot_shared_retained_under_churn": true,
+    "cold_reclaimed_when_unpinned": true,
+    "memory_manager_evicted_under_pressure": true
+  },
+  "all_invariants_hold": true
+}

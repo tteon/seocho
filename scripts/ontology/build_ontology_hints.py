@@ -19,7 +19,7 @@ from typing import Dict, Iterable, List, Sequence
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "extraction"))
 
-from ontology_hints_builder import build_hints_from_records, keyword_tokens  # noqa: E402
+from extraction.ontology_hints_builder import build_hints_from_records, keyword_tokens  # noqa: E402
 
 
 ANNOTATION_FIELDS = (

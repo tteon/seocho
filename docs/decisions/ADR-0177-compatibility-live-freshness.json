@@ -1,0 +1,54 @@
+{
+  "ontology_change": {
+    "overall": "BREAKING",
+    "breaking_labels": [
+      "Company",
+      "MEMBER_OF",
+      "Person",
+      "Project"
+    ],
+    "breaking_properties": [
+      "Company.owner_id",
+      "Person.alias",
+      "Project.budget"
+    ],
+    "old_false_major_breaking_labels": [
+      "Company",
+      "MEMBER_OF",
+      "Person",
+      "Project",
+      "Team"
+    ],
+    "atoms": [
+      "node_added:Vendor.=BACKWARD",
+      "prop_added_required:Company.owner_id=BREAKING",
+      "prop_removed:Person.alias=FORWARD",
+      "prop_retyped:Project.budget=BREAKING",
+      "prop_added_optional:Team.slug=BACKWARD",
+      "rel_cardinality_tightened:MEMBER_OF.=BREAKING"
+    ]
+  },
+  "population": 250,
+  "policies": {
+    "always_warn": {
+      "under_refusal": 1.0,
+      "over_refusal": 0.0
+    },
+    "always_block": {
+      "under_refusal": 0.0,
+      "over_refusal": 1.0
+    },
+    "fresh_OLD": {
+      "under_refusal": 0.0,
+      "over_refusal": 0.833
+    },
+    "fresh_label": {
+      "under_refusal": 0.0,
+      "over_refusal": 0.5
+    },
+    "fresh_prop": {
+      "under_refusal": 0.0,
+      "over_refusal": 0.0
+    }
+  }
+}

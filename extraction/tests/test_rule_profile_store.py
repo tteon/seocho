@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from rule_profile_store import get_rule_profile, list_rule_profiles, save_rule_profile
+from ..rule_profile_store import get_rule_profile, list_rule_profiles, save_rule_profile
 
 
 def _profile(rule_name: str) -> dict:

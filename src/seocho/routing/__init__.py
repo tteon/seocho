@@ -11,7 +11,7 @@ the decision tree, confidence thresholds, context-window budget, temporal
 staleness penalty, and refusal contract — this module codifies the same
 contract as a single object so we can:
 
-- log a stable :class:`RoutingDecision` per request to Opik
+- log a stable :class:`RoutingDecision` per request to the tracing backend
 - tune thresholds via YAML / dict without code edits
 - combine confidence with :func:`staleness_penalty` so freshness is part of
   the routing score
@@ -87,7 +87,7 @@ MODEL_CONTEXT: Dict[str, int] = {
 class RoutingDecision:
     """Output of :meth:`RoutingPolicy.decide`.
 
-    All fields are stable; emit the dict via :meth:`to_metadata` for Opik.
+    All fields are stable; emit the dict via :meth:`to_metadata` for tracing.
     """
 
     intent: str

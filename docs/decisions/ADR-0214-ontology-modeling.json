@@ -1,0 +1,360 @@
+{
+  "adr": "ADR-0214",
+  "status": "experimental",
+  "date": "2026-08-17",
+  "environment": {
+    "llm": "MARA MiniMax-M2.7",
+    "graph": "DozerDB 5.26.3",
+    "code": "origin/main @ #593",
+    "judge": "MARA MiniMax-M2.7"
+  },
+  "questions": 8,
+  "axis1_modeling": {
+    "generic": {
+      "agg": {
+        "refused": 7,
+        "correct": 1
+      },
+      "coverage": {
+        "labels": [
+          {
+            "l": "Entity",
+            "c": 13
+          },
+          {
+            "l": "Document",
+            "c": 1
+          },
+          {
+            "l": "DocumentVersion",
+            "c": 1
+          },
+          {
+            "l": "Chunk",
+            "c": 1
+          },
+          {
+            "l": "Section",
+            "c": 1
+          }
+        ],
+        "domain_edges": 11,
+        "cornish_heath_in_structure": false,
+        "index_nodes": 17,
+        "index_rels": 42
+      },
+      "rows": [
+        {
+          "id": "q1_alias",
+          "qtype": "alias/appositive",
+          "gold": "Cornish heath",
+          "anchor": "Erica vagans",
+          "exec_rows": [
+            1
+          ],
+          "substr_hit": false,
+          "judge": "refused",
+          "answer": "\n\nBased on the query results provided, I cannot fully answer this question. The results show that **Erica vagans** is related to **Cornwall** (as a location), b"
+        },
+        {
+          "id": "q2_meaning",
+          "qtype": "term-meaning",
+          "gold": "hunting ground",
+          "anchor": "Goonhilly",
+          "exec_rows": [
+            0,
+            0
+          ],
+          "substr_hit": false,
+          "judge": "refused",
+          "answer": "\n\nBased on the query results, the knowledge graph does not contain any information about the meaning of \"Goonhilly\" from old Cornish. The query returned an empt"
+        },
+        {
+          "id": "q3_named_after",
+          "qtype": "relationship",
+          "gold": "Ruan",
+          "anchor": "Goonhilly Down",
+          "exec_rows": [
+            0
+          ],
+          "substr_hit": false,
+          "judge": "refused",
+          "answer": "\n\nBased on the query results provided, I cannot answer this question. The knowledge graph returned no results for this query.\n\nThe available data does not conta"
+        },
+        {
+          "id": "q4_ponies",
+          "qtype": "lookup",
+          "gold": "Goonhillies",
+          "anchor": "Goonhilly Down",
+          "exec_rows": [
+            3
+          ],
+          "substr_hit": true,
+          "judge": "correct",
+          "answer": "\n\nBased on the query results, the ponies associated with Goonhilly Down were called **Goonhillies**.\n\nThe query shows that \"Goonhillies\" is classified as an Ani"
+        },
+        {
+          "id": "q5_native",
+          "qtype": "relationship",
+          "gold": "Portugal",
+          "anchor": "Cornish heath",
+          "exec_rows": [
+            0,
+            0
+          ],
+          "substr_hit": false,
+          "judge": "refused",
+          "answer": "\n\nNo results"
+        },
+        {
+          "id": "q6_nationality",
+          "qtype": "entity-attribute",
+          "gold": "Irish",
+          "anchor": "St. Rumon",
+          "exec_rows": [
+            2
+          ],
+          "substr_hit": false,
+          "judge": "refused",
+          "answer": "\n\nThe query results do not contain information about St. Rumon's nationality. The results only show relationships to Ruan Major and Ruan Minor, but no nationali"
+        },
+        {
+          "id": "q7_giant",
+          "qtype": "lookup",
+          "gold": "Cormoran",
+          "anchor": "Cornish legend",
+          "exec_rows": [
+            0,
+            0
+          ],
+          "substr_hit": false,
+          "judge": "refused",
+          "answer": "\n\nBased on the query results provided, no information was found regarding pre-historic heroes and giants of Cornish legend. The query returned an empty result s"
+        },
+        {
+          "id": "q8_fauna",
+          "qtype": "lookup",
+          "gold": "rabbit",
+          "anchor": "Goonhilly",
+          "exec_rows": [
+            0,
+            0
+          ],
+          "substr_hit": false,
+          "judge": "refused",
+          "answer": "\n\nBased on the query results, I do not have information in the knowledge graph about the fauna of Goonhilly or what two small creatures represent the most dange"
+        }
+      ]
+    },
+    "modeled": {
+      "agg": {
+        "correct": 5,
+        "refused": 3
+      },
+      "coverage": {
+        "labels": [
+          {
+            "l": "Place",
+            "c": 6
+          },
+          {
+            "l": "Person",
+            "c": 5
+          },
+          {
+            "l": "Term",
+            "c": 3
+          },
+          {
+            "l": "Plant",
+            "c": 1
+          },
+          {
+            "l": "Animal",
+            "c": 1
+          },
+          {
+            "l": "Document",
+            "c": 1
+          },
+          {
+            "l": "DocumentVersion",
+            "c": 1
+          },
+          {
+            "l": "Chunk",
+            "c": 1
+          },
+          {
+            "l": "Section",
+            "c": 1
+          }
+        ],
+        "domain_edges": 6,
+        "cornish_heath_in_structure": true,
+        "index_nodes": 20,
+        "index_rels": 43
+      },
+      "rows": [
+        {
+          "id": "q1_alias",
+          "qtype": "alias/appositive",
+          "gold": "Cornish heath",
+          "anchor": "Erica vagans",
+          "exec_rows": [
+            0,
+            1
+          ],
+          "substr_hit": true,
+          "judge": "correct",
+          "answer": "\n\nBased on the query results, the plant known scientifically as **Erica vagans** is also called **Cornish heath**.\n\nThis is indicated by the \"aliases\" property "
+        },
+        {
+          "id": "q2_meaning",
+          "qtype": "term-meaning",
+          "gold": "hunting ground",
+          "anchor": "Goonhilly",
+          "exec_rows": [
+            1
+          ],
+          "substr_hit": true,
+          "judge": "correct",
+          "answer": "\n\nBased on the query results, the place name **Goonhilly** comes from old Cornish and means **\"hunting ground\"**."
+        },
+        {
+          "id": "q3_named_after",
+          "qtype": "relationship",
+          "gold": "Ruan",
+          "anchor": "St. Rumon",
+          "exec_rows": [
+            2
+          ],
+          "substr_hit": true,
+          "judge": "correct",
+          "answer": "\n\nBased on the query results, the two villages are **Ruan Major** and **Ruan Minor**. Both are places that have a \"NAMED_AFTER\" relationship with St. Rumon, ind"
+        },
+        {
+          "id": "q4_ponies",
+          "qtype": "lookup",
+          "gold": "Goonhillies",
+          "anchor": "Goonhilly Down",
+          "exec_rows": [
+            1
+          ],
+          "substr_hit": true,
+          "judge": "correct",
+          "answer": "\n\nBased on the query results, Goonhilly Down was once noted for a breed of small, strong ponies called **Goonhillies**."
+        },
+        {
+          "id": "q5_native",
+          "qtype": "relationship",
+          "gold": "Portugal",
+          "anchor": "Cornish heath",
+          "exec_rows": [
+            0,
+            0
+          ],
+          "substr_hit": false,
+          "judge": "refused",
+          "answer": "\n\nNo information available."
+        },
+        {
+          "id": "q6_nationality",
+          "qtype": "entity-attribute",
+          "gold": "Irish",
+          "anchor": "St. Rumon",
+          "exec_rows": [
+            1
+          ],
+          "substr_hit": true,
+          "judge": "correct",
+          "answer": "\n\nIrish"
+        },
+        {
+          "id": "q7_giant",
+          "qtype": "lookup",
+          "gold": "Cormoran",
+          "anchor": "giant",
+          "exec_rows": [
+            0,
+            0
+          ],
+          "substr_hit": false,
+          "judge": "refused",
+          "answer": "\n\nBased on the query results provided, there is no information available to answer this question. The query returned empty results, meaning there are no entries"
+        },
+        {
+          "id": "q8_fauna",
+          "qtype": "lookup",
+          "gold": "rabbit",
+          "anchor": "Goonhilly",
+          "exec_rows": [
+            0,
+            0
+          ],
+          "substr_hit": false,
+          "judge": "refused",
+          "answer": "\n\nBased on the query results provided, I cannot answer this question. The knowledge graph returned no results (empty array) for this query.\n\nThe narrative about"
+        }
+      ]
+    },
+    "ceiling_alias_injected_q1": {
+      "judge": "correct",
+      "substr": true,
+      "answer": "\n\nBased on the query results, the plant known scientifically as *Erica vagans* is also called **Cornish heath**."
+    }
+  },
+  "axis2_proposer": {
+    "proposed_v1": {
+      "agg": {
+        "correct": 3,
+        "refused": 5
+      },
+      "nodes": [
+        "Plant",
+        "Place",
+        "Village",
+        "Country",
+        "Person"
+      ],
+      "index": {
+        "nodes": 11,
+        "rels": 24
+      }
+    },
+    "proposed_v2_dedicated_nodes": {
+      "agg": {
+        "correct": 4,
+        "refused": 4
+      },
+      "nodes": [
+        "Plant",
+        "Term",
+        "Place",
+        "Village",
+        "Saint",
+        "Breed",
+        "Country",
+        "Giant",
+        "Animal"
+      ],
+      "index": {
+        "nodes": 19,
+        "rels": 44
+      }
+    }
+  },
+  "headline": {
+    "generic": "1/8",
+    "modeled": "5/8",
+    "proposed_v1": "3/8",
+    "proposed_v2": "4/8",
+    "silent_wrong": "0 in all cells"
+  },
+  "finding": "Ontology modeling is the top query-side accuracy lever; a demand-driven proposer climbs 1->3->4/8 with zero hand-authoring; residual failures shift to stage-1 extraction coverage; SEOCHO fails loud (0 silent-wrong).",
+  "caveats": [
+    "n small (1 doc, 8 Q, mostly single runs; indexing non-deterministic)",
+    "MARA judge unaudited (agreed with substring on this set)",
+    "only deterministic path run; text2cypher arm designed not executed"
+  ]
+}

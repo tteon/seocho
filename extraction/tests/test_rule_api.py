@@ -1,4 +1,4 @@
-from rule_api import (
+from ..rule_api import (
     RuleInferRequest,
     RuleAssessRequest,
     RuleExportCypherRequest,

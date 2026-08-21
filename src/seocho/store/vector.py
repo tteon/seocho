@@ -21,12 +21,19 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class VectorSearchResult:
-    """A single similarity search result."""
+    """A single similarity search result.
+
+    ``score`` is always a similarity where higher means a better match, regardless
+    of backend: FAISS inner-product and LanceDB L2 distance are normalized to the
+    same higher-is-better convention so scores are comparable across stores.
+    ``metric`` records the score semantic for callers.
+    """
 
     id: str
     text: str
     score: float
     metadata: Dict[str, Any] = field(default_factory=dict)
+    metric: str = "similarity"
 
 
 class VectorStore(ABC):
@@ -53,6 +60,17 @@ class VectorStore(ABC):
     @abstractmethod
     def delete(self, doc_id: str) -> bool:
         """Remove a document from the index."""
+
+    def delete_by_source(self, source_id: str) -> int:
+        """Delete every vector belonging to ``source_id`` and return the count.
+
+        The indexing pipeline keys vectors by ``{source_id}_chunk_{ordinal}``,
+        so deleting a source's vectors keeps the vector store consistent with
+        the graph on delete_source/reindex (issue #123). Default is a no-op for
+        custom stores that don't track source provenance; the built-in backends
+        override it.
+        """
+        return 0
 
     @abstractmethod
     def count(self) -> int:
@@ -101,9 +119,32 @@ class FAISSVectorStore(VectorStore):
         self._index = faiss.IndexFlatIP(dimension)
         self._docs: List[Dict[str, Any]] = []
         self._id_to_idx: Dict[str, int] = {}
+        # IndexFlatIP cannot remove a single vector, so delete() tombstones the
+        # doc and search() over-fetches by this count to still return `limit`
+        # live results (issue #122).
+        self._tombstones = 0
 
     def _embed(self, texts: Sequence[str]) -> Any:
         return _normalize_vectors(self._embedding_backend.embed(texts, model=self._model))
+
+    def _ensure_dimension(self, vectors: Any) -> None:
+        """Validate embedding width against the index, adopting the first
+        embedding's dimension when the index is still empty.
+
+        Without this, an embedding model with a non-default width (e.g.
+        text-embedding-3-large at 3072) reached faiss as a size mismatch and
+        raised an opaque assertion in native code (issue #121).
+        """
+        width = int(vectors.shape[1])
+        if self._index.ntotal == 0 and width != self._dimension:
+            self._dimension = width
+            self._index = self._faiss.IndexFlatIP(width)
+        elif width != self._dimension:
+            raise ValueError(
+                f"Embedding dimension mismatch: this FAISSVectorStore holds "
+                f"{self._dimension}-dim vectors but received {width}-dim. All "
+                f"vectors in a store must come from one embedding model."
+            )
 
     def add(
         self,
@@ -116,6 +157,7 @@ class FAISSVectorStore(VectorStore):
             self.delete(doc_id)
 
         vectors = self._embed([text])
+        self._ensure_dimension(vectors)
         idx = len(self._docs)
         self._index.add(vectors)
         self._docs.append({"id": doc_id, "text": text, "metadata": metadata or {}})
@@ -132,6 +174,7 @@ class FAISSVectorStore(VectorStore):
 
         texts = [str(item["text"]) for item in items]
         vectors = self._embed(texts)
+        self._ensure_dimension(vectors)
         start_idx = len(self._docs)
         self._index.add(vectors)
 
@@ -153,7 +196,10 @@ class FAISSVectorStore(VectorStore):
             return []
 
         query_vec = self._embed([query])
-        k = min(limit, self._index.ntotal)
+        # Over-fetch by the tombstone count: deleted vectors still occupy
+        # top-k slots, so fetching only `limit` could drop live results behind
+        # them. Bounded by ntotal (issue #122).
+        k = min(limit + self._tombstones, self._index.ntotal)
         scores, indices = self._index.search(query_vec, k)
 
         results: List[VectorSearchResult] = []
@@ -167,10 +213,13 @@ class FAISSVectorStore(VectorStore):
                 VectorSearchResult(
                     id=str(doc["id"]),
                     text=str(doc["text"]),
-                    score=float(score),
+                    score=float(score),  # inner product on normalized vectors: higher = better
                     metadata=dict(doc.get("metadata", {})),
+                    metric="similarity",
                 )
             )
+            if len(results) >= limit:
+                break
 
         return results
 
@@ -184,7 +233,23 @@ class FAISSVectorStore(VectorStore):
             "metadata": {},
             "_deleted": True,
         }
+        self._tombstones += 1
         return True
+
+    def delete_by_source(self, source_id: str) -> int:
+        prefix = f"{source_id}_chunk_"
+        ids = [
+            str(doc["id"])
+            for doc in self._docs
+            if not doc.get("_deleted")
+            and (
+                str(doc.get("metadata", {}).get("source_id", "")) == source_id
+                or str(doc["id"]).startswith(prefix)
+            )
+        ]
+        for doc_id in ids:
+            self.delete(doc_id)
+        return len(ids)
 
     def count(self) -> int:
         return len(self._id_to_idx)
@@ -327,13 +392,17 @@ class LanceDBVectorStore(VectorStore):
                 metadata = raw_metadata
             else:
                 metadata = {}
-            score = row.get("_distance", row.get("score", 0.0))
+            # LanceDB returns L2 distance (lower = closer); convert to a similarity
+            # (higher = better) so scores are comparable with the FAISS backend.
+            raw_distance = float(row.get("_distance", row.get("score", 0.0)))
+            score = 1.0 / (1.0 + raw_distance)
             results.append(
                 VectorSearchResult(
                     id=str(row.get("id", "")),
                     text=str(row.get("text", "")),
-                    score=float(score),
+                    score=score,
                     metadata=metadata,
+                    metric="similarity",
                 )
             )
         return results
@@ -347,6 +416,42 @@ class LanceDBVectorStore(VectorStore):
         except Exception:
             return False
         return True
+
+    def delete_by_source(self, source_id: str) -> int:
+        """Delete this source's vectors — by range, never by LIKE.
+
+        Vectors are keyed ``{source_id}_chunk_{ordinal:04d}``, and matching that
+        with ``id LIKE 'src_chunk_%'`` deletes other documents' vectors. In SQL
+        LIKE, ``_`` matches any single character, so the pattern is
+        ``src`` + any + ``chunk`` + any + anything, and a neighbouring source
+        ``src_chunked_v2`` — whose ids are ``src_chunked_v2_chunk_0000`` —
+        matches it. `reindex()` routes through here, so a routine re-index of
+        one document silently destroyed another's retrieval surface, and the
+        loss surfaced later as a retrieval or generation failure rather than as
+        a delete bug. A source id containing ``%`` or ``_`` widened it further,
+        since only quotes were escaped.
+
+        A half-open range on the id prefix has none of that: it is exact, needs
+        no escaping beyond quotes, and an ordered index can serve it.
+        """
+        if self._table is None:
+            return 0
+        before = self.count()
+
+        def _quote(value: str) -> str:
+            return str(value).replace("'", "''")
+
+        prefix = f"{source_id}_chunk_"
+        # chr(ord('_') + 1) == '`' — the successor of the prefix, so the range
+        # is exactly the ids that start with it.
+        upper = f"{source_id}_chunk`"
+        try:
+            self._table.delete(
+                f"id >= '{_quote(prefix)}' AND id < '{_quote(upper)}'"
+            )
+        except Exception:
+            return 0
+        return max(0, before - self.count())
 
     def count(self) -> int:
         if self._table is None:

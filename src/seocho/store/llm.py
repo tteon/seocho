@@ -33,6 +33,12 @@ class ProviderSpec:
     default_model: str = "gpt-4o"
     default_embedding_model: Optional[str] = None
     supports_embeddings: bool = False
+    # Per-provider default request timeout (seconds). Reasoning-model presets
+    # override the 120s baseline: a single-document extraction routinely runs
+    # far longer, and the timeout was tripping the heuristic fallback rather
+    # than surfacing as an error, so the run reported success on manufactured
+    # Entity/MENTIONS structure.
+    default_timeout: float = 120.0
 
 
 _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
@@ -59,6 +65,9 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         default_model="kimi-k2.5",
         default_embedding_model=None,
         supports_embeddings=False,
+        # kimi-k2.5 single-document extraction was measured at 160-1450s; the
+        # 120s baseline cut it off and silently degraded to heuristics.
+        default_timeout=900.0,
     ),
     "grok": ProviderSpec(
         name="grok",
@@ -68,6 +77,8 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         default_model="grok-4.20-reasoning",
         default_embedding_model=None,
         supports_embeddings=False,
+        # Default model is a reasoning preset — same headroom.
+        default_timeout=900.0,
     ),
     "qwen": ProviderSpec(
         name="qwen",
@@ -97,9 +108,13 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         name="mara",
         api_key_env="MARA_API_KEY",
         base_url="https://api.cloud.mara.com/v1",
-        default_model="MiniMax-M2.5",
+        default_model="MiniMax-M2.7",
         default_embedding_model=None,
         supports_embeddings=False,
+        # MiniMax-M2.x is a reasoning model and mara is the default provider
+        # for this repo, so it needs the headroom most. Added here rather than
+        # inherited: the preset postdates the kimi/grok ones.
+        default_timeout=900.0,
     ),
 }
 
@@ -129,6 +144,28 @@ def _strip_text(value: Optional[str]) -> str:
     return str(value).strip()
 
 
+_EMBED_MAX_BATCH = 2048  # OpenAI-compatible /embeddings cap inputs at ~2048 per request
+
+
+def _embed_in_batches(client: Any, model: str, texts: Sequence[str]) -> List[List[float]]:
+    """Embed ``texts`` in provider-safe sub-batches and concatenate, preserving order.
+
+    A single request for an arbitrarily large input hits the provider's per-request
+    item cap and 400s, losing the whole batch; chunking degrades gracefully instead.
+    Results are reordered by the response ``index`` so concatenation stays aligned.
+    """
+    items = list(texts)
+    out: List[List[float]] = []
+    for start in range(0, len(items), _EMBED_MAX_BATCH):
+        batch = items[start : start + _EMBED_MAX_BATCH]
+        if not batch:
+            continue
+        response = client.embeddings.create(model=model, input=batch)
+        ordered = sorted(response.data, key=lambda item: item.index)
+        out.extend(list(item.embedding) for item in ordered)
+    return out
+
+
 def _resolve_client_kwargs(
     *,
     provider: str,
@@ -144,31 +181,22 @@ def _resolve_client_kwargs(
             resolved_api_key = _strip_text(os.getenv(env_name))
             if resolved_api_key:
                 break
+    if not resolved_api_key:
+        from ..exceptions import SeochoCredentialError
+
+        env_names = " or ".join((spec.api_key_env, *spec.api_key_env_aliases))
+        raise SeochoCredentialError(
+            f"No API key found for LLM provider '{spec.name}'. "
+            f"Pass api_key=... (e.g. Seocho.local(ontology, api_key=...)) "
+            f"or set the {env_names} environment variable. "
+            f'For a local gateway that needs no key, pass api_key="EMPTY".'
+        )
     kwargs: Dict[str, Any] = {"timeout": timeout}
     if resolved_api_key:
         kwargs["api_key"] = resolved_api_key
     if resolved_base_url:
         kwargs["base_url"] = resolved_base_url
     return spec, kwargs, resolved_api_key, resolved_base_url
-
-
-def _wrap_with_opik(client: Any) -> Any:
-    try:
-        from ..tracing import is_backend_enabled
-
-        if not is_backend_enabled("opik"):
-            return client
-    except Exception:
-        return client
-
-    try:
-        from opik.integrations.openai import track_openai
-
-        return track_openai(client)
-    except ImportError:
-        return client
-    except Exception:
-        return client
 
 
 @dataclass(slots=True)
@@ -457,8 +485,8 @@ class OpenAICompatibleBackend(LLMBackend):
             base_url=base_url,
             timeout=timeout,
         )
-        client = _wrap_with_opik(openai.OpenAI(**kwargs))
-        async_client = _wrap_with_opik(openai.AsyncOpenAI(**kwargs))
+        client = openai.OpenAI(**kwargs)
+        async_client = openai.AsyncOpenAI(**kwargs)
 
         self.provider = spec.name
         self.provider_spec = spec
@@ -539,42 +567,6 @@ class OpenAICompatibleBackend(LLMBackend):
         model = self.model.strip().lower()
         return model.startswith(("o1", "o3", "o4", "gpt-5"))
 
-    @staticmethod
-    def _translate_response_format_to_guided(
-        response_format: Optional[Dict[str, Any]],
-    ) -> Optional[Dict[str, Any]]:
-        """Translate an OpenAI ``response_format`` into a vLLM guided-decoding
-        ``extra_body`` payload (ADR-0098). Returns None if the format is
-        not translatable so the caller leaves ``response_format`` in place.
-
-        Mapping per ADR-0098 §3:
-            {"type":"json_object"}             → {"guided_json": {"type":"object"}}
-            {"type":"json_schema","json_schema":S} → {"guided_json": S}
-            {"type":"regex","pattern":P}       → {"guided_regex": P}
-            {"type":"choice","options":[...]}  → {"guided_choice": [...]}
-        """
-        if not isinstance(response_format, dict):
-            return None
-        rf_type = str(response_format.get("type") or "").lower()
-        if rf_type == "json_object":
-            return {"guided_json": {"type": "object"}}
-        if rf_type == "json_schema":
-            schema = response_format.get("json_schema") or response_format.get("schema")
-            if schema is None:
-                return None
-            return {"guided_json": schema}
-        if rf_type == "regex":
-            pattern = response_format.get("pattern")
-            if pattern is None:
-                return None
-            return {"guided_regex": pattern}
-        if rf_type == "choice":
-            options = response_format.get("options")
-            if options is None:
-                return None
-            return {"guided_choice": list(options)}
-        return None
-
     def _completion_request_kwargs(
         self,
         *,
@@ -609,26 +601,26 @@ class OpenAICompatibleBackend(LLMBackend):
                 kwargs["max_tokens"] = max_tokens
 
         normalized_mode = (mode or "").strip().lower() or None
-        # ADR-0098 V3: in pipeline mode against vLLM, translate
-        # response_format into extra_body.guided_*. In agent mode the
-        # Agents SDK tool-call structure carries shape; leave response_format
-        # alone so we never JSON-force a tool-call response. For other
-        # providers, response_format flows through unchanged in every mode.
-        guided_kwargs: Optional[Dict[str, Any]] = None
-        if (
-            normalized_mode == "pipeline"
-            and self.provider == "vllm"
-            and response_format is not None
-        ):
-            guided_kwargs = self._translate_response_format_to_guided(response_format)
-
-        if guided_kwargs is not None:
-            # Guided decoding supersedes response_format on vLLM.
-            kwargs["extra_body"] = self._merge_extra_body(
-                kwargs.get("extra_body"),
-                guided_kwargs,
-            )
-        elif response_format is not None:
+        # ADR-0098 translated response_format into extra_body.guided_* for
+        # vLLM. That was correct for vLLM 0.4-era guided decoding and is now
+        # actively harmful: `guided_json` does not exist in vLLM 0.27 (grep of
+        # the installed package returns zero hits — the API is
+        # `structured_outputs`), and OpenAIBaseModel is ConfigDict(extra="allow"),
+        # so the unknown field is accepted and dropped with only a debug log.
+        #
+        # The translation was an `elif`, so when it fired `response_format` was
+        # stripped from the request. vLLM handles `response_format` natively and
+        # correctly — structured_outputs_from_response_format maps json_object
+        # and json_schema itself, including the schema unwrap our translator got
+        # wrong. So the net effect was to convert working structured output into
+        # none at all, on exactly the self-hosted deployment we target.
+        #
+        # Three JSON safety nets keyed off `response_format` being present and
+        # therefore also disabled themselves: the doubled-budget retry, the
+        # "Return ONLY valid JSON" prompt variant, and the salvage-parser
+        # accounting. Passing response_format straight through re-arms all of
+        # them. Deleting the translation is strictly better than fixing it.
+        if response_format is not None:
             kwargs["response_format"] = response_format
 
         if "extra_body" in reasoning_overrides:
@@ -1057,11 +1049,7 @@ class OpenAICompatibleBackend(LLMBackend):
                 f"Provider '{self.provider}' does not define a default embedding model. "
                 "Pass an explicit embedding model or use a dedicated embedding backend."
             )
-        response = self._client.embeddings.create(
-            model=resolved_model,
-            input=list(texts),
-        )
-        return [list(item.embedding) for item in response.data]
+        return _embed_in_batches(self._client, resolved_model, texts)
 
     def to_embedding_backend(
         self,
@@ -1209,7 +1197,7 @@ class OpenAICompatibleEmbeddingBackend(EmbeddingBackend):
         self._api_key_env = spec.api_key_env
         self._base_url = resolved_base_url
         self._timeout = timeout
-        self._client = _wrap_with_opik(openai.OpenAI(**kwargs))
+        self._client = openai.OpenAI(**kwargs)
 
     def embed(
         self,
@@ -1218,11 +1206,7 @@ class OpenAICompatibleEmbeddingBackend(EmbeddingBackend):
         model: Optional[str] = None,
     ) -> List[List[float]]:
         resolved_model = _strip_text(model) or self.model
-        response = self._client.embeddings.create(
-            model=resolved_model,
-            input=list(texts),
-        )
-        return [list(item.embedding) for item in response.data]
+        return _embed_in_batches(self._client, resolved_model, texts)
 
     def __repr__(self) -> str:
         return (
@@ -1329,7 +1313,7 @@ class MaraBackend(OpenAICompatibleBackend):
     def __init__(
         self,
         *,
-        model: str = "MiniMax-M2.5",
+        model: str = "MiniMax-M2.7",
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         timeout: float = 120.0,
@@ -1392,11 +1376,21 @@ def create_llm_backend(
     model: Optional[str] = None,
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
-    timeout: float = 120.0,
+    timeout: Optional[float] = None,
 ) -> OpenAICompatibleBackend:
-    """Create an OpenAI-compatible LLM backend by provider preset."""
+    """Create an OpenAI-compatible LLM backend by provider preset.
+
+    When ``timeout`` is None the provider preset's ``default_timeout`` applies,
+    so reasoning presets (mara, kimi, grok) get more headroom than the 120s
+    baseline. Pass an explicit timeout to override.
+    """
 
     provider_key = str(provider).strip().lower() or "openai"
+    if timeout is None:
+        try:
+            timeout = get_provider_spec(provider_key).default_timeout
+        except ValueError:
+            timeout = 120.0
     if provider_key == "openai":
         return OpenAIBackend(
             model=model or get_provider_spec("openai").default_model,

@@ -1,0 +1,71 @@
+{
+  "entities_per_scenario": 40,
+  "v1_hash": "47d67ff69c2f7ede",
+  "v2_hash": "0a53a16bc992d18d",
+  "scenarios": {
+    "breaking_bump_WORST": {
+      "real_drift": true,
+      "OFF_today": {
+        "detected_mismatch": false,
+        "blocked": false,
+        "indexed_hashes": [],
+        "scoped_nodes": 40,
+        "missing_context_nodes": 40
+      },
+      "ON_fixed": {
+        "detected_mismatch": true,
+        "blocked": true,
+        "indexed_hashes": [
+          "47d67ff69c2f7ede"
+        ],
+        "scoped_nodes": 40,
+        "missing_context_nodes": 0
+      }
+    },
+    "no_bump_BEST_null": {
+      "real_drift": false,
+      "OFF_today": {
+        "detected_mismatch": false,
+        "blocked": false,
+        "indexed_hashes": [],
+        "scoped_nodes": 40,
+        "missing_context_nodes": 40
+      },
+      "ON_fixed": {
+        "detected_mismatch": false,
+        "blocked": false,
+        "indexed_hashes": [
+          "47d67ff69c2f7ede"
+        ],
+        "scoped_nodes": 40,
+        "missing_context_nodes": 0
+      }
+    },
+    "mixed": {
+      "real_drift": true,
+      "OFF_today": {
+        "detected_mismatch": false,
+        "blocked": false,
+        "indexed_hashes": [],
+        "scoped_nodes": 40,
+        "missing_context_nodes": 40
+      },
+      "ON_fixed": {
+        "detected_mismatch": true,
+        "blocked": true,
+        "indexed_hashes": [
+          "0a53a16bc992d18d",
+          "47d67ff69c2f7ede"
+        ],
+        "scoped_nodes": 40,
+        "missing_context_nodes": 0
+      }
+    }
+  },
+  "summary": {
+    "OFF_detection_rate_on_real_drift": 0.0,
+    "ON_detection_rate_on_real_drift": 1.0,
+    "OFF_false_positive_on_fresh": 0.0,
+    "ON_false_positive_on_fresh": 0.0
+  }
+}

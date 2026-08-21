@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "seocho"
-version = "0.5.0"
+version = "0.6.0"
 description = "Ontology-aligned middleware between agents and graph databases"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
@@ -42,7 +42,6 @@ local = [
     "openai-agents",
     "pydantic>=2.0",
     "pyyaml",
-    "real_ladybug>=0.15.0",
     "tenacity>=8.2.0",
     "uvicorn",
 ]
@@ -54,7 +53,6 @@ ci = [
     "numpy",
     "openai",
     "openai-agents",
-    "opik",
     "pydantic>=2.0",
     "pytest>=7.0",
     "pytest-asyncio>=0.21.0",
@@ -88,7 +86,6 @@ dev = [
     "numpy",
     "openai",
     "openai-agents",
-    "opik",
     "pandas",
     "pyarrow",
     "pydantic>=2.0",
@@ -110,21 +107,27 @@ ontology = [
     "pyshacl",
     "rdflib>=6.0",
 ]
-embedded = [
-    "real_ladybug>=0.15.0",
-    "openai",
-]
 pdf = [
     "opendataloader-pdf",
 ]
 otel = [
-    # ADR-0144: local OpenTelemetry tracing backend (otlp). Lightweight
-    # alternative to self-hosted Opik; exports spans to an OTel Collector.
+    # ADR-0144: the OpenTelemetry tracing backend (otlp). Exports spans to an
+    # OTel Collector; the vendor-neutral default since ADR-0166 removed Opik.
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp-proto-grpc",
 ]
 postgres = [
     "psycopg[binary,pool]>=3.1",
+]
+datahub = [
+    # ADR-0216: the DataHub interchange surface. Installs the acryl-datahub SDK
+    # (REST emitter for live glossary emit) + the `datahub docker quickstart` CLI
+    # that brings up the review UI. SEOCHO's export/pull/apply stay pure-Python
+    # and need neither this extra nor Docker; only live emit and viewing the
+    # glossary do. Pinned to a tested range — the env-guarded live gate
+    # (tests/seocho/test_datahub_live_gate.py) verifies aspect shapes against the
+    # running GMS before we claim compatibility (ADR-0121/0129 caveat).
+    "acryl-datahub>=0.13,<0.16",
 ]
 memory-bench = [
     "langgraph>=1.2,<2",

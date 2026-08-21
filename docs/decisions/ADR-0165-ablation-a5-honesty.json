@@ -1,0 +1,53 @@
+{
+  "row_cap": 50,
+  "cases": [
+    {
+      "result_size": 10,
+      "over_cap": false,
+      "on_rows": 10,
+      "on_discloses": true,
+      "on_truncated_flag": false,
+      "off_rows": 10,
+      "off_discloses": false
+    },
+    {
+      "result_size": 40,
+      "over_cap": false,
+      "on_rows": 40,
+      "on_discloses": true,
+      "on_truncated_flag": false,
+      "off_rows": 40,
+      "off_discloses": false
+    },
+    {
+      "result_size": 80,
+      "over_cap": true,
+      "on_rows": 50,
+      "on_discloses": true,
+      "on_truncated_flag": true,
+      "off_rows": 80,
+      "off_discloses": false
+    },
+    {
+      "result_size": 200,
+      "over_cap": true,
+      "on_rows": 50,
+      "on_discloses": true,
+      "on_truncated_flag": true,
+      "off_rows": 200,
+      "off_discloses": false
+    },
+    {
+      "result_size": 500,
+      "over_cap": true,
+      "on_rows": 50,
+      "on_discloses": true,
+      "on_truncated_flag": true,
+      "off_rows": 500,
+      "off_discloses": false
+    }
+  ],
+  "over_cap_cases": 3,
+  "on_disclosure_rate": 1.0,
+  "off_disclosure_rate": 0.0
+}

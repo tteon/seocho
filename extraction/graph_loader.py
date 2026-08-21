@@ -4,8 +4,8 @@ import re
 from typing import Any, Dict
 from neo4j import GraphDatabase
 from neo4j.exceptions import ServiceUnavailable, SessionExpired
-from exceptions import Neo4jConnectionError, InvalidLabelError, LoadError
-from retry_utils import neo4j_retry
+from .exceptions import Neo4jConnectionError, InvalidLabelError, LoadError
+from .retry_utils import neo4j_retry
 
 logger = logging.getLogger(__name__)
 

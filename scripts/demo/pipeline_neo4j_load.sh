@@ -150,4 +150,4 @@ output_path="${output_dir}/03_neo4j_load_and_query.json"
 write_json_output "${output_path}" "${summary_payload}"
 
 log "neo4j query complete."
-log "next: run scripts/demo/pipeline_graphrag_opik.sh --workspace ${workspace_id} --db ${target_db}"
+log "next: run scripts/demo/pipeline_graphrag.sh --workspace ${workspace_id} --db ${target_db}"

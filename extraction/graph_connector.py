@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Tuple
 from neo4j import GraphDatabase
 from seocho.query.query_proxy import coerce_query_records
 
-from config import (
+from .config import (
     GraphTarget,
     NEO4J_PASSWORD,
     NEO4J_URI,

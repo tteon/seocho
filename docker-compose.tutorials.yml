@@ -29,6 +29,9 @@ services:
       # Persistent on-host artifacts directory the tutorials write to
       # (LanceDB tables, captured spans, scoreboards, RDF dumps).
       - ./.seocho:/workspace/.seocho
+    env_file:
+      - path: .env
+        required: false
     environment:
       # LLM provider for completions — defaults to openai/gpt-4o-mini.
       # Override with SEOCHO_LLM=grok/grok-2-mini, kimi/kimi-k2.5,
@@ -53,7 +56,7 @@ services:
       # run against the published dataset.
       - FINDER_PATH=${FINDER_PATH:-/workspace/examples/finder/datasets/finder_tutorial_subset.json}
       # Project identity (PROJECT_GUIDE.md §2). Becomes the workspace_id on
-      # graph entities, the project name in Opik, and the IDENTITY dict on
+      # graph entities, the trace project name, and the IDENTITY dict on
       # every span. Safe to leave unset — notebooks fall back to defaults.
       - SEOCHO_PROJECT_NAME=${SEOCHO_PROJECT_NAME:-}
       - SEOCHO_AUTHOR_NAME=${SEOCHO_AUTHOR_NAME:-}
@@ -68,14 +71,6 @@ services:
       - SEOCHO_AGENT_ID=${SEOCHO_AGENT_ID:-}
       - SEOCHO_SESSION_ID=${SEOCHO_SESSION_ID:-}
       - SEOCHO_USER_META=${SEOCHO_USER_META:-}
-      # Opik tracing — set OPIK_API_KEY to send traces to Opik cloud,
-      # otherwise the notebooks fall back to local JSONL traces.
-      # Each user uses their OWN OPIK_API_KEY; only OPIK_WORKSPACE is
-      # shared across teammates landing in the same workspace.
-      - OPIK_API_KEY=${OPIK_API_KEY:-}
-      - OPIK_WORKSPACE=${OPIK_WORKSPACE:-}
-      - OPIK_URL_OVERRIDE=${OPIK_URL_OVERRIDE:-}
-      - OPIK_PROJECT_NAME=${OPIK_PROJECT_NAME:-}
     depends_on:
       tutorials-neo4j:
         condition: service_healthy

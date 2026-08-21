@@ -47,9 +47,26 @@ layer across the FinBench SF axis under concurrent sessions.
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 import uuid
+
+# A cheap single-node point lookup — an id-equality bound + LIMIT 1, no
+# aggregation/ordering. This is exactly the read-side canonical resolver's shape
+# (ADR-0203: WHERE n.id=$addr LIMIT 1), and a fan-out issues a BURST of them. Left
+# to the "unknown means heavy" EWMA cold-start they would flood the heavy lane on
+# first sight — so route them to the light lane directly (seocho-ia4 D4).
+_POINT_LOOKUP_ID = re.compile(r"(\{[^}]*\bid\b\s*:)|(\bid\b\s*=)|(\bid\b\s+IN)", re.IGNORECASE)
+_LIMIT_ONE = re.compile(r"\bLIMIT\s+1\b", re.IGNORECASE)
+_HEAVY_SHAPE = re.compile(r"\b(count|sum|avg|collect|order\s+by)\b", re.IGNORECASE)
+
+
+def _is_cheap_point_lookup(cypher: str) -> bool:
+    c = cypher or ""
+    if not _LIMIT_ONE.search(c) or _HEAVY_SHAPE.search(c):
+        return False
+    return bool(_POINT_LOOKUP_ID.search(c))
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -199,6 +216,10 @@ class LaneScheduler:
         # to 0/85 — the probe that caught it is e2_s2_probe.py).
         self._lane_service_ms: Dict[str, float] = {}
         self._cond = threading.Condition()
+
+    @property
+    def has_light_lane(self) -> bool:
+        return "light" in self._permits
 
     # -- classification ----------------------------------------------------
 
@@ -470,7 +491,14 @@ class SeochoOS:
 
         statement_key = _hashlib.blake2b(
             " ".join(cypher.split()).encode(), digest_size=8).hexdigest()
-        lane = self._admission.classify(statement_key)
+        # A cheap point lookup goes to the light lane directly, so a fan-out's
+        # burst of canonical-id resolves (ADR-0203) does not flood the protected
+        # heavy lane on EWMA cold-start (D4); everything else uses the observed
+        # per-statement classification.
+        if self._admission.has_light_lane and _is_cheap_point_lookup(cypher):
+            lane = "light"
+        else:
+            lane = self._admission.classify(statement_key)
         self._admit(session, lane)
         started = _time.perf_counter()
         try:
@@ -532,6 +560,42 @@ class SeochoOS:
             make_ontology_guardrail(self.ontology)]
         return graph_query
 
+    def _worked_examples(self, policy: Any) -> str:
+        """Two worked, contract-conformant examples derived from THIS ontology.
+
+        ADR-0169: describing the contract (the schema block) is not enough —
+        a strong model reaches only ~66% conformance, a weak one ~16%; showing
+        the exact conformant form takes both to 100% and removes the guardrail
+        repair loop. So the governed agent ships examples, not just a schema.
+        The form is the one the guardrail actually accepts: inline-map scope
+        `{<ws>: $workspace_id}`, `LIMIT $limit`, and workspace_id + limit passed
+        in params_json (the layer overwrites workspace_id — the value shown is a
+        placeholder the pin makes safe).
+        """
+        ws = getattr(policy, "workspace_property", "_workspace_id")
+        labels = list(getattr(self.ontology, "nodes", {}).keys())
+        rels = getattr(self.ontology, "relationships", {}) or {}
+        pj = f'{{"workspace_id": "{self.workspace_id}", "limit": 1}}'
+        lines = ["\n\nWorked examples — copy this exact form (the tool rejects "
+                 "anything off-contract):"]
+        if labels:
+            lines.append(
+                f"- Count a label:\n"
+                f"  MATCH (n:{labels[0]} {{{ws}: $workspace_id}}) "
+                f"RETURN count(n) AS v LIMIT $limit\n"
+                f"  params_json: {pj}")
+        for _rt, rd in rels.items():
+            src = getattr(rd, "source", None)
+            tgt = getattr(rd, "target", None)
+            if src and tgt:
+                lines.append(
+                    f"- Traverse a relationship (distinct):\n"
+                    f"  MATCH (a:{src} {{{ws}: $workspace_id}})-[:{_rt}]->"
+                    f"(:{tgt}) RETURN count(DISTINCT a) AS v LIMIT $limit\n"
+                    f"  params_json: {pj}")
+                break
+        return "\n".join(lines)
+
     def build_agent(self, session: OSSession, *,
                     name: str = "seocho_agent",
                     model: Optional[Any] = None,
@@ -539,8 +603,9 @@ class SeochoOS:
         """An openai-agents Agent whose only graph access is this layer.
 
         Instructions carry the same schema block the deterministic planner
-        uses (one rulebook), plus the truncation-honesty rule the FinBench
-        disclosure study motivated.
+        uses (one rulebook), the truncation-honesty rule the FinBench
+        disclosure study motivated, and — since ADR-0169 — worked examples of
+        the exact conformant query form (describing the contract is not enough).
         """
         import json as _json
 
@@ -550,17 +615,21 @@ class SeochoOS:
 
         policy = policy_from_ontology(self.ontology)
         schema = schema_for_prompt(self.ontology, policy)
+        ws = getattr(policy, "workspace_property", "_workspace_id")
         instructions = (
             "You are an analyst querying a graph database with Cypher.\n\n"
             "Schema (use only these labels, relationship types and parameters):\n"
             + _json.dumps(schema, indent=2, default=str)
             + "\n\nRules:\n"
-            "- Every matched node must carry the tenant scope shown in the schema.\n"
-            "- Include a LIMIT; the tool caps rows regardless.\n"
+            f"- Scope every matched node inline: (n:Label {{{ws}: $workspace_id}}) "
+            "— a WHERE clause does not satisfy the check.\n"
+            "- End the query with `LIMIT $limit`, and pass both `workspace_id` "
+            "and `limit` in params_json.\n"
             "- If the tool reports `truncated: true`, say so instead of presenting "
             "a partial result as complete.\n"
             "- If the schema cannot express the question, say what is missing "
-            "instead of inventing labels.")
+            "instead of inventing labels."
+            + self._worked_examples(policy))
         tools = [self.make_graph_tool(session), *extra_tools]
         agent_kwargs: Dict[str, Any] = {"name": name,
                                         "instructions": instructions,

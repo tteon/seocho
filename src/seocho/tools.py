@@ -52,8 +52,7 @@ def make_extract_entities_tool(ontology: Any, llm: Any, extraction_prompt: Any =
         Returns:
             JSON string with extracted nodes and relationships.
         """
-        strategy.category = category
-        system, user = strategy.render(text)
+        system, user = strategy.render(text, category=category)
         try:
             response = complete_with_task_hints(
                 llm,
@@ -365,8 +364,15 @@ def make_execute_cypher_tool(
     *,
     ontology_context: Any = None,
     workspace_id: str = "default",
+    drift_policy: str = "warn",
 ):
-    """Create an execute_cypher tool bound to this graph store."""
+    """Create an execute_cypher tool bound to this graph store.
+
+    ``drift_policy`` ('warn'|'raise'|'block') controls how an ontology-context
+    mismatch on the queried graph is handled (seocho-ia4.1): 'warn' annotates
+    only (back-compat), 'block' marks the payload ``drift_blocked`` so the agent
+    can refuse to answer against a stale contract, 'raise' throws.
+    """
     from agents import function_tool
 
     @function_tool
@@ -387,26 +393,84 @@ def make_execute_cypher_tool(
             params = {}
 
         try:
-            records = graph_store.query(cypher, params=params, database=database)
+            records = graph_store.query(
+                cypher,
+                params=params,
+                database=database,
+                workspace_id=workspace_id,
+                enforce_workspace_filter=True,
+            )
             payload = {
                 "records": records,
                 "count": len(records),
             }
             if ontology_context is not None:
-                from .ontology_context import query_ontology_context_mismatch
+                from .ontology_context import (
+                    enforce_drift_policy,
+                    query_ontology_context_mismatch,
+                )
 
-                payload["ontology_context_mismatch"] = query_ontology_context_mismatch(
+                mismatch = query_ontology_context_mismatch(
                     graph_store,
                     ontology_context,
                     workspace_id=workspace_id,
                     database=database,
                 )
+                mismatch = enforce_drift_policy(mismatch, policy=drift_policy, logger_obj=logger)
+                payload["ontology_context_mismatch"] = mismatch
+                if mismatch.get("blocked"):
+                    payload["drift_blocked"] = True
             return json.dumps(payload, default=str)
         except Exception as exc:
             logger.error("execute_cypher failed: %s", exc)
             return json.dumps({"records": [], "count": 0, "error": str(exc)})
 
     return execute_cypher
+
+
+def make_deterministic_query_tool(
+    *,
+    ontology: Any,
+    graph_store: Any,
+    llm: Any,
+    vector_store: Any = None,
+    workspace_id: str = "default",
+    default_database: str = "neo4j",
+):
+    """One controlled tool that runs SEOCHO's deterministic query path end to end.
+
+    Wraps the deterministic path (intent slots -> planner builds Cypher -> execute
+    -> synthesize; the accuracy winner in ADR-0214) as a single SDK function-tool.
+    Giving a query agent THIS tool instead of the free-form
+    text2cypher/execute/validate set turns its job into "call once, relay" -- a
+    controlled flow that CONVERGES where the autonomous multi-tool loop did not
+    (ADR-0215 MaxTurnsExceeded; ADR-0217 spike). `workspace_id` is closed over,
+    so scope cannot leak through a hand-off.
+    """
+    from agents import function_tool
+
+    from .local_engine import _LocalEngine
+
+    engine = _LocalEngine(
+        ontology=ontology,
+        graph_store=graph_store,
+        llm=llm,
+        vector_store=vector_store,
+        workspace_id=workspace_id,
+    )
+
+    @function_tool
+    def answer_from_graph(question: str, database: str = default_database) -> str:
+        """Answer a question from the knowledge graph using SEOCHO's deterministic
+        ontology-grounded query path. Pass the user's question verbatim and call
+        this exactly once; its result is the final answer."""
+        try:
+            return str(engine.ask(question, database=database))
+        except Exception as exc:  # noqa: BLE001 - surface the error to the model, do not raise
+            logger.error("answer_from_graph failed: %s", exc)
+            return json.dumps({"error": str(exc)})
+
+    return answer_from_graph
 
 
 def make_search_similar_tool(vector_store: Any):
@@ -714,4 +778,23 @@ def create_query_tools(
     ]
     if vector_store is not None:
         tools.append(make_search_similar_tool(vector_store))
+
+    # ADR-0215/0216 Phase 0: gate execute_cypher with SEOCHO's deterministic
+    # ontology guardrail (a SDK tool_input_guardrail). It runs BEFORE the tool
+    # touches the database and rejects an off-schema / unscoped / literal-inlined
+    # query with a message the model repairs from -- turning an unguarded loop
+    # (the MaxTurnsExceeded seen in ADR-0215) into a bounded repair. Defense in
+    # depth: never let attaching it break tool creation.
+    if ontology is not None:
+        try:
+            from .integrations.openai_agents import make_ontology_guardrail
+
+            guardrail = make_ontology_guardrail(ontology)
+            for _t in tools:
+                if getattr(_t, "name", None) == "execute_cypher":
+                    _t.tool_input_guardrails = [guardrail]
+                    break
+        except Exception as exc:  # noqa: BLE001 - guardrail is additive hardening
+            logger.warning("ontology guardrail not attached to execute_cypher: %s", exc)
+
     return tools

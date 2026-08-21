@@ -337,3 +337,107 @@ def test_operating_layer_refused_outside_local_mode():
     client = Seocho(base_url="http://localhost:9")   # HTTP mode
     with pytest.raises(Exception, match="local"):
         client.session("x")
+
+
+# -- the unified OS surface: every subsystem is a method on one Session --------
+
+@pytest.fixture
+def named_ontology() -> Ontology:
+    return Ontology(
+        name="unified_test", graph_model="lpg",
+        nodes={"Company": NodeDef(
+            properties={"name": P(str), "sector": P(str)},
+            identity_keys=["name", "sector"])},
+        relationships={},
+    )
+
+
+def test_session_query_goes_through_governed_path(named_ontology):
+    """sess.query() is the scheduling+isolation+read path — workspace pinned."""
+    from seocho import Seocho
+
+    store = RecordingStore(rows=[{"n": {"name": "X"}}])
+    client = Seocho(ontology=named_ontology, graph_store=store, llm=object(),
+                    workspace_id="acme", max_inflight=4)
+    sess = client.session("analyst", priority="high")
+    rows = sess.query(
+        "MATCH (n:Company) WHERE n._workspace_id = $workspace_id RETURN n", )
+    assert rows == [{"n": {"name": "X"}}]
+    # tenancy pinned server-side regardless of caller
+    assert store.calls[-1]["params"]["workspace_id"] == "acme"
+    assert store.calls[-1]["enforced"] is True
+
+
+def test_session_resolve_uses_the_intern_table(named_ontology):
+    """resolve() reuses compute_node_identity: the read-time interning primitive."""
+    from seocho import Seocho
+    from seocho.index.identity import compute_node_identity
+
+    store = RecordingStore(rows=[{"n": {"name": "Chipotle", "id": "x"}}])
+    client = Seocho(ontology=named_ontology, graph_store=store, llm=object(),
+                    workspace_id="acme", max_inflight=4)
+    sess = client.session("analyst")
+    hit = sess.resolve("Chipotle", label="Company", sector="restaurant")
+    expected_addr = compute_node_identity(
+        "Company", {"name": "Chipotle", "sector": "restaurant"},
+        ["name", "sector"])
+    assert hit is not None and hit["method"] == "intern"
+    assert hit["address"] == expected_addr == "company|chipotle|restaurant"
+    # the governed query looked up that exact composite address, workspace-scoped
+    assert store.calls[-1]["params"]["addr"] == expected_addr
+    assert store.calls[-1]["params"]["workspace_id"] == "acme"
+
+
+def test_session_resolve_falls_back_to_normalized_name(named_ontology):
+    """No label -> normalized-name match (the recall-ceiling fallback path)."""
+    from seocho import Seocho
+
+    store = RecordingStore(rows=[{"n": {"name": "Chipotle"}}])
+    client = Seocho(ontology=named_ontology, graph_store=store, llm=object(),
+                    workspace_id="acme")
+    sess = client.session("analyst")
+    hit = sess.resolve("  CHIPOTLE  ")
+    assert hit is not None and hit["method"] == "normalized_name"
+    assert store.calls[-1]["params"]["norm"] == "chipotle"   # normalized
+
+
+def test_session_agent_and_stats_on_one_object(named_ontology):
+    """execution (agent) and observability (os_stats) are methods on the session."""
+    from seocho import Seocho
+
+    store = RecordingStore()
+    client = Seocho(ontology=named_ontology, graph_store=store, llm=object(),
+                    workspace_id="acme", max_inflight=4, token_budget=1000)
+    sess = client.session("analyst", priority="high")
+    agent = sess.agent(name="t")
+    assert agent.tools[0].name == "graph_query"
+    stats = sess.os_stats()
+    assert stats["workspace_id"] == "acme" and stats["priority"] == "high"
+    assert stats["budget"] == 1000
+
+
+def test_build_agent_ships_conformant_worked_examples(named_ontology):
+    """ADR-0169: the governed agent must SHOW the exact conformant form, not
+    just describe the schema — and the shown examples must pass the guardrail."""
+    import re
+
+    from seocho.operating_layer import SeochoOS
+    from seocho.query.hybrid_planner import policy_from_ontology
+    from seocho.query.workload_compiler import validate_text2cypher_fallback
+
+    store = RecordingStore()
+    os_layer = SeochoOS(ontology=named_ontology, graph_store=store,
+                        database="testdb", workspace_id="acme")
+    agent = os_layer.build_agent(os_layer.session("s"), name="t")
+    instr = agent.instructions
+    assert "Worked examples" in instr
+    assert "{_workspace_id: $workspace_id}" in instr      # the inline-map form
+    assert "params_json" in instr and "\"limit\": 1" in instr
+    # every worked-example Cypher must actually pass the guardrail validator
+    policy = policy_from_ontology(named_ontology)
+    examples = re.findall(r"(MATCH .+?LIMIT \$limit)", instr)
+    assert examples, "no worked-example queries found in instructions"
+    for cypher in examples:
+        violations = validate_text2cypher_fallback(
+            cypher, params={"workspace_id": "acme", "limit": 1}, policy=policy)
+        assert not violations, f"shipped example is non-conformant: {violations}"

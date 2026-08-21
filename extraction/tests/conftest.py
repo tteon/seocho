@@ -19,8 +19,6 @@ def test_env():
         "NEO4J_URI": "bolt://localhost:7687",
         "NEO4J_USER": "neo4j",
         "NEO4J_PASSWORD": "testpassword",
-        # Disable Opik in tests
-        "OPIK_URL_OVERRIDE": "",
     }
     with patch.dict(os.environ, env_overrides):
         yield

@@ -1,4 +1,4 @@
-from rule_export import export_ruleset_to_cypher, export_ruleset_to_shacl
+from ..rule_export import export_ruleset_to_cypher, export_ruleset_to_shacl
 
 
 def test_export_required_rule_to_cypher():

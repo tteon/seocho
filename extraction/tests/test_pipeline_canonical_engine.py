@@ -20,8 +20,8 @@ fake_neo4j_exceptions.SessionExpired = RuntimeError
 sys.modules.setdefault("neo4j", fake_neo4j)
 sys.modules.setdefault("neo4j.exceptions", fake_neo4j_exceptions)
 
-import schema_manager  # noqa: E402
-import pipeline as pipeline_module  # noqa: E402
+from .. import schema_manager  # noqa: E402
+from .. import pipeline as pipeline_module  # noqa: E402
 from seocho import NodeDef, Ontology, P, RelDef  # noqa: E402
 
 

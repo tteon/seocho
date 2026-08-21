@@ -45,6 +45,7 @@ _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 from .chunk import Chunk, build_chunk_id, chunk as _canonical_chunk
 from .extraction_engine import CanonicalExtractionEngine
+from .parallel import concurrent_map, resolve_workers
 from .property_shaper import PropertyShaper
 from ..store.llm import complete_with_task_hints
 
@@ -121,6 +122,8 @@ class IndexingResult:
     layered_graph_summary: Optional[Dict[str, Any]] = None
     fallback_used: bool = False
     fallback_reason: str = ""
+    # Domain-relationship survival count per write-path stage (diagnostic).
+    relationship_census: Dict[str, int] = field(default_factory=dict)
 
     # Materialised extracted graph payload — the post-write graph view that the
     # caller (e.g. ``_LocalEngine.add``) can surface to users via
@@ -133,7 +136,18 @@ class IndexingResult:
 
     @property
     def ok(self) -> bool:
-        return len(self.write_errors) == 0 and self.chunks_processed > 0
+        # A degraded (heuristic-fallback) extraction is not a clean success.
+        # Under strict enforcement a failure already lands in write_errors, so
+        # ok is False there; under the default guided/open profiles the
+        # capitalized-token heuristic manufactures Entity/MENTIONS structure,
+        # nothing is recorded as an error, and the caller was told the run
+        # succeeded. The degradation is reported in fallback_used, which only
+        # helps a caller who already suspects it.
+        return (
+            len(self.write_errors) == 0
+            and self.chunks_processed > 0
+            and not self.fallback_used
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -254,7 +268,20 @@ class IndexingPipeline:
         self.enable_dedup = enable_dedup
         self.enable_rule_constraints = enable_rule_constraints
         self.vector_store = vector_store
-        self._seen_hashes: set = set()
+        # Per-chunk LLM extraction is I/O-bound and independent across chunks, so it
+        # can overlap (seocho-ia4 parallelism, step 1). Opt-in; 1 = sequential
+        # (exact back-compat). Set via SEOCHO_EXTRACTION_CONCURRENCY or the attribute.
+        try:
+            self._extraction_concurrency = int(os.environ.get("SEOCHO_EXTRACTION_CONCURRENCY", "1") or "1")
+        except ValueError:
+            self._extraction_concurrency = 1
+        # The allocator's shared-memory intern table: one workspace-scoped canonical
+        # namespace across chunks/documents (and concurrency-safe under the concurrent
+        # extraction above). Populated at the identity step; its hit count measures
+        # interning collapse (ADR-0182 / ADR-0160).
+        from .shared_intern import SharedInternTable
+
+        self._intern_table = SharedInternTable()
         self.extraction_prompt = extraction_prompt
         self.ontology_profile = str(ontology_profile or "default")
 
@@ -399,6 +426,140 @@ class IndexingPipeline:
                 entity_ids.append(node_id)
         return entity_ids
 
+    def _coerce_generic_labels(
+        self, nodes: Sequence[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Fold an over-specified label onto a declared generic class.
+
+        A generic open-domain ontology declares one catch-all class -- `Entity`
+        with a `kind` property whose description enumerates person/place/etc --
+        precisely so the specific type lives in `kind`, not in the label. But a
+        model with no grammar enforcement (any hosted endpoint) reads that
+        enumeration and promotes it: it emits label="Place", label="Person",
+        which the query side, matching (:Entity), cannot find. Measured over ten
+        benchmark documents, this was the dominant failure -- 8 of 10 questions
+        returned no result against graphs full of correctly-extracted facts
+        under the wrong labels.
+
+        So when a node's label is not declared but the ontology has a class
+        literally named `Entity`, the node is relabelled to `Entity` and the
+        emitted label is preserved as `kind` (never overwriting a kind the model
+        already set). The specificity is not lost, it moves to where the
+        ontology said it belongs.
+
+        A no-op for a rich ontology: with no `Entity` class declared, an
+        off-ontology label still falls through to the existing validation, which
+        warns or rejects it per enforcement mode. Coercion needs a catch-all to
+        coerce onto, and only the generic ontology has one.
+        """
+        ontology_nodes = getattr(self.ontology, "nodes", None) or {}
+        declared = set(ontology_nodes)
+        if "Entity" not in declared:
+            return list(nodes)
+
+        coerced: List[Dict[str, Any]] = []
+        for node in nodes:
+            label = str(node.get("label", "")).strip()
+            if (label and label != "Entity" and label not in declared
+                    and not self._system_layer_label(label)):
+                node = dict(node)
+                props = dict(node.get("properties") or {})
+                props.setdefault("kind", label)
+                node["properties"] = props
+                node["label"] = "Entity"
+            coerced.append(node)
+        return coerced
+
+    def _extract_by_splitting(
+        self, text: str, *, category: str, metadata: Optional[Dict[str, Any]],
+        depth: int = 0,
+    ) -> Optional[Dict[str, Any]]:
+        """Recover a failed extraction by halving the chunk, or return None.
+
+        A hosted reasoning model that emits prose-not-JSON on a large chunk
+        usually emits clean JSON on a smaller one. Rather than fall straight to
+        the capitalized-token heuristic -- which loses every real relationship --
+        split at a paragraph or sentence boundary near the middle and extract
+        each half, merging the results.
+
+        Bounded: at most 2 splits deep, and text below _SPLIT_FLOOR chars is not
+        split (below that a failure is not size-related, so retrying smaller only
+        burns tokens). Returns None when splitting cannot help, so the caller
+        falls through to its existing heuristic/strict handling unchanged.
+        """
+        _SPLIT_FLOOR = 800
+        if depth >= 2 or len(text) <= _SPLIT_FLOOR:
+            return None
+
+        mid = len(text) // 2
+        # Prefer a paragraph break, then a sentence break, near the midpoint, so
+        # a relationship is not cut across the split.
+        for sep in ("\n\n", ". ", "\n", " "):
+            cut = text.rfind(sep, _SPLIT_FLOOR // 2, mid + mid // 2)
+            if cut > 0:
+                mid = cut + len(sep)
+                break
+        halves = [text[:mid].strip(), text[mid:].strip()]
+
+        merged: Dict[str, List[Any]] = {"nodes": [], "relationships": []}
+        recovered_any = False
+        for half in halves:
+            if not half:
+                continue
+            try:
+                part = self._graph_extraction.extract(
+                    half, category=category, metadata=metadata)
+            except Exception:  # noqa: BLE001 - this half may still be too big
+                part = self._extract_by_splitting(
+                    half, category=category, metadata=metadata, depth=depth + 1)
+                if part is None:
+                    continue
+            recovered_any = True
+            merged["nodes"].extend(part.get("nodes", []) or [])
+            merged["relationships"].extend(part.get("relationships", []) or [])
+        return merged if recovered_any else None
+
+    def _coerce_generic_relationship_types(
+        self, rels: Sequence[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Fold an over-specified relationship type onto a declared generic one.
+
+        The exact symmetry of the label problem, and the larger half of it.
+        Measured on a benchmark document: the extractor produced 62
+        relationships and NONE reached the graph -- only provenance MENTIONS
+        edges existed. A generic ontology declares one relationship,
+        `RELATED_TO`, whose description says to put the verb in a property; the
+        model instead emits the verb AS the type (IS_ALSO_KNOWN_AS, GROWS_IN),
+        which the canonical-vocabulary check rejects, so every real edge is
+        dropped. The `erica vagans -[is also known as]-> Cornish heath` edge the
+        question needed was among the 62 that vanished.
+
+        When the ontology declares exactly one relationship type, an off-ontology
+        type is folded onto it and the emitted type is preserved as `verb` (never
+        overwriting one the model set). The relation is kept and its specificity
+        moves to where the ontology said it belongs.
+
+        A no-op unless there is exactly one declared relationship to coerce onto:
+        a multi-relationship ontology keeps its existing validation, which maps
+        or rejects an unknown type per enforcement mode.
+        """
+        declared = list(getattr(self.ontology, "relationships", None) or {})
+        if len(declared) != 1:
+            return list(rels)
+        target = declared[0]
+
+        coerced: List[Dict[str, Any]] = []
+        for rel in rels:
+            rel_type = str(rel.get("type", "")).strip()
+            if rel_type and rel_type != target:
+                rel = dict(rel)
+                props = dict(rel.get("properties") or {})
+                props.setdefault("verb", rel_type)
+                rel["properties"] = props
+                rel["type"] = target
+            coerced.append(rel)
+        return coerced
+
     def _coerce_chunk_records(
         self,
         *,
@@ -525,6 +686,57 @@ class IndexingPipeline:
         except Exception as exc:
             logger.warning("Semantic artifact draft skipped: %s", exc)
 
+    #: Relationship types the pipeline writes for provenance, not extraction.
+    #: The census counts everything else -- the ontology's own edges, the ones
+    #: a question actually traverses.
+    _PROVENANCE_REL_TYPES = frozenset({
+        "MENTIONS", "HAS_CHUNK", "HAS_SECTION", "HAS_VERSION",
+        "CURRENT_VERSION", "HAS_OBSERVATION",
+    })
+
+    def _relcensus(self, result: IndexingResult, stage: str,
+                   rels: Sequence[Dict[str, Any]], *,
+                   already_domain: bool = False) -> None:
+        """Record how many domain (non-provenance) relationships survive a stage.
+
+        Stored on result.relationship_census and emitted as a metric, so one
+        live run shows exactly where between extraction and the store a real
+        edge is lost -- rather than inferring it from a 47->0 end state.
+        """
+        if already_domain:
+            count = len(rels)
+        else:
+            count = sum(
+                1 for r in rels
+                if str((r or {}).get("type") or "").strip()
+                not in self._PROVENANCE_REL_TYPES
+            )
+        census = getattr(result, "relationship_census", None)
+        if census is None:
+            census = {}
+            try:
+                result.relationship_census = census
+            except Exception:  # noqa: BLE001 - result is a dataclass; attr may be slotted
+                pass
+        census[stage] = count
+        try:
+            get_metrics().add(
+                "seocho.index.relationship_survival.count", count,
+                {"ontology": getattr(self.ontology, "name", "?"), "stage": stage})
+        except Exception:  # noqa: BLE001 - telemetry never fails indexing
+            pass
+
+    @staticmethod
+    def _resolvable_rels(nodes: Sequence[Dict[str, Any]],
+                         rels: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Rels whose BOTH endpoints match a node id present in the payload."""
+        ids = {str((n or {}).get("id")) for n in nodes}
+        out = []
+        for r in rels:
+            if str((r or {}).get("source")) in ids and str((r or {}).get("target")) in ids:
+                out.append(r)
+        return out
+
     def _shape_and_write_graph(
         self,
         *,
@@ -548,6 +760,14 @@ class IndexingPipeline:
         source_type = "text"
         if isinstance(metadata, dict):
             source_type = str(metadata.get("source_type") or "text")
+
+        # Relationship-survival census across the write path. The measured
+        # symptom was 47 relationships extracted and 0 domain edges persisted,
+        # non-deterministically -- so where in this pipeline a real edge is lost
+        # was unknown. Each stage records how many NON-provenance relationships
+        # (the ontology's own types, not MENTIONS/HAS_CHUNK/etc.) survive it, and
+        # every stage's count is emitted so a single live run pins the drop.
+        self._relcensus(result, "extracted", all_rels)
 
         if all_nodes or all_rels:
             try:
@@ -575,6 +795,7 @@ class IndexingPipeline:
                 result.layered_graph_summary = shaped.get("layered_graph_summary")
             except Exception as exc:
                 logger.warning("Memory graph shaping skipped: %s", exc)
+        self._relcensus(result, "after_memory_shaping", all_rels)
 
         if not (all_nodes or all_rels):
             return all_nodes, all_rels
@@ -584,6 +805,7 @@ class IndexingPipeline:
             all_rels,
             ontology_context,
         )
+        self._relcensus(result, "after_ontology_context", all_rels)
 
         # seocho-uxs: rewrite ids to composite identities for node types that
         # declare identity_keys, so dimension-bearing entities (same name,
@@ -591,7 +813,15 @@ class IndexingPipeline:
         # store's single-key MERGE. No-op for ontologies without identity_keys.
         from seocho.index.identity import apply_identity_keys
 
-        all_nodes, all_rels = apply_identity_keys(self.ontology, all_nodes, all_rels)
+        all_nodes, all_rels = apply_identity_keys(
+            self.ontology, all_nodes, all_rels,
+            intern_table=self._intern_table, workspace_id=self.workspace_id,
+        )
+        self._relcensus(result, "after_identity_keys", all_rels)
+        # Endpoint resolvability against the node id set at write time: a rel
+        # whose source/target is not a written node id cannot become an edge.
+        self._relcensus(result, "endpoints_resolvable",
+                        self._resolvable_rels(all_nodes, all_rels))
 
         if _graph_cot_properties_enabled():
             shaper = PropertyShaper()
@@ -650,6 +880,25 @@ class IndexingPipeline:
         )
         result.total_nodes = summary.get("nodes_created", 0)
         result.total_relationships = summary.get("relationships_created", 0)
+        # Terminal census stage: count DOMAIN edges actually in the store for
+        # this write, so it is comparable to the domain-only earlier stages.
+        # The write summary's relationships_created is provenance-inclusive
+        # (MENTIONS/HAS_CHUNK/...), which made written_to_store apples-to-oranges
+        # vs endpoints_resolvable (audit 2026-08-17). A single scoped count query.
+        domain_persisted = int(summary.get("relationships_created", 0) or 0)
+        try:
+            _rows = self.graph_store.query(
+                "MATCH (a)-[r]->(b) WHERE a._workspace_id=$ws AND r._source_id=$sid "
+                "AND NOT type(r) IN $prov RETURN count(r) AS c",
+                params={"ws": self.workspace_id, "sid": source_id,
+                        "prov": list(self._PROVENANCE_REL_TYPES)},
+                database=database)
+            if _rows:
+                domain_persisted = int((_rows[0].get("c") if _rows[0] else 0) or 0)
+        except Exception:  # noqa: BLE001 - census must never fail the write
+            pass
+        self._relcensus(result, "written_to_store",
+                        [{"type": "?"}] * domain_persisted, already_domain=True)
         result.write_errors = summary.get("errors", [])
         result.merge_conflicts = summary.get("merge_conflicts", [])
 
@@ -699,6 +948,7 @@ class IndexingPipeline:
         metadata: Optional[Dict[str, Any]] = None,
         on_chunk: Optional[Callable[[int, int], None]] = None,
         source_id: Optional[str] = None,
+        _seen_hashes: Optional[set] = None,
     ) -> IndexingResult:
         """Index a single document (with automatic chunking).
 
@@ -729,15 +979,19 @@ class IndexingPipeline:
         )
         result.ontology_context = ontology_context.metadata(usage="indexing")
 
-        # Dedup check
-        if self.enable_dedup:
+        # Dedup check — scoped to a single batch ingest via _seen_hashes.
+        # Standalone index() calls pass None and are never deduplicated against
+        # earlier, independent calls: a process-lifetime instance set silently
+        # dropped legitimately re-submitted documents, and the caller saw a
+        # successful result with nothing written.
+        if self.enable_dedup and _seen_hashes is not None:
             h = content_hash(content)
-            if h in self._seen_hashes:
+            if h in _seen_hashes:
                 result.deduplicated = True
                 result.skipped_chunks = 1
-                logger.info("Skipping duplicate content (hash=%s)", h)
+                logger.info("Skipping duplicate content within batch (hash=%s)", h)
                 return result
-            self._seen_hashes.add(h)
+            _seen_hashes.add(h)
 
         # Chunk
         import time as _time
@@ -756,21 +1010,61 @@ class IndexingPipeline:
         chunk_records: List[Dict[str, Any]] = []
         _total_usage: Dict[str, int] = {}
 
+        # Concurrent extraction pre-fetch (seocho-ia4 step 1): the LLM extract call
+        # per chunk is I/O-bound and independent, so overlap the round-trips while
+        # keeping the deterministic post-processing loop below in chunk order. A
+        # per-chunk failure is captured in place (Exception) and re-raised into the
+        # existing per-chunk fallback handler, so behavior is identical to sequential.
+        _workers = resolve_workers(getattr(self, "_extraction_concurrency", 1), len(chunks))
+        _prefetched = None
+        if _workers > 1:
+            _prefetched = concurrent_map(
+                chunks,
+                lambda c: self._graph_extraction.extract(
+                    c.text, category=category, metadata=metadata),
+                max_workers=_workers,
+            )
+
         for i, chunk_obj in enumerate(chunks):
             chunk = chunk_obj.text
             if on_chunk:
                 on_chunk(i, len(chunks))
 
-            # Extract
+            # Extract (use the concurrent pre-fetch when enabled)
             try:
-                response = self._graph_extraction.extract(
-                    chunk,
-                    category=category,
-                    metadata=metadata,
-                )
+                if _prefetched is not None:
+                    response = _prefetched[i]
+                    if isinstance(response, Exception):
+                        raise response
+                else:
+                    response = self._graph_extraction.extract(
+                        chunk,
+                        category=category,
+                        metadata=metadata,
+                    )
                 extracted = response
             except Exception as exc:
-                if not self.enforcement_policy.allow_heuristic_fallback:
+                # A hosted reasoning model spends its budget thinking and, on a
+                # large chunk, emits reasoning prose with no JSON at all --
+                # measured live on MARA MiniMax-M2.7, "no JSON object found
+                # (head: 'Let me analyze this text carefully...')". The same
+                # model emits clean JSON on a smaller input. So before falling to
+                # the capitalized-token heuristic (which manufactures
+                # Entity/MENTIONS structure and loses every real relationship),
+                # try halving the chunk and extracting each part. This recovers
+                # real structure the heuristic cannot, and then falls through the
+                # normal downstream path exactly as a clean extraction would.
+                split = self._extract_by_splitting(
+                    chunk, category=category, metadata=metadata)
+                if split is not None:
+                    extracted = split
+                    try:
+                        get_metrics().add(
+                            "seocho.index.extraction.split_retry.count", 1,
+                            {"ontology": self.ontology.name})
+                    except Exception:  # noqa: BLE001 - telemetry never fails indexing
+                        pass
+                elif not self.enforcement_policy.allow_heuristic_fallback:
                     # seocho-snt strict: an LLM transport failure becomes a
                     # recorded error, not fabricated out-of-vocabulary graph
                     # structure.
@@ -781,17 +1075,18 @@ class IndexingPipeline:
                     )
                     result.skipped_chunks += 1
                     continue
-                logger.warning(
-                    "LLM extraction failed for chunk %d, using heuristic fallback: %s",
-                    i, exc,
-                )
-                # Heuristic fallback — capture capitalized tokens as Entity
-                # nodes so the chunk produces *some* graph structure even
-                # without LLM access.  Marks the result as fallback_used for
-                # parity with server-side fallback_records tracking.
-                extracted = self._fallback_extract(chunk, source_id=source_id)
-                result.fallback_used = True
-                result.fallback_reason = f"{type(exc).__name__}: {str(exc)[:200]}"
+                else:
+                    logger.warning(
+                        "LLM extraction failed for chunk %d, using heuristic fallback: %s",
+                        i, exc,
+                    )
+                    # Heuristic fallback — capture capitalized tokens as Entity
+                    # nodes so the chunk produces *some* graph structure even
+                    # without LLM access.  Marks the result as fallback_used for
+                    # parity with server-side fallback_records tracking.
+                    extracted = self._fallback_extract(chunk, source_id=source_id)
+                    result.fallback_used = True
+                    result.fallback_reason = f"{type(exc).__name__}: {str(exc)[:200]}"
 
             nodes = extracted.get("nodes", [])
             rels = extracted.get("relationships", [])
@@ -818,6 +1113,12 @@ class IndexingPipeline:
                 if not nodes and not rels:
                     result.skipped_chunks += 1
                     continue
+
+            # Coerce over-specified labels and relationship types onto declared
+            # generic ones, so the model's natural over-specification lands as
+            # graph structure instead of being dropped.
+            nodes = self._coerce_generic_labels(nodes)
+            rels = self._coerce_generic_relationship_types(rels)
 
             # --- Callback: on_after_extract ---
             if self.on_after_extract:
@@ -849,7 +1150,7 @@ class IndexingPipeline:
                         f"Available relationships: {', '.join(self.ontology.relationships.keys())}."
                     )
                     try:
-                        retry_system, retry_user = self._extraction.render(chunk, metadata=metadata)
+                        retry_system, retry_user = self._extraction.render(chunk, metadata=metadata, category=category)
                         retry_system += f"\n\n{guidance}"
                         retry_response = complete_with_task_hints(
                             self.llm,
@@ -1081,7 +1382,73 @@ class IndexingPipeline:
                     validation_errors=len(result.validation_errors),
                     elapsed_seconds=_pipeline_elapsed,
                     metadata=_meta,
+                    # Without these the span shows that an extraction happened
+                    # and nothing about which tenant it belonged to or which
+                    # stage produced it, so a shared deployment cannot filter
+                    # its own traces. The capability was added and never
+                    # passed; the arguments are the whole point of it.
+                    workspace_id=self.workspace_id,
+                    provider=getattr(self.llm, "provider", None),
+                    stage="indexing",
                 )
+                # Indexing-stage quality. These emitters existed and had no
+                # production caller: six declared instruments that never fired,
+                # so the indexing stage of a four-stage breakdown emitted
+                # nothing at all. The observability contract test could not see
+                # it, because it defines "emitted" as the metric name appearing
+                # as a string somewhere under src/.
+                try:
+                    from .quality_metrics import record_extraction, record_off_vocabulary
+
+                    # Only the EXTRACTED graph is checked against the ontology.
+                    # result.nodes also carries the provenance layer this
+                    # pipeline writes itself -- Document, DocumentVersion,
+                    # Section, Chunk -- which the ontology does not and should
+                    # not declare. Counting those as violations reported a
+                    # constant 4 on every document forever, which would have
+                    # made the signal useless in exactly the way that is hard to
+                    # notice: a metric that is always wrong by the same amount
+                    # still moves correctly, so nobody questions the baseline.
+                    _extracted = [
+                        n for n in result.nodes
+                        if not self._system_layer_label(n.get("label"))
+                    ]
+                    _allowed = set(self.ontology.nodes) if self.ontology else None
+                    record_extraction(
+                        ontology=self.ontology.name,
+                        source_type=str((metadata or {}).get("source_type") or "unknown"),
+                        nodes=_extracted,
+                        relationships=result.relationships,
+                        allowed_labels=_allowed,
+                    )
+                    # Vocabularies come from BOTH declaration sites. `P(enum=)`
+                    # is the SDK-native one; the OS-contract sidecar writes
+                    # `annotations["vocabularies"]`. Reading only the sidecar
+                    # meant an ontology declaring `P(str, enum=[...])` had its
+                    # vocabulary enforced by SHACL and never counted here -- so
+                    # the metric reported zero deviations for a property that
+                    # was deviating. Verified e2e: a declared
+                    # [proposed|applied|superseded|reverted] came back as
+                    # "active" on every node, silently.
+                    _vocab = dict(
+                        (getattr(self.ontology, "annotations", None) or {}).get(
+                            "vocabularies"
+                        ) or {}
+                    )
+                    for _label, _nd in (self.ontology.nodes or {}).items():
+                        for _pname, _prop in (_nd.properties or {}).items():
+                            if getattr(_prop, "enum", None):
+                                _vocab.setdefault(f"{_label}.{_pname}",
+                                                  list(_prop.enum))
+                    if _vocab:
+                        record_off_vocabulary(
+                            ontology=self.ontology.name,
+                            nodes=_extracted,
+                            vocabularies=_vocab,
+                        )
+                except Exception:  # noqa: BLE001 - telemetry never fails indexing
+                    logger.debug("indexing quality metrics skipped", exc_info=True)
+
                 get_metrics().add(
                     "seocho.index.validation_errors.count",
                     len(result.validation_errors),
@@ -1270,6 +1637,9 @@ class IndexingPipeline:
         BatchIndexingResult with per-document results.
         """
         batch = BatchIndexingResult(total_documents=len(documents))
+        # Dedup is scoped to THIS batch only — a later batch, or a standalone
+        # index() call, re-submitting the same text indexes it again.
+        seen_hashes: set = set()
 
         for i, doc in enumerate(documents):
             if on_document:
@@ -1278,6 +1648,7 @@ class IndexingPipeline:
             result = self.index(
                 doc, database=database,
                 category=category, metadata=metadata,
+                _seen_hashes=seen_hashes,
             )
 
             batch.results.append(result)
@@ -1398,11 +1769,8 @@ class IndexingPipeline:
             source_id,
         )
 
-        # 2. Remove from dedup cache (allow re-indexing same content)
-        h = content_hash(content)
-        self._seen_hashes.discard(h)
-
-        # 3. Index fresh
+        # 2. Index fresh. Dedup is per-batch now, so a standalone index() call
+        #    is never blocked by an earlier ingest — no dedup cache to clear.
         result = self.index(
             content,
             database=database,
@@ -1429,6 +1797,19 @@ class IndexingPipeline:
 
         Returns
         -------
-        Summary with ``nodes_deleted``, ``relationships_deleted``.
+        Summary with ``nodes_deleted``, ``relationships_deleted`` (and
+        ``vectors_deleted`` when a vector store is attached).
         """
-        return self.graph_store.delete_by_source(source_id, database=database)
+        summary = self.graph_store.delete_by_source(source_id, database=database)
+        # Also drop the source's vectors so the vector store stays consistent
+        # with the graph; otherwise stale vectors keep surfacing as top-k hits
+        # pointing at deleted nodes (issue #123). reindex() goes through here.
+        if self.vector_store is not None:
+            try:
+                removed = self.vector_store.delete_by_source(source_id)
+                summary = {**summary, "vectors_deleted": int(removed or 0)}
+            except Exception as exc:
+                logger.warning(
+                    "Vector delete for source_id=%s failed: %s", source_id, exc
+                )
+        return summary

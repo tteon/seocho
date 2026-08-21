@@ -30,8 +30,30 @@ Internally, it is split into planes so graph behavior stays reviewable.
 | Ontology plane | schema contract, context hash, JSON-LD, offline governance | `src/seocho/ontology*.py` |
 | Indexing plane | document ingest, extraction, linking, rule assessment, graph writes | `src/seocho/index/`, `src/seocho/rules.py` |
 | Query plane | intent, retrieval, Cypher validation, evidence, answer synthesis | `src/seocho/query/` |
+| Operating layer | the agent-facing OS surface: one `Session` binds memory (interning resolve), scheduling (admission), isolation (tenancy pin + binding verification), execution (governed agent), resources (budget) | `src/seocho/operating_layer.py`, `src/seocho/session.py` |
 | Runtime shell | HTTP routes, policy, readiness, workspace/database scope | `runtime/` |
 | Compatibility shell | legacy imports and batch compatibility while migration continues | `extraction/` |
+
+The operating layer itself splits into two planes (ADR-0163), and the split is
+the seam where protocol optimization belongs:
+
+- **Control plane** (policy, low QPS): admission/scheduling, tenancy pinning,
+  read-safety, budget metering, cost classification, observability.
+- **Data plane** (I/O, high QPS): the Bolt round-trip + PackStream decode to
+  DozerDB, the LLM token stream. This is where a Rust driver (neo4j-bolt-rs)
+  pays — gated on a `server_share` measurement, never on speculation.
+
+The optional Oxigraph sidecar under `dataplane/oxigraph_read_model/` is a
+different, low-QPS data-plane component: it serves a versioned RDF ontology
+read model over a local Unix-domain socket. It never becomes the canonical
+graph write authority; DozerDB remains the property-graph and Cypher backend.
+See the repository's [Ontology RDF Read Model guide](https://github.com/tteon/seocho/blob/main/docs/ONTOLOGY_RDF_READ_MODEL.md).
+
+The seam is one call: `execute_query` (control) invokes `graph_store.query`
+(data). In OS terms the governed call is a syscall — the single guarded boundary
+every agent graph access must pass, where tenancy, read-safety, admission, and
+budget are enforced. Because access cannot route around it, agent safety is
+structural, like process isolation.
 
 The invariant is simple:
 

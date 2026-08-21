@@ -1,0 +1,324 @@
+{
+  "renames": {
+    "TREATED_BY": "HAS_THERAPY",
+    "HAS_SYMPTOM": "SHOWS_SIGN"
+  },
+  "k": 6,
+  "gen": "mara/gpt-oss-120b",
+  "judge": "mara/DeepSeek-V3.1",
+  "database": "medicallpg",
+  "arms": {
+    "governed": {
+      "pre": {
+        "n": 6,
+        "coverage": 0.075,
+        "answered": 4,
+        "rejected": 0,
+        "errors": 0
+      },
+      "post": {
+        "n": 6,
+        "coverage": 0.075,
+        "answered": 4,
+        "rejected": 0,
+        "errors": 0
+      },
+      "detail": [
+        {
+          "qid": "Medical-015910ee",
+          "phase": "pre",
+          "coverage": 0.0,
+          "answered": true,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "pinned",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id})-[:LOCATED_IN]->(a:Anatomy {_workspace_id: $workspace_id})\nWHERE d.name = $disease_name AND ",
+          "answer": "The query results indicate that mouth cancer is a disease located in the mouth and that its typical treatments include surgery, specific therapies, and cancer d"
+        },
+        {
+          "qid": "Medical-01f6cee9",
+          "phase": "pre",
+          "coverage": 0.2,
+          "answered": true,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "pinned",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:TREATED_BY]->(t:Treatment {_workspace_id: $workspace_id, name: $trea",
+          "answer": "Trimodal therapy is listed as a treatment for bladder cancer."
+        },
+        {
+          "qid": "Medical-03388322",
+          "phase": "pre",
+          "coverage": 0.0,
+          "answered": true,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "pinned",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:DIAGNOSED_BY]->(t:Test {_workspace_id: $workspace_id}) RETURN t.name",
+          "answer": "The query results list **\u201ctumor mutational burden testing\u201d** among the tests and biomarkers associated with breast\u2011cancer evaluation. Tumor mutational burden (T"
+        },
+        {
+          "qid": "Medical-03cb5164",
+          "phase": "pre",
+          "coverage": 0.25,
+          "answered": true,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "pinned",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:HAS_SYMPTOM]->(s:Symptom {_workspace_id: $workspace_id})\nRETURN s.na",
+          "answer": "Additional symptoms that have been associated with bladder cancer include:\n\n- Nausea  \n- Vomiting  \n- Back pain / pain in side or back  \n- Fever  \n- Loss of app"
+        },
+        {
+          "qid": "Medical-07e567d4",
+          "phase": "pre",
+          "coverage": 0.0,
+          "answered": false,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "pinned",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:DIAGNOSED_BY]->(t:Test {_workspace_id: $workspace_id}) RETURN t.name",
+          "answer": "The query returned no results, so there is no information available about a biomarker that is tested both before and after NPC treatment."
+        },
+        {
+          "qid": "Medical-0b2a33fc",
+          "phase": "pre",
+          "coverage": 0.0,
+          "answered": false,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "pinned",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:CAUSED_BY]->(r:RiskFactor {_workspace_id: $workspace_id, name: $risk",
+          "answer": "The provided query returned no information, so I cannot confirm whether a history of radiation therapy increases the risk of basal cell carcinoma."
+        },
+        {
+          "qid": "Medical-015910ee",
+          "phase": "post",
+          "coverage": 0.0,
+          "answered": true,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "pinned",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id})-[:LOCATED_IN]->(a:Anatomy {_workspace_id: $workspace_id})\nWHERE d.name = $disease_name AND ",
+          "answer": "The query results indicate that mouth cancer (a disease located in the mouth) can be treated with\u202fsurgery,\u202fspecific therapies,\u202fand\u202fcancer drug therapy.\u202fNo infor"
+        },
+        {
+          "qid": "Medical-01f6cee9",
+          "phase": "post",
+          "coverage": 0.2,
+          "answered": true,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "pinned",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:TREATED_BY]->(t:Treatment {_workspace_id: $workspace_id, name: $trea",
+          "answer": "Trimodal therapy is listed as a treatment for bladder cancer."
+        },
+        {
+          "qid": "Medical-03388322",
+          "phase": "post",
+          "coverage": 0.0,
+          "answered": true,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "pinned",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:DIAGNOSED_BY]->(t:Test {_workspace_id: $workspace_id}) RETURN t.name",
+          "answer": "The query results list **\u201ctumor mutational burden testing.\u201d**\u202fTumor mutational burden (TMB) is a biomarker that can be assessed in breast cancer and is used to "
+        },
+        {
+          "qid": "Medical-03cb5164",
+          "phase": "post",
+          "coverage": 0.25,
+          "answered": true,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "pinned",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:HAS_SYMPTOM]->(s:Symptom {_workspace_id: $workspace_id})\nRETURN s.na",
+          "answer": "Additional symptoms that have been reported for bladder cancer include:\n\n- Nausea  \n- Vomiting  \n- Back pain  \n- Fever  \n- Loss of appetite  \n- Fatigue  \n- Blee"
+        },
+        {
+          "qid": "Medical-07e567d4",
+          "phase": "post",
+          "coverage": 0.0,
+          "answered": false,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "pinned",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:DIAGNOSED_BY]->(t:Test {_workspace_id: $workspace_id}) RETURN t.name",
+          "answer": "The query returned no results, so there is no information available about a biomarker that is tested both before and after NPC treatment."
+        },
+        {
+          "qid": "Medical-0b2a33fc",
+          "phase": "post",
+          "coverage": 0.0,
+          "answered": false,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "pinned",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:CAUSED_BY]->(r:RiskFactor {_workspace_id: $workspace_id, name: $risk",
+          "answer": "The provided query returned no information, so there is no data available to answer whether a history of radiation therapy increases the risk of basal cell carc"
+        }
+      ]
+    },
+    "governed-no-pin": {
+      "pre": {
+        "n": 6,
+        "coverage": 0.075,
+        "answered": 2,
+        "rejected": 1,
+        "errors": 0
+      },
+      "post": {
+        "n": 6,
+        "coverage": 0.0,
+        "answered": 1,
+        "rejected": 4,
+        "errors": 0
+      },
+      "detail": [
+        {
+          "qid": "Medical-015910ee",
+          "phase": "pre",
+          "coverage": 0.0,
+          "answered": false,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "introspected",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:LOCATED_IN]->(a:Anatomy {_workspace_id: $workspace_id, name: $anatom",
+          "answer": "The query returned no results, so there is no information available to answer the question."
+        },
+        {
+          "qid": "Medical-01f6cee9",
+          "phase": "pre",
+          "coverage": 0.2,
+          "answered": true,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "introspected",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:TREATED_BY]->(t:Treatment {_workspace_id: $workspace_id, name: $trea",
+          "answer": "Trimodal therapy is listed as a treatment for bladder cancer."
+        },
+        {
+          "qid": "Medical-03388322",
+          "phase": "pre",
+          "coverage": 0.0,
+          "answered": false,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "introspected",
+          "cypher": "MATCH (d:Disease {_workspace_id:$workspace_id, name:$disease_name})-[:TREATED_BY]->(t:Treatment {_workspace_id:$workspace_id, name:$treatmen",
+          "answer": "The query returned no information, so no biomarker can be identified from the provided data."
+        },
+        {
+          "qid": "Medical-03cb5164",
+          "phase": "pre",
+          "coverage": 0.25,
+          "answered": true,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "introspected",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:HAS_SYMPTOM]->(s:Symptom {_workspace_id: $workspace_id}) RETURN s.na",
+          "answer": "Additional symptoms that have been associated with bladder cancer include:\n\n- Nausea  \n- Vomiting  \n- Back pain  \n- Fever  \n- Loss of appetite  \n- Fatigue  \n- B"
+        },
+        {
+          "qid": "Medical-07e567d4",
+          "phase": "pre",
+          "coverage": 0.0,
+          "answered": false,
+          "guardrail_rejected": true,
+          "violations": [
+            "unknown_relationships:MENTIONS",
+            "inlined_literal:>= 2"
+          ],
+          "schema_source": "introspected",
+          "cypher": "MATCH (b:Test {_workspace_id: $workspace_id})-[:MENTIONS]->(tr:Treatment {_workspace_id: $workspace_id, name: $treatment_name})\nWITH b, coun",
+          "answer": "The query returned no results, so there is no information available about a biomarker that is tested both before and after NPC treatment."
+        },
+        {
+          "qid": "Medical-0b2a33fc",
+          "phase": "pre",
+          "coverage": 0.0,
+          "answered": false,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "introspected",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})<-[:CAUSED_BY]-(r:RiskFactor {_workspace_id: $workspace_id, name: $risk",
+          "answer": "The query returned no information, so there is no data available to answer whether a history of radiation therapy increases the risk of basal cell carcinoma (BC"
+        },
+        {
+          "qid": "Medical-015910ee",
+          "phase": "post",
+          "coverage": 0.0,
+          "answered": false,
+          "guardrail_rejected": true,
+          "violations": [
+            "unknown_relationships:HAS_SYMPTOM,TREATED_BY"
+          ],
+          "schema_source": "introspected",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:LOCATED_IN]->(a:Anatomy {_workspace_id: $workspace_id, name: $anatom",
+          "answer": "The query returned no results, so there is no information available to answer the question."
+        },
+        {
+          "qid": "Medical-01f6cee9",
+          "phase": "post",
+          "coverage": 0.0,
+          "answered": false,
+          "guardrail_rejected": true,
+          "violations": [
+            "unknown_relationships:TREATED_BY"
+          ],
+          "schema_source": "introspected",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:TREATED_BY]->(t:Treatment {_workspace_id: $workspace_id, name: $trea",
+          "answer": "I\u2019m sorry, but I don\u2019t have any information on trimodal therapy in bladder cancer in the provided data."
+        },
+        {
+          "qid": "Medical-03388322",
+          "phase": "post",
+          "coverage": 0.0,
+          "answered": true,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "introspected",
+          "cypher": "MATCH (d:Disease {_workspace_id:$workspace_id, name:$disease_name})-[:CAUSED_BY]->(b:RiskFactor {_workspace_id:$workspace_id}) RETURN b.name",
+          "answer": "The query results list several breast\u2011cancer\u2013related biomarkers (e.g., family history, BRCA1/BRCA2 mutations, other hereditary mutations, germline DNA mutations"
+        },
+        {
+          "qid": "Medical-03cb5164",
+          "phase": "post",
+          "coverage": 0.0,
+          "answered": false,
+          "guardrail_rejected": true,
+          "violations": [
+            "unknown_relationships:HAS_SYMPTOM"
+          ],
+          "schema_source": "introspected",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})-[:HAS_SYMPTOM]->(s:Symptom {_workspace_id: $workspace_id}) RETURN s.na",
+          "answer": "The query returned no results, so no additional symptoms of bladder cancer can be provided."
+        },
+        {
+          "qid": "Medical-07e567d4",
+          "phase": "post",
+          "coverage": 0.0,
+          "answered": false,
+          "guardrail_rejected": true,
+          "violations": [
+            "unknown_relationships:MENTIONS",
+            "inlined_literal:>= 2"
+          ],
+          "schema_source": "introspected",
+          "cypher": "MATCH (b:Test {_workspace_id: $workspace_id})-[:MENTIONS]->(tr:Treatment {_workspace_id: $workspace_id, name: $treatment_name})\nWITH b, coun",
+          "answer": "The query returned no results, so there is no information available about a biomarker that is tested both before and after NPC treatment."
+        },
+        {
+          "qid": "Medical-0b2a33fc",
+          "phase": "post",
+          "coverage": 0.0,
+          "answered": false,
+          "guardrail_rejected": false,
+          "violations": [],
+          "schema_source": "introspected",
+          "cypher": "MATCH (d:Disease {_workspace_id: $workspace_id, name: $disease_name})<-[:CAUSED_BY]-(r:RiskFactor {_workspace_id: $workspace_id, name: $risk",
+          "answer": "The query returned no results, so there is no information available to answer whether a history of radiation therapy increases the risk of basal cell carcinoma "
+        }
+      ]
+    }
+  }
+}

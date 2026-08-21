@@ -127,6 +127,10 @@ class CypherBuilder:
         schema_hints: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, Dict[str, Any]]:
         hint_payload = dict(schema_hints or {})
+        # Cleared per build: a builder is constructed per plan, but `build` may
+        # be called more than once on one (repair paths do).
+        self.anchor_role = ""
+        self.unbound_slots: List[str] = []
         if anchor_label and anchor_label not in self.ontology.nodes:
             anchor_label = ""
         if target_label and target_label not in self.ontology.nodes:
@@ -173,7 +177,12 @@ class CypherBuilder:
         # a template kwarg so every registered PatternSpec factory keeps its signature —
         # the same approach ``last_orientation_repair`` already uses, and safe because a
         # builder is constructed per plan.
-        self.anchor_role = str(hint_payload.get("anchor_role", "") or "")
+        # _orient_relationship above may already have determined the role from
+        # the ontology's declared direction. The ontology is authoritative about
+        # direction and the hint is a model guess, so the derived role wins;
+        # otherwise fall back to the hint.
+        _derived_role = getattr(self, "anchor_role", "")
+        self.anchor_role = _derived_role or str(hint_payload.get("anchor_role", "") or "")
 
         # ADR-0097 G3: dispatch via externalized PatternSpec catalog.
         # Behavior is bit-identical to the pre-G3 inline if/elif chain;
@@ -631,7 +640,24 @@ class CypherBuilder:
         an identifier or prose?" — governs plan shape everywhere. Applying it to only
         one template is what left `_list_all` doing 86M dbHits at SF1000 while the
         repaired `_count` did 105.
+
+        An EMPTY mention is a third case, and it was being handled as the second.
+        "Which decisions apply to the Payments API?" names one endpoint and asks
+        the system to find the other, so the unnamed slot is an unknown to solve
+        for, not a mention to match. Falling through to the text anchor produced
+        ``toLower(...) CONTAINS toLower('')``, which is true for every node in
+        the database — an accidental wildcard that reads as a filter. It also
+        forces a scan, since a CONTAINS over a coalesce chain cannot use an
+        index, so the plan cost is paid for a predicate that excludes nothing.
+
+        An unbound slot is now constrained by its LABEL alone, which the caller
+        has already put in the MATCH pattern. `is_bound=False` tells the caller
+        the slot is open, so it can distinguish "no constraint" from "constraint
+        that happens to match everything".
         """
+        if not str(entity or "").strip():
+            self.unbound_slots = sorted(set(getattr(self, "unbound_slots", set())) | {alias})
+            return "true", {}
         sargable = self._sargable_anchor(alias, label, entity)
         if sargable is not None:
             return sargable
@@ -713,7 +739,7 @@ class CypherBuilder:
             "       type(r) AS relationship,\n"
             "       coalesce(endNode(r).name, endNode(r).uri) AS target,\n"
             "       labels(b) AS target_labels,\n"
-            "       properties(b) AS target_properties,\n"
+            f"       {self._declared_props_expr('b', target_label)} AS target_properties,\n"
             "       coalesce(b.content_preview, b.description, b.content, '') AS supporting_fact\n"
             "LIMIT $limit",
             params,
@@ -832,6 +858,51 @@ class CypherBuilder:
         # Self-referential (Account->Account) or a single consistent orientation.
         return ">" if len(pairs) == 1 else ""
 
+    def _connecting_relationship_types(
+        self, start_label: str, end_label: str, *, max_hops: int = 4,
+    ) -> List[str]:
+        """Declared relationship types on any chain from start_label to end_label.
+
+        Used when the model names a relationship that cannot on its own reach the
+        target ("which decision applies to the Payments API, and what did it
+        supersede" names SUPERSEDES, declared Decision -> Decision, while the
+        anchor is a System). The previous relaxation dropped the restriction
+        entirely, which admits every edge in the store -- including the
+        provenance layer this pipeline writes. Measured on a live graph: the
+        unrestricted form returned 20 paths, most of them Chunk MENTIONS
+        detours, for a question with two relevant edges.
+
+        Widening to the types that CAN connect the endpoints keeps the chain the
+        question needs and leaves the provenance edges out.
+        """
+        rels = self.ontology.relationships or {}
+        adjacency: Dict[str, List[Tuple[str, str]]] = {}
+        for name, rel in rels.items():
+            source, target = rel.source, rel.target
+            if not source or not target:
+                continue
+            adjacency.setdefault(source, []).append((target, name))
+            adjacency.setdefault(target, []).append((source, name))
+
+        used: Set[str] = set()
+        # Breadth-first over label space, recording the types on any chain that
+        # reaches the end label within the hop bound.
+        frontier: List[Tuple[str, List[str]]] = [(start_label, [])]
+        for _ in range(max(1, int(max_hops))):
+            nxt: List[Tuple[str, List[str]]] = []
+            for label, path in frontier:
+                for neighbour, rel_name in adjacency.get(label, []):
+                    if rel_name in path:
+                        continue  # do not repeat a type within one chain
+                    chain = path + [rel_name]
+                    if neighbour == end_label:
+                        used.update(chain)
+                    nxt.append((neighbour, chain))
+            frontier = nxt
+            if not frontier:
+                break
+        return sorted(used)
+
     def _path(
         self,
         from_entity: str,
@@ -867,12 +938,20 @@ class CypherBuilder:
                 if target_label in widened:
                     # Reachable, just not over the relationship the model named:
                     # drop the restriction rather than return a wrong empty answer.
+                    # Widen to the types that can actually connect the two
+                    # endpoints, rather than to everything. Dropping the
+                    # restriction entirely admits the provenance layer
+                    # (Chunk MENTIONS, HAS_SECTION), which floods the answer
+                    # context with document-structure detours.
+                    connecting = self._connecting_relationship_types(
+                        anchor_label, target_label, max_hops=bounded_hops)
                     self.last_path_pruning = {
                         "action": "relaxed_relationship_type",
                         "requested": relationship_type,
+                        "widened_to": connecting,
                         "reason": "target_label_unreachable_over_requested_relationship",
                     }
-                    rel_types = []
+                    rel_types = connecting
                 else:
                     # Provably empty per the schema: answer immediately instead of
                     # exhaustively searching for something that cannot exist.
@@ -891,8 +970,14 @@ class CypherBuilder:
 
         a_label = f":{quote_identifier(anchor_label)}" if anchor_label else ""
         b_label = f":{quote_identifier(target_label)}" if target_label else ""
-        rel_name = self._rel_name(rel_types[0]) if rel_types else ""
-        rel_clause = f":{quote_identifier(rel_name)}" if rel_name else ""
+        # All resolved types, not just the first. A widened set describes a chain
+        # (APPLIES_TO then SUPERSEDES); keeping only rel_types[0] would restrict
+        # the traversal to one leg of it and return nothing.
+        rel_names = [n for n in (self._rel_name(r) for r in rel_types) if n]
+        rel_clause = (
+            ":" + "|".join(quote_identifier(n) for n in dict.fromkeys(rel_names))
+            if rel_names else ""
+        )
         # Only orient the pattern when the target is genuinely reachable following
         # declared directions; otherwise the question needs undirected traversal and
         # forcing an arrow would return nothing.
@@ -908,12 +993,32 @@ class CypherBuilder:
             "b", target_label, to_entity, value_param="to_e", norm_param="to_e_norm")
         params: Dict[str, Any] = {**from_params, **to_params,
                                   "workspace_id": workspace_id, "limit": limit}
+        # Drop a `true` from an unbound endpoint rather than emitting `AND true`.
+        # It is harmless to the planner but it is noise in an EXPLAIN, and the
+        # plan grader reads operator shape from exactly that.
+        endpoint_preds = " AND ".join(
+            pred for pred in (from_pred, to_pred) if pred != "true"
+        ) or "true"
+        # shortestPath answers "how are THESE TWO connected" -- one path per
+        # endpoint pair. When an endpoint is unbound the question is "what is
+        # connected", and shortestPath answers it wrongly by construction: a
+        # 1-hop edge between the same pair hides every longer chain. Measured on
+        # a live graph, asking which decision applies to a system and what it
+        # superseded, shortestPath returned only the two APPLIES_TO edges and
+        # the model correctly reported that no SUPERSEDES relationship was in
+        # its results.
+        #
+        # Enumerating all paths is only safe because the relationship set is now
+        # constrained: unrestricted it returned 20 paths, mostly Chunk MENTIONS
+        # detours through the provenance layer. Constrained it returns 4, which
+        # are exactly the APPLIES_TO edges and the two SUPERSEDES chains.
+        primitive = "shortestPath" if not self.unbound_slots else ""
         return (
-            f"MATCH path = shortestPath((a{a_label})-[{rel_clause}*..{bounded_hops}]-{arrow}(b{b_label}))\n"
-            f"WHERE {from_pred}\n"
-            f"  AND {to_pred}\n"
+            f"MATCH path = {primitive}((a{a_label})-[{rel_clause}*..{bounded_hops}]-{arrow}(b{b_label}))\n"
+            f"WHERE {endpoint_preds}\n"
             "  AND ($workspace_id = '' OR all(n IN nodes(path) WHERE coalesce(n._workspace_id, '') = $workspace_id))\n"
             f"RETURN [n IN nodes(path) | {self._display_expr('n', anchor_label)}] AS nodes,\n"
+            f"       [n IN nodes(path) | {self._path_props_expr('n')}] AS node_properties,\n"
             "       [r IN relationships(path) | type(r)] AS relationships\n"
             "LIMIT $limit",
             params,
@@ -976,6 +1081,68 @@ class CypherBuilder:
             "RETURN count(n) AS count",
             {"workspace_id": workspace_id},
         )
+
+    def _declared_props_expr(self, alias: str, label: str = "") -> str:
+        """Project the properties the ontology declares, not the whole node.
+
+        `properties(n)` returns everything the writer put there, and most of it
+        is this pipeline's own bookkeeping: _workspace_id, _sources, _source_id,
+        _writer_agent, _writer_ts, and eight _ontology_* fields. Measured on a
+        two-row answer against a live graph, 23 keys were returned of which the
+        ontology declared 2 -- 80% of the answer context was provenance the
+        model cannot use and must still read.
+
+        Cost is the smaller half. The larger half is that a model given twenty
+        internal keys alongside two meaningful ones has to guess which carry the
+        answer, and `status` -- the property the question was about -- arrives
+        with the same weight as `_ontology_glossary_hash`.
+
+        Falls back to the whole map when the label is unknown, because returning
+        nothing is worse than returning too much.
+        """
+        node = self.ontology.nodes.get(label) if label else None
+        declared = list(getattr(node, "properties", {}) or {}) if node is not None else []
+        if not declared:
+            return f"properties({alias})"
+        pairs = ", ".join(
+            f"{quote_identifier(name)}: {alias}.{quote_identifier(name)}"
+            for name in declared
+        )
+        # Plain Cypher rather than apoc.map.clean: a projection is not worth a
+        # procedure dependency, and the read path refuses procedure calls
+        # (enforce_read_workspace_scope) precisely so it does not have to reason
+        # about what they can do. An unset optional property comes back null,
+        # which the answer layer already handles.
+        return f"{{{pairs}}}"
+
+    def _path_props_expr(self, alias: str, *, max_keys: int = 12) -> str:
+        """Map projection over every property name the ontology declares.
+
+        A path crosses several labels, so a per-label projection is not
+        available statically. The union of declared names is, and it is bounded
+        by the ontology rather than by what the writer happened to store -- which
+        is the property that matters, since the alternative (`properties(n)`)
+        returns this pipeline's _workspace_id/_sources/_ontology_* bookkeeping on
+        every node of every path.
+
+        Identity properties come first so the cap, if it binds, keeps the keys
+        that identify a node over the ones that describe it.
+        """
+        identity: List[str] = []
+        rest: List[str] = []
+        for node in (self.ontology.nodes or {}).values():
+            keys = list(getattr(node, "properties", {}) or {})
+            for key in getattr(node, "effective_identity_keys", None) or []:
+                if key in keys and key not in identity:
+                    identity.append(key)
+            for key in keys:
+                if key not in identity and key not in rest:
+                    rest.append(key)
+        names = (identity + rest)[:max_keys]
+        if not names:
+            return self._display_expr(alias)
+        projection = ", ".join(f".{quote_identifier(name)}" for name in names)
+        return f"{alias}{{{projection}}}"
 
     def _display_expr(self, alias: str, label: str = "") -> str:
         """Ontology-aware display expression for a node.
@@ -1398,13 +1565,29 @@ class CypherBuilder:
             self.last_orientation_repair = None
             return anchor_label, target_label
 
+        # The anchor sits on the relationship's TARGET end. That is not an error
+        # -- "Which decisions apply to the Payments API?" legitimately anchors on
+        # the System, and the ontology says APPLIES_TO runs Decision -> System.
+        #
+        # Swapping the labels was the wrong repair, because the anchor ENTITY
+        # filter does not move with them: the generated query became
+        # `MATCH (a:Decision)-[:APPLIES_TO]-(b:System) WHERE a.name CONTAINS
+        # "Payments API"` -- a Decision named "Payments API", which does not
+        # exist. Measured on a live graph containing the answer: 0 rows, and the
+        # model then reported no data for a question the graph could answer.
+        #
+        # The labels the model gave are consistent with the entity it named. It
+        # is the TRAVERSAL that has to run backwards, which is exactly what
+        # anchor_role expresses and what every pattern builder already honours.
         self.last_orientation_repair = {
             "relationship_type": relationship_type,
             "from": {"anchor_label": anchor_label, "target_label": target_label},
-            "to": {"anchor_label": source, "target_label": target},
-            "reason": "reversed_endpoints_vs_ontology",
+            "to": {"anchor_label": anchor_label or target,
+                   "target_label": source, "anchor_role": "target"},
+            "reason": "anchor_on_relationship_target_end",
         }
-        return source, target
+        self.anchor_role = "target"
+        return (anchor_label or target), source
 
     def _match_relationship(self, rel_type: str, *, anchor_label: str, target_label: str) -> str:
         # 1. Exact or alias match

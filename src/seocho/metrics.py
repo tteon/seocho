@@ -192,6 +192,7 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.ontology.tool.call.count", "counter", "{call}", ("tool", "outcome"), "Bounded ontology-context tool calls."),
         _spec("seocho.ontology.tool.duration", "histogram", "s", ("tool", "outcome"), "Bounded ontology-context tool duration."),
         _spec("seocho.ontology.slice.size", "histogram", "By", ("kind",), "Ontology slice or evidence-pack size."),
+        _spec("seocho.ontology.module.quality.decision.count", "counter", "{decision}", ("disposition",), "Module-quality policy decisions exposed to agents."),
         _spec("seocho.ontology.lock.operation.count", "counter", "{operation}", ("operation", "outcome"), "Ontology activation and lease lifecycle operations."),
         _spec("db.client.operation.duration", "histogram", "s", ("db.system", "operation", "outcome"), "Graph client operation duration, wall time at the driver."),
         _spec("db.client.operation.server_share", "histogram", "1", ("db.system", "operation"), "Server fraction of a graph operation; the remainder is client hydration (ADR-0111)."),

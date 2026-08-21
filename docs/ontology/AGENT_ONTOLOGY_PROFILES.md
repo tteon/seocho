@@ -21,6 +21,40 @@ those receipts in candidate approval and projection logs. A profile can be
 regenerated freely when prompt presentation changes; only a JSON-LD/Turtle/
 SHACL change creates a new canonical bundle digest and requires governance.
 
+## Module-quality admission for agents
+
+Each generated profile now also carries `module_quality`: a versioned
+structural scorecard, threshold policy, and decision. The normal profile is
+scored against the full ontology; a publisher can supply a narrower
+`module_specs[purpose]` evaluation boundary with its classes, required
+relationship interface, sibling modules, and threshold overrides. This
+metadata does not silently narrow the profile vocabulary: a prompt-slice change
+remains an explicit, separately reviewable context decision. The stored
+measures include relative size, target-fit, intra/inter-module distance,
+cohesion, coupling, redundancy, encapsulation, independence, attribute
+richness, and inheritance richness.
+
+The decision is a control-plane primitive, not a scalar “quality score”:
+
+- `ready`: use the bounded profile.
+- `needs_reasoning`: the agent must take the bounded extra verification steps
+  stated in the gate, normally an `ontology_slice` for the interface terms.
+- `reject`: withhold vocabulary and deny slices; select or repair an ontology
+  version before graph work.
+
+This does **not** claim OWL logical completeness. `source_subset_valid` checks
+that declared classes and internal relationship contracts exist in the source;
+`interface_complete` checks the caller-declared interface. Entailment
+preservation, SHACL conformance, and promotion remain separate semantic
+evidence recorded in the RDF governance receipt. This distinction keeps an
+agent from treating a convenient small module as proof of semantic correctness.
+
+The Agent SDK `ontology_profile` tool returns only the action-oriented gate and
+profile digests to preserve context budget. The full numeric scorecard and
+policy are immutable metadata in the profile artifact, linked by
+`profile_sha256`; trace spans and the
+`seocho.ontology.module.quality.decision.count` metric record each exposure.
+
 The intended promotion path is:
 
     JSON-LD source -> Turtle/SHACL -> offline SHACL validation ->

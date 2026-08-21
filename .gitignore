@@ -1,6 +1,9 @@
 # Tutorial work directories (LanceDB tables, owlready2 sqlite, JSONL traces,
 # DozerDB data, captured spans). Anything under .seocho/ is local state.
 .seocho/
+# Per-document incremental-index state is generated beside example inputs by
+# the CLI and must never become a tracked example artifact.
+**/.seocho_index
 
 # Rust (seocho-core)
 seocho-core/target/
@@ -160,3 +163,5 @@ PR_BODY.md
 
 # Rust build output from the neo4rs driver probe
 scripts/finbench/neo4rs_probe/target/
+# Native data-plane crates are source-only; lockfiles are explicitly tracked.
+dataplane/*/target/

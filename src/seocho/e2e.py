@@ -628,6 +628,19 @@ def _render_report_md(payload: Dict[str, Any]) -> str:
                     lines.append("")
     else:
         lines += ["## Queries", "", "Index-only run (no questions declared).", ""]
+    scorecard = payload.get("agent_scorecard", {})
+    if scorecard:
+        agent = scorecard.get("agent", {})
+        lines += [
+            "## Agent semantic scorecard",
+            "",
+            f"- evidence coverage: {agent.get('mean_evidence_coverage')}",
+            f"- supported rate: {agent.get('supported_rate')}",
+            f"- missing slots per question: {agent.get('missing_slots_per_question')}",
+            f"- reference containment: {agent.get('reference_contains_rate')}",
+            "- interpretation: compare matched runs before claiming RDF-governance lift.",
+            "",
+        ]
     return "\n".join(lines)
 
 
@@ -680,6 +693,13 @@ def run(
 
     payload["run"]["finished_at"] = datetime.now().isoformat(timespec="seconds")
     payload["run"]["durations"] = durations
+    # A single run produces a baseline. Cross-arm causal claims use the
+    # explicit, conservative comparison helper rather than a blended score.
+    from .eval.semantic_scorecard import score_semantic_utility
+
+    payload["agent_scorecard"] = score_semantic_utility(
+        payload.get("indexing"), payload.get("queries"),
+    ).to_dict()
 
     ctx.output_dir.mkdir(parents=True, exist_ok=True)
     report_json = ctx.output_dir / "report.json"

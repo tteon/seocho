@@ -32,3 +32,9 @@ directly to `seochod`. Filesystem-managed bundles should be immutable version
 directories, with a separate atomic `current` pointer controlled by the
 SEOCHO CLI. This gives agents stable read snapshots and makes rollback a pointer
 change rather than an in-place edit.
+
+For receipt-enforced Rust projection, set `SEOCHO_RDF_GOVERNANCE_RECEIPT` and
+`SEOCHO_AGENT_ONTOLOGY_PROFILE` together in the SEOCHO process, and set
+`SEOCHOD_REQUIRE_GOVERNANCE=1` in the daemon process. SEOCHO validates that the
+profile derives from the promotable governed bundle; `seochod` stamps the four
+resulting hashes on canonical nodes and relationships.

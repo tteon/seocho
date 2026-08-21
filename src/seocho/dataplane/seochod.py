@@ -27,6 +27,7 @@ class SeochodProjectionClient:
         database: str,
         workspace_id: str,
         source_id: str,
+        semantic_receipt: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         payload = {
             "op": "project",
@@ -36,6 +37,7 @@ class SeochodProjectionClient:
             "writer_ts": time.time(),
             "nodes": list(nodes),
             "relationships": list(relationships),
+            "semantic_receipt": dict(semantic_receipt or {}),
         }
         response = self._request(payload)
         if not response.get("ok"):

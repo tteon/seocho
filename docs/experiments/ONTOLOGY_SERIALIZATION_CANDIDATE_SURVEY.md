@@ -133,6 +133,52 @@ Only unpinned entries may be evicted. Every UDS response returns the pinned
 digest, profile, generation, and fence. `mmap`/FST sidecars are deferred until
 the compact JSON parse cache is proven to be a bottleneck.
 
+## Context engineering: what is sent to an agent
+
+Serialization selection and context delivery are separate decisions. JSON-LD,
+Turtle, and TriG remain RDF-compatible ontology artifacts, but none should be
+treated as the normal LLM payload merely because it is the source file. The
+agent's context is finite and includes system instructions, tools, history,
+memory, and retrieved data. SEOCHO therefore treats the ontology bundle as a
+receipt-pinned external semantic memory with progressive disclosure.
+
+| Context arm | Initial agent context | Subsequent retrieval | Intended use |
+|---|---|---|---|
+| J0 | Entire source RDF serialization | None | Deliberately costly baseline. |
+| J1 | Complete compact purpose profile | None | Static-profile baseline. |
+| J2 | Task kernel, small profile summary, digest/lock identity, four ontology tools | Deterministic stage router loads bounded profile/slice | Default production candidate. |
+| J3 | Same as J2 | Agent chooses bounded expansions | Test whether autonomy pays for navigation cost. |
+| J4 | Typed evidence pack, source spans, missing slots, receipt | Optional evidence refinement only | Answer synthesis; ontology source remains out of context. |
+
+The task kernel contains no filesystem path and no arbitrary graph traversal
+authority. It contains the purpose, token/tool-call budget, requested slots,
+allowed vocabulary summary, and the immutable `(workspace, semantic digest,
+profile digest, generation, fence)` tuple. The tuple is also carried by every
+tool request/response so a slice cannot silently cross an ontology activation.
+
+Expose exactly four normal-task tools:
+
+1. `ontology.profile`: bounded schema/profile summary for a declared purpose.
+2. `ontology.slice`: task- and slot-scoped semantic closure; returns a stable
+   handle, relevant terms/triples/constraints, provenance rules, and a declared
+   truncation or insufficiency result.
+3. `ontology.constraint`: targeted domain/range/cardinality/SHACL rule lookup
+   for already-known terms, not free-form ontology dumping.
+4. `ontology.evidence-pack`: selected facts, source spans, required/missing
+   slots, and provenance receipt for answer synthesis.
+
+`bundle diff`, activation, lease administration, rollback, and filesystem
+inspection are curator/CLI capabilities, not ordinary agent tools. The CLI may
+surface logical namespace, purpose, recency, and estimated result size to make
+the four tool choices legible without exposing host-specific paths.
+
+For long-running work, persist a bounded `run-note` JSON document separately
+from the conversation. It stores the pinned tuple, task/decision state,
+retrieved handles, confirmed source-grounded facts, unresolved slots, and
+rejected candidates with reasons. Reload this note after compaction; do not
+replay unbounded historical tool output. It is an auditable memory index, not
+an alternate source of ontology truth.
+
 ## Agent workload inputs
 
 Each 40-60 case gold workload contains raw source text, gold RDF triples,
@@ -147,7 +193,13 @@ correct abstention, and labelled invalid candidates. Use:
 
 Compare S1, S2, S3, S5, and S6 with the same model, temperature, prompt
 envelope, normalized RDF graph, workspace, documents, and retrieval results.
-S4 verifies semantic equivalence only and is not given to an agent.
+S4 verifies semantic equivalence only and is not given to an agent. Then
+compare J0-J4 independently with identical task cases and semantic identity.
+Record initial and total context tokens, tool calls, no-result/insufficient
+responses, tool-selection errors, retrieval turns, slice/evidence size,
+context-assembly latency, and post-compaction outcome. Context arms pass only
+when gold task metrics are non-inferior to J0 while their declared token or
+navigation-cost gate improves.
 
 ## Single-host multi-model versioning workload
 

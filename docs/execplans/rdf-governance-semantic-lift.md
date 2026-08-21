@@ -18,6 +18,7 @@ Semantic lift means that facts extracted from raw source material give an agent 
 - [ ] Execute live MARA/DozerDB A-E arms with JSONL traces, resource metrics, and blinded judging.
 - [ ] Run a single-host three-worker model/versioning workload using `MiniMax-M2.7`, `gpt-oss-120b`, and `gemma-4-31B-it`.
 - [ ] Before paid full-factorial execution, implement canonical RDF semantic identity, persistent cross-process leases, stale-projection fencing/idempotency, and a case-level gold scorer.
+- [ ] Implement and evaluate a hybrid context-delivery router: a minimal task bootstrap followed by receipt-pinned, just-in-time ontology and evidence tools.
 
 ## Surprises & Discoveries
 
@@ -67,6 +68,33 @@ on every task. A lease is a read-only version pin, not a mutable shared object:
 it expires when the agent finishes, while the pinned files remain valid for
 replay and rollback.
 
+### Context-delivery model
+
+Ontology governance and context engineering solve different layers of the
+same problem. Governance establishes which semantic snapshot is admissible;
+context delivery decides which small, high-signal view of that snapshot reaches
+an LLM on a given turn. Sending a complete JSON-LD/Turtle/TriG file in every
+prompt is retained only as an experimental baseline, never as the assumed
+runtime design.
+
+The production candidate is hybrid progressive disclosure. Initial context has
+only the task, compact purpose-profile summary, allowed relation/slot
+vocabulary, pinned semantic/profile digests, and a small unambiguous tool set.
+A deterministic stage router supplies the known minimum; the agent may expand
+only through receipt-pinned tools if needed. Results return bounded semantic
+closures and stable slice/evidence handles, not an arbitrary filesystem listing
+or a complete ontology dump. After compaction, preserve a structured run note
+(pinned tuple, retrieved handles, confirmed facts/provenance, unresolved slots,
+and rejected candidates/reasons) rather than raw tool output.
+
+Normal agent tools are deliberately limited to `ontology.profile`,
+`ontology.slice`, `ontology.constraint`, and `ontology.evidence-pack`.
+Curator operations such as bundle diff, activation, and rollback are excluded
+from normal task context. The lock is a capability and consistency boundary in
+the handle/receipt, not verbose prompt text. Logical namespace, purpose,
+freshness, and size metadata may guide tool choice; host paths and unbounded
+directory scanning must not be exposed as an implicit retrieval API.
+
 ## SEOCHO Evidence Contract
 
 Each evaluated query must preserve the ontology/profile bundle digest, source and graph provenance, selected relation path/triples, required slots, missing slots, support assessment, and answer. A gold case adds accepted entity/triple labels and source spans so relation precision/recall and slot accuracy can be computed. Invalid candidates must be labelled so rejection precision, rejection recall, and false-promotion rate are meaningful.
@@ -101,9 +129,22 @@ tasks:
 3. H: workers lease the same verified purpose profile from a local profile pool.
 4. I: publish a new bundle while readers hold leases, then roll the current pointer back.
 
+Run a third context-delivery matrix using the same semantic graph, purpose,
+task, model settings, and retrieval corpus:
+
+1. J0: full source ontology in the initial prompt (baseline only).
+2. J1: static compact purpose profile in the initial prompt.
+3. J2: minimal bootstrap plus deterministic just-in-time profile/slice loading
+   (the production candidate).
+4. J3: minimal bootstrap plus agent-selected just-in-time expansion under a
+   strict token and tool-call budget.
+5. J4: answer synthesis receives only a typed evidence pack and its missing
+   slot/provenance receipt, never the ontology source.
+
 F/G/H measure agent and OS efficiency; I measures snapshot correctness. These
 arms must preserve the exact requested bundle/profile digest and agent output
-contract. They are not substitutes for A-E semantic comparison.
+contract. J0-J4 measure context curation, not source serialization. Neither
+matrix substitutes for A-E semantic comparison.
 
 ### Portable bundle and profile-pool hypotheses
 
@@ -153,6 +194,18 @@ projection remains attributed to exactly one `(model, semantic digest, profile
 digest, generation, fencing token)` tuple. An N candidate can be audited or
 revalidated under N+1, but cannot project as though it had been generated under
 N+1. Stale projection is rejected and recorded.
+
+H13 (context curation utility): J2/J4 preserve or improve gold triple F1,
+required-slot/provenance recall, and correct abstention relative to J0, while
+reducing initial-context tokens and avoiding excess retrieval turns. J3 is
+adopted only if its extra autonomy improves a task-quality gate enough to pay
+for its navigation latency, failed tool calls, and context use.
+
+H14 (long-horizon semantic continuity): A structured run note survives
+compaction without changing the pinned semantic contract. It passes only if
+later-turn slot/triple/provenance accuracy is non-inferior to an un-compacted
+control and stale handle, digest mismatch, or unresolved-slot loss is visible
+in the trace.
 
 ## Concrete Steps
 
@@ -233,6 +286,23 @@ N+1. Stale projection is rejected and recorded.
       recall, correct abstention, expected SHACL violation/repair, and version
       delta outcome per case. Keep answer models, extractors, and judges
       separately identified.
+12. Implement the context-delivery contract before J0-J4:
+
+    - Bind every `ontology.slice`, `ontology.constraint`, and
+      `ontology.evidence-pack` response to the pinned semantic/profile digest,
+      generation, fence, and a stable result handle; reject a handle from a
+      different lock tuple.
+    - Make every result bounded and typed. A semantic slice includes only the
+      closure needed for requested terms/slots plus required SHACL/provenance
+      constraints; an evidence pack includes selected facts, source spans,
+      missing-slot reasons, and no unrelated ontology dump.
+    - Persist a compact structured run note outside the chat transcript. It
+      records the pinned tuple, task, slice/evidence handles, decisions,
+      confirmed source-grounded facts, and open slots. It is reloadable after
+      compaction and auditable, but does not become an unbounded hidden prompt.
+    - Use a deterministic router for known workflow stages first. Agent-driven
+      expansion is a separately budgeted arm, with explicit no-result and
+      insufficient-context responses so dead-end navigation is measurable.
 
 ## Validation and Acceptance
 

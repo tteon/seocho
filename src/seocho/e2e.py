@@ -15,6 +15,8 @@ without any per-call plumbing.
 from __future__ import annotations
 
 import dataclasses
+import asyncio
+import hashlib
 import json
 import sys
 import time
@@ -530,6 +532,47 @@ def _run_query_phase(ctx: RunContext, *, quiet: bool) -> List[Dict[str, Any]]:
     return records
 
 
+def _agents_sdk_config(spec: RunSpec) -> tuple[str, int] | None:
+    """Return the explicit J3 configuration; direct remains the default."""
+    if str(spec.agent.get("runtime") or "").strip().lower() != "agents_sdk":
+        return None
+    bundle = str(spec.agent.get("ontology_bundle_dir") or "").strip()
+    if not bundle:
+        raise RunSpecError(["agent.runtime=agents_sdk requires agent.ontology_bundle_dir"])
+    return bundle, max(1, int(spec.agent.get("max_turns") or 6))
+
+
+def _run_agents_sdk_query_phase(ctx: RunContext, *, quiet: bool, bundle_dir: str, max_turns: int) -> List[Dict[str, Any]]:
+    """Actual ``Runner.run`` query path, kept separate from direct SEOCHO calls."""
+    from .agents_runtime import get_agents_runtime
+    from .integrations.openai_agents import build_graph_agent
+
+    errors: List[str] = []
+    provider, model = parse_model_ref(ctx.spec.query_model(), where="models.query", errors=errors)
+    if errors or provider != "mara":
+        raise RunSpecError(errors or ["Agents SDK experiment currently requires a mara query model"])
+    agent = build_graph_agent(
+        ontology=ctx.ontology, graph_store=ctx.graph_store, database=ctx.database,
+        model=model, ontology_bundle_dir=str(_resolve(ctx.spec, bundle_dir)),
+    )
+    runtime = get_agents_runtime()
+    records: List[Dict[str, Any]] = []
+    for index, question in enumerate(ctx.spec.questions):
+        record: Dict[str, Any] = {"id": question.question_id or str(index + 1), "question": question.question, "runtime_mode": "agents_sdk"}
+        started = time.monotonic()
+        try:
+            with runtime.trace(f"seocho.j3.{record['id']}"):
+                result = asyncio.run(runtime.run(agent=agent, input=question.question, max_turns=max_turns))
+            record["answer"] = str(getattr(result, "final_output", result) or "")
+            record["empty"] = not record["answer"].strip()
+        except Exception as exc:
+            record.update(answer="", error=str(exc), empty=True)
+        record["latency_s"] = round(time.monotonic() - started, 2)
+        records.append(record)
+        _emit(quiet, f"  [{index + 1}/{len(ctx.spec.questions)}] agents_sdk -> {'ERROR' if record.get('error') else 'ok'}")
+    return records
+
+
 def _md_cell(value: Any) -> str:
     return str(value if value is not None else "").replace("\n", " ").replace("|", "\\|")
 
@@ -670,10 +713,18 @@ def run(
             "workspace_id": spec.resolved_workspace_id(),
         }
     }
-    from .eval.experiment_observability import direct_runtime_receipt, experiment_run_trace
+    from .eval.experiment_observability import agents_sdk_runtime_receipt, direct_runtime_receipt, experiment_run_trace
+
+    agents_config = _agents_sdk_config(spec)
+    if agents_config:
+        bundle_dir, max_turns = agents_config
+        toolset_digest = hashlib.sha256(b"ontology_profile,ontology_slice,run_cypher").hexdigest()
+        runtime_receipt = agents_sdk_runtime_receipt(max_turns=max_turns, toolset_digest=toolset_digest)
+    else:
+        runtime_receipt = direct_runtime_receipt()
 
     with experiment_run_trace(
-        receipt=direct_runtime_receipt(), run_name=spec.name,
+        receipt=runtime_receipt, run_name=spec.name,
         workspace_id=spec.resolved_workspace_id(),
     ) as experiment_manifest:
         payload["run"]["experiment"] = experiment_manifest
@@ -693,7 +744,8 @@ def run(
             mode = build_agent_config(spec).execution_mode
             _emit(quiet, f"Phase {phase}/{phase_count}: Querying ({len(spec.questions)} questions, mode={mode})")
             started = time.monotonic()
-            payload["queries"] = _run_query_phase(ctx, quiet=quiet)
+            payload["queries"] = (_run_agents_sdk_query_phase(ctx, quiet=quiet, bundle_dir=bundle_dir, max_turns=max_turns)
+                                  if agents_config else _run_query_phase(ctx, quiet=quiet))
             durations["query_s"] = round(time.monotonic() - started, 2)
             _emit(quiet)
 

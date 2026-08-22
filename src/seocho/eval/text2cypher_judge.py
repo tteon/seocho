@@ -45,6 +45,9 @@ Rubric:
 3. result_adequate: EXPLAIN succeeded and the returned row/field summary can answer the question.
 Score = 1.0 only if all three hold; 0.5 for a meaningful but incomplete answer;
 0.0 if unsafe, unrelated, or non-executable. Do not infer facts absent from the input.
+Your fields MUST agree exactly: `pass` iff all three booleans are true and
+score is 1.0; `partial` iff score is strictly between 0 and 1; `fail` iff all
+three booleans are false and score is 0.0. A contradictory response is invalid.
 Return JSON only with the required fields.
 """
 

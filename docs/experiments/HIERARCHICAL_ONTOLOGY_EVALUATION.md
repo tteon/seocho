@@ -46,6 +46,15 @@ uv run python scripts/benchmarks/bootstrap_graphrag_case_envelopes.py \
 The bootstrapped rows are deliberately all graph/query `unannotated`. They are
 an annotation queue, not experimental gold.
 
+For pipeline and judge-calibration mechanics, create the separate controlled
+fixture corpus. It has complete labels but must be reported as a calibration
+fixture, never as external semantic generalization:
+
+```bash
+uv run python scripts/benchmarks/bootstrap_governed_memory_seed.py \
+  --output .seocho/gold/governed-memory-calibration.jsonl
+```
+
 ## Benchmark roles
 
 GraphRAG-Bench remains an answer/rationale track. Its question files do not

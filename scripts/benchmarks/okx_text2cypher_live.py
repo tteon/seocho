@@ -13,6 +13,7 @@ from neo4j import GraphDatabase
 
 from seocho.eval.text2cypher_judge import judge_receipt, judge_text2cypher
 from seocho.metrics import get_metrics
+from seocho.ontology.online_query_admission import admit_online_query
 from seocho.query.text2cypher import generate_validated_cypher
 from seocho.query.workload_compiler import Text2CypherFallbackPolicy
 from seocho.store.llm import MaraBackend, create_llm_backend
@@ -43,7 +44,7 @@ async def run(args: argparse.Namespace) -> dict:
     }
     policy = Text2CypherFallbackPolicy(
         allowed_labels=("ExchangeIntent", "ExchangeMemoryEvent"),
-        allowed_relationships=("HAS_EVENT", "NEXT"),
+        allowed_relationships=("HAS_EVENT",),
         allowed_properties=(
             "id",
             "workspace",
@@ -64,23 +65,59 @@ async def run(args: argparse.Namespace) -> dict:
         with driver.session() as session:
             session.run("EXPLAIN " + cypher, **values).consume()
 
-    result = await generate_validated_cypher(
-        question="List the ordered memory steps recorded for this exchange transaction.",
-        schema={
-            "labels": policy.allowed_labels,
-            "relationships": policy.allowed_relationships,
-            "properties": policy.allowed_properties,
-            "tenant_scope": "workspace:$workspace_id",
-        },
-        params=params,
-        policy=policy,
-        backend=MaraBackend(model=args.model),
-        model=args.model,
-        explain=explain,
-    )
-    with driver.session() as session:
-        records = session.run(result.cypher, **result.params).data()
-    driver.close()
+    async def generate_and_execute():
+        result = await generate_validated_cypher(
+            question="List the ordered memory steps recorded for this exchange transaction.",
+            schema={
+                "labels": policy.allowed_labels,
+                "relationships": policy.allowed_relationships,
+                "properties": policy.allowed_properties,
+                "tenant_scope": "workspace:$workspace_id",
+            },
+            params=params,
+            policy=policy,
+            backend=MaraBackend(model=args.model),
+            model=args.model,
+            explain=explain,
+        )
+        with driver.session() as session:
+            return result, session.run(result.cypher, **result.params).data()
+
+    governance = None
+    try:
+        if args.governed_bundle:
+            if not all(
+                (args.state_db, args.workspace_id, args.package_id, args.lease_owner)
+            ):
+                raise ValueError(
+                    "governed mode requires --state-db, --workspace-id, --package-id, and --lease-owner"
+                )
+            with admit_online_query(
+                bundle_dir=args.governed_bundle,
+                state_db=args.state_db,
+                workspace_id=args.workspace_id,
+                package_id=args.package_id,
+                owner=args.lease_owner,
+            ) as admitted:
+                profile = admitted.profile
+                if not set(policy.allowed_labels) <= set(
+                    profile.get("allowed_node_labels", [])
+                ):
+                    raise ValueError(
+                        "query policy exceeds the active ontology profile labels"
+                    )
+                if not set(policy.allowed_relationships) <= set(
+                    profile.get("allowed_relationship_types", [])
+                ):
+                    raise ValueError(
+                        "query policy exceeds the active ontology profile relationships"
+                    )
+                governance = admitted.receipt()
+                result, records = await generate_and_execute()
+        else:
+            result, records = await generate_and_execute()
+    finally:
+        driver.close()
     task_contract = {
         "required_labels": list(policy.allowed_labels),
         "required_relationship": "HAS_EVENT",
@@ -135,6 +172,7 @@ async def run(args: argparse.Namespace) -> dict:
         "result_rows": len(records),
         "workspace_scoped": "$workspace_id" in result.cypher,
         "parameterized_limit": "LIMIT $limit" in result.cypher,
+        "governance": governance,
         "judge": judge,
         "passed": bool(records)
         and any(
@@ -158,6 +196,20 @@ def main() -> None:
         help="Independent Mara judge; pass an empty value to skip",
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--governed-bundle",
+        help="Verified active RDF bundle required for governed mode",
+    )
+    parser.add_argument(
+        "--state-db", help="Lifecycle SQLite/WAL state database for governed mode"
+    )
+    parser.add_argument("--workspace-id", help="Lifecycle workspace for governed mode")
+    parser.add_argument(
+        "--package-id", help="Lifecycle ontology package for governed mode"
+    )
+    parser.add_argument(
+        "--lease-owner", help="Stable process identity for governed-mode query lease"
+    )
     args = parser.parse_args()
     tracing_enabled = configure_tracing_from_env()
     try:

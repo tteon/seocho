@@ -32,7 +32,7 @@ def test_generated_query_is_repaired_validated_and_explained() -> None:
 
     policy = Text2CypherFallbackPolicy(
         allowed_labels=("ExchangeIntent", "ExchangeMemoryEvent"),
-        allowed_relationships=("HAS_EVENT", "NEXT"),
+        allowed_relationships=("HAS_EVENT",),
         allowed_properties=("id", "workspace", "step"),
         workspace_property="workspace",
         required_parameters=("workspace_id", "intent_id"),

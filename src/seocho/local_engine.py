@@ -566,6 +566,7 @@ class _LocalEngine:
         query_mode: str = DEFAULT_QUERY_MODE,
         ontology_override: Optional[Any] = None,
         engine: str = "deterministic",
+        query_context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Ontology-aware query: generate Cypher -> execute -> synthesize answer.
 
@@ -574,6 +575,16 @@ class _LocalEngine:
         monolithic pipeline; ``"structured"`` routes through the organ-flagged
         :class:`~seocho.query.structured_orchestrator.StructuredQueryOrchestrator`
         (the governed multi-agent path the arm×organ e2e exercises)."""
+        from .query.strategy import _has_effective_query_context
+
+        effective_query_context = (
+            query_context if _has_effective_query_context(query_context) else None
+        )
+        if effective_query_context is not None and str(engine) == "structured":
+            raise ValueError(
+                "query_context is currently supported only with engine='deterministic'."
+            )
+
         query_mode = normalize_query_mode(query_mode)
         active_ontology = ontology_override or self.ontology
         ontology_context = self._ontology_context_cache.get(
@@ -619,7 +630,8 @@ class _LocalEngine:
         self._last_semantic_route = None
         self._last_semantic_hint = None
         if (os.environ.get("SEOCHO_SEMANTIC_LAYER", "").strip().lower()
-                in ("1", "true", "yes") and query_mode != "graph_cot"):
+                in ("1", "true", "yes") and query_mode != "graph_cot"
+                and effective_query_context is None):
             try:
                 from .query.semantic_query import clarification_message, semantic_answer
 
@@ -697,6 +709,7 @@ class _LocalEngine:
                     query_mode=query_mode,
                     active_ontology=active_ontology,
                     ontology_context=ontology_context,
+                    query_context=effective_query_context,
                 )
             finally:
                 # Fold the drift outcome the pipeline computed into the LOCAL
@@ -881,6 +894,7 @@ class _LocalEngine:
         query_mode: str,
         active_ontology: Any,
         ontology_context: Any,
+        query_context: Optional[Dict[str, Any]],
     ) -> str:
         """Retrieval pipeline body for ask(), wrapped by the rag.ask span."""
         timer = StageTimer()
@@ -1129,7 +1143,7 @@ class _LocalEngine:
                 intent_data,
                 answer_synthesizer=answer_synthesizer,
             )
-        if deterministic_answer:
+        if deterministic_answer and not query_context:
             timer.mark_total()
             self._last_query_metadata = build_local_query_metadata(
                 workspace_id=self.workspace_id,
@@ -1210,6 +1224,7 @@ class _LocalEngine:
                     reasoning_trace=reasoning_trace,
                     vector_context=vector_context,
                     answer_shape=answer_shape,
+                    query_context=query_context,
                 )
                 self._annotate_synthesis_span(
                     syn_span, answer_synthesizer, ontology_context

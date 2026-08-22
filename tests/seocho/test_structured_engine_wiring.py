@@ -8,6 +8,8 @@ the heavy __init__ (indexing pipeline, strategies) is not needed for the wiring 
 
 from __future__ import annotations
 
+import pytest
+
 from seocho.local_engine import _LocalEngine
 from seocho.ontology import NodeDef, Ontology, P
 from seocho.ontology.run_context import OntologyRunContext, pinned_run_context
@@ -57,6 +59,13 @@ def _engine(graph, *, arm, gen_cypher):
 
 def _ctx():
     return OntologyRunContext(workspace_id="acme", ontology_id="erb")
+
+
+def test_structured_engine_rejects_query_context_for_now():
+    e = object.__new__(_LocalEngine)
+
+    with pytest.raises(ValueError, match="engine='deterministic'"):
+        e.ask("q", engine="structured", query_context={"role": "risk reviewer"})
 
 
 def test_structured_pipeline_governed_execute_and_metadata():

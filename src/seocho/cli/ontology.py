@@ -156,6 +156,15 @@ def register(subparsers) -> None:
     ontology_eval_answers_parser.add_argument("--workers", type=int, default=6, help="Concurrent workers (default: 6)")
     ontology_eval_answers_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
+    ontology_learn_parser = ontology_subparsers.add_parser(
+        "learn", help="Create a review-only LLMs4OL candidate report from an extracted graph",
+    )
+    ontology_learn_parser.add_argument("--schema", required=True, help="Existing ontology file; never modified")
+    ontology_learn_parser.add_argument("--graph", required=True, help="Extracted graph JSON input")
+    ontology_learn_parser.add_argument("--output", required=True, help="Explicit review-report JSON output path")
+    ontology_learn_parser.add_argument("--min-support", type=int, default=2, help="Minimum observed support per candidate")
+    ontology_learn_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
 
     ontology_import_parser = ontology_subparsers.add_parser(
         "import",
@@ -670,6 +679,34 @@ def handle(args: argparse.Namespace) -> int:
             for cat in sorted(report.by_category):
                 print(f"  {cat or '(uncategorized)'}: {report.by_category[cat]} "
                       f"(n={report.by_category_n.get(cat, 0)})")
+        return 0
+
+    if args.ontology_command == "learn":
+        from ..ontology import Ontology
+        from ..ontology.learning import learn_from_graph
+
+        ontology = Ontology.load(args.schema)
+        with Path(args.graph).open(encoding="utf-8") as handle:
+            graph = json.load(handle)
+        if not isinstance(graph, dict):
+            raise SeochoError("--graph must contain an extracted-graph JSON object")
+        report = learn_from_graph(graph, ontology, min_support=args.min_support)
+        payload = report.to_dict()
+        destination = Path(args.output)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        result = {
+            "output": str(destination),
+            "promotion": payload["promotion"],
+            "counts": {key: len(payload[key]) for key in ("terms", "taxonomy", "relations", "axioms")},
+        }
+        print(
+            json.dumps(result, indent=2, ensure_ascii=False)
+            if getattr(args, "output_json", False)
+            else f"review-only candidate report written: {destination}"
+        )
         return 0
 
     if args.ontology_command == "import":

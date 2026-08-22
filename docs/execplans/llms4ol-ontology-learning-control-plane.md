@@ -11,9 +11,10 @@ An operator will be able to run `seocho ontology learn` over a previously extrac
 ## Progress
 
 - [x] 2026-08-22: Created Beads item `seocho-drr`, linked to the ontology proposal and semantic-scorecard work.
-- [ ] Implement deterministic candidate ledger, structural discovery, and LLMs4OL-compatible scorecard.
-- [ ] Add offline CLI and content-free trace/metric receipts.
-- [ ] Integrate optional injected LLM term-typing/taxonomy/relation proposal calls with source-evidence requirements.
+- [x] 2026-08-22: Implemented deterministic candidate ledger, structural discovery, and task-separated LLMs4OL-compatible scorecard in `src/seocho/ontology/learning.py`.
+- [x] 2026-08-22: Added a paired, content-free prompt-framing diagnostic (`scripts/benchmarks/llms4ol_prompt_ablation.py`) with a common JSON contract and JSONL/trace/metric receipts.
+- [x] 2026-08-22: Added `seocho ontology learn` over an explicit graph artifact; it only writes a review report and cannot alter the input ontology.
+- [ ] Integrate optional injected LLM term-typing/taxonomy/relation proposal calls into the review artifact and source-evidence requirements.
 - [ ] Add review-to-versioned-bundle promotion command; verify SHACL, OntoClean, lease, and receipt boundaries.
 - [ ] Execute GraphRAG-Bench-derived corpus experiment only after question-to-corpus evidence bindings and approved ontology changes exist.
 
@@ -32,6 +33,9 @@ An operator will be able to run `seocho ontology learn` over a previously extrac
   Date/Author: 2026-08-22 / Codex.
 - Decision: Reuse the existing ambiguity/mapping and axiom mechanisms instead of introducing a second ontology mutation path.
   Rationale: one review and promotion boundary is auditable and versionable.
+  Date/Author: 2026-08-22 / Codex.
+- Decision: Compare basic extraction and LLMs4OL framing with an identical output schema and content-free evidence ledger.
+  Rationale: a differing schema would confound prompt quality with parser and serialization behavior; licensed corpus content and raw model responses must not be exported in experiment artifacts.
   Date/Author: 2026-08-22 / Codex.
 
 ## Outcomes & Retrospective
@@ -80,7 +84,7 @@ Acceptance requires a graph with unknown terms/relations to produce review-only 
 
 ## Idempotence and Recovery
 
-Learning reads a graph artifact and writes only the explicit output path. Re-running with the same input must yield stable candidate identifiers and ordering. If a proposal is malformed, fail before writing a partial report. Promotion remains a separate existing atomic bundle publication and CAS activation flow.
+Learning reads a graph artifact and writes only the explicit output path. Re-running with the same input must yield stable candidate identifiers and ordering. The live framing diagnostic is append-only and stores only digests and aggregate diagnostics; malformed model output gets a `parse_error` record rather than a partial candidate payload. Promotion remains a separate existing atomic bundle publication and CAS activation flow.
 
 ## Artifacts and Notes
 

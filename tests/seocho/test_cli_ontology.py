@@ -66,6 +66,40 @@ def test_cli_ontology_check_json(tmp_path, capsys) -> None:
     assert payload["stats"]["node_count"] == 2
 
 
+def test_cli_ontology_learn_writes_review_only_report(tmp_path, capsys) -> None:
+    schema_path = _write_schema(tmp_path)
+    graph_path = tmp_path / "graph.json"
+    output_path = tmp_path / "learning-report.json"
+    graph_path.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"id": "p1", "label": "Person", "properties": {"name": "Ada", "source_id": "a"}},
+                    {"id": "p2", "label": "Person", "properties": {"name": "Ada", "source_id": "b"}},
+                    {"id": "c1", "label": "Company", "properties": {"name": "Acme"}},
+                ],
+                "relationships": [
+                    {"source": "p1", "type": "WORKS_AT", "target": "c1"},
+                    {"source": "p2", "type": "WORKS_AT", "target": "c1"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main([
+        "ontology", "learn", "--schema", schema_path, "--graph", str(graph_path),
+        "--output", str(output_path), "--json",
+    ])
+
+    result = json.loads(capsys.readouterr().out)
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert result["promotion"]["status"] == "not_attempted"
+    assert report["promotion"]["status"] == "not_attempted"
+    assert report["terms"][0]["term"] == "Ada"
+
+
 def test_cli_ontology_export_shacl_to_output(tmp_path, capsys) -> None:
     schema_path = _write_schema(tmp_path)
     output_path = tmp_path / "shacl.json"

@@ -12,6 +12,7 @@ The controlled corpus is calibration only. It proves the measurement path and th
 
 - [x] 2026-08-22: Added `seocho.evaluation_case_envelope.v1`, coverage reporting, and a 24-case calibration generator.
 - [x] 2026-08-22: Generated a 50-case external GraphRAG-Bench annotation queue with 0% ontology/triple/query reviewed coverage; it is excluded from semantic scoring.
+- [x] 2026-08-22: Ran a live one-query direct/governed smoke against DozerDB and Mara MiniMax-M2.7. Both completed generation, validation, `EXPLAIN`, and execution with three rows; the governed report contains active bundle/profile and lease/fence identities.
 - [ ] Add a live matrix runner that seeds two isolated workspaces and records case-level query and projection decisions.
 - [ ] Run focused deterministic tests and a live DozerDB matrix with JSONL tracing.
 - [ ] Record result receipts, capability gaps, cost, and a go/no-go conclusion in Beads and this plan.
@@ -22,6 +23,8 @@ The controlled corpus is calibration only. It proves the measurement path and th
   Evidence: `scripts/benchmarks/okx_text2cypher_live.py` has one fixed question and obtains one seed intent.
 - Observation: missing candidate receipt belongs to the write/projection boundary, not to online query admission.
   Evidence: `src/seocho/ontology/online_query_admission.py` only validates active bundle/profile/lease; `src/seocho/ontology/plane_policy.py` requires receipt for governed projection.
+- Observation: the current live runner can emit a governed query receipt but it does not run `seochod` or a candidate projection.
+  Evidence: `.seocho/e2e-live-20260822/governed.json` has a query lease receipt and no projection receipt.
 
 ## Decision Log
 
@@ -34,7 +37,7 @@ The controlled corpus is calibration only. It proves the measurement path and th
 
 ## Outcomes & Retrospective
 
-Not complete. The final report will state only whether the controlled fixture exercised the expected boundaries, the observed overhead, and which dependencies were unavailable.
+The first live smoke completed on 2026-08-22 with a dedicated fixture workspace. It establishes only direct/governed query executability and query-admission attribution. The run did not use the 24-case calibration corpus, a gold result-set comparison, a judge, SHACL candidate staging, Oxigraph, or `seochod`; none of those effects are claimed.
 
 ## Context and Orientation
 

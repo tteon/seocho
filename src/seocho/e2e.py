@@ -15,7 +15,10 @@ without any per-call plumbing.
 from __future__ import annotations
 
 import dataclasses
+import asyncio
+import hashlib
 import json
+import os
 import sys
 import time
 from dataclasses import dataclass, field
@@ -246,6 +249,22 @@ def build(spec: RunSpec) -> RunContext:
         ontology = client_kwargs["ontology"]
 
     graph_store = _build_graph_store(spec, ontology)
+    # All indexing paths share this adapter.  Attach the run-scoped projection
+    # policy once so file, batch, and agent writes cannot silently disagree.
+    setattr(graph_store, "_governance_mode", spec.governance_mode)
+    if spec.governance_mode in {"governed", "lockdown"}:
+        from .ontology.candidate_stage import GovernedCandidateStager
+        import os
+        cfg = spec.governance
+        bundle_dir = str(cfg.get("bundle_dir") or "")
+        state_db = str(cfg.get("state_db") or os.getenv("SEOCHO_ONTOLOGY_STATE_DB", ""))
+        lease_id = str(cfg.get("lease_id") or os.getenv("SEOCHO_ONTOLOGY_LEASE_ID", ""))
+        artifact_dir = str(cfg.get("artifact_dir") or (_resolve(spec, spec.output_dir) / "governance-candidates"))
+        if not bundle_dir or not state_db or not lease_id:
+            raise RunSpecError(["governed/lockdown requires governance.bundle_dir, state_db, and lease_id"])
+        setattr(graph_store, "_governed_candidate_stager", GovernedCandidateStager(
+            bundle_dir=bundle_dir, state_db=state_db, lease_id=lease_id, artifact_root=artifact_dir
+        ))
     client_kwargs["graph_store"] = graph_store
     vector_store = _build_vector_store(spec)
     if vector_store is not None:
@@ -530,6 +549,47 @@ def _run_query_phase(ctx: RunContext, *, quiet: bool) -> List[Dict[str, Any]]:
     return records
 
 
+def _agents_sdk_config(spec: RunSpec) -> tuple[str, int] | None:
+    """Return the explicit J3 configuration; direct remains the default."""
+    if str(spec.agent.get("runtime") or "").strip().lower() != "agents_sdk":
+        return None
+    bundle = str(spec.agent.get("ontology_bundle_dir") or "").strip()
+    if not bundle:
+        raise RunSpecError(["agent.runtime=agents_sdk requires agent.ontology_bundle_dir"])
+    return bundle, max(1, int(spec.agent.get("max_turns") or 6))
+
+
+def _run_agents_sdk_query_phase(ctx: RunContext, *, quiet: bool, bundle_dir: str, max_turns: int) -> List[Dict[str, Any]]:
+    """Actual ``Runner.run`` query path, kept separate from direct SEOCHO calls."""
+    from .agents_runtime import get_agents_runtime
+    from .integrations.openai_agents import build_graph_agent
+
+    errors: List[str] = []
+    provider, model = parse_model_ref(ctx.spec.query_model(), where="models.query", errors=errors)
+    if errors or provider != "mara":
+        raise RunSpecError(errors or ["Agents SDK experiment currently requires a mara query model"])
+    agent = build_graph_agent(
+        ontology=ctx.ontology, graph_store=ctx.graph_store, database=ctx.database,
+        model=model, ontology_bundle_dir=str(_resolve(ctx.spec, bundle_dir)),
+    )
+    runtime = get_agents_runtime()
+    records: List[Dict[str, Any]] = []
+    for index, question in enumerate(ctx.spec.questions):
+        record: Dict[str, Any] = {"id": question.question_id or str(index + 1), "question": question.question, "runtime_mode": "agents_sdk"}
+        started = time.monotonic()
+        try:
+            with runtime.trace(f"seocho.j3.{record['id']}"):
+                result = asyncio.run(runtime.run(agent=agent, input=question.question, max_turns=max_turns))
+            record["answer"] = str(getattr(result, "final_output", result) or "")
+            record["empty"] = not record["answer"].strip()
+        except Exception as exc:
+            record.update(answer="", error=str(exc), empty=True)
+        record["latency_s"] = round(time.monotonic() - started, 2)
+        records.append(record)
+        _emit(quiet, f"  [{index + 1}/{len(ctx.spec.questions)}] agents_sdk -> {'ERROR' if record.get('error') else 'ok'}")
+    return records
+
+
 def _md_cell(value: Any) -> str:
     return str(value if value is not None else "").replace("\n", " ").replace("|", "\\|")
 
@@ -562,6 +622,7 @@ def _render_report_md(payload: Dict[str, Any]) -> str:
         f"- models: indexing={run.get('models', {}).get('indexing', '')}, "
         f"query={run.get('models', {}).get('query', '')}",
         f"- enforcement: {run.get('enforcement', '')}",
+        f"- projection governance: {run.get('governance_mode', 'direct')}",
         f"- graph: {run.get('graph', 'DozerDB/Neo4j Bolt URI required')} (database={run.get('database', '')})",
         "",
         "## Indexing",
@@ -628,6 +689,19 @@ def _render_report_md(payload: Dict[str, Any]) -> str:
                     lines.append("")
     else:
         lines += ["## Queries", "", "Index-only run (no questions declared).", ""]
+    scorecard = payload.get("agent_scorecard", {})
+    if scorecard:
+        agent = scorecard.get("agent", {})
+        lines += [
+            "## Agent semantic scorecard",
+            "",
+            f"- evidence coverage: {agent.get('mean_evidence_coverage')}",
+            f"- supported rate: {agent.get('supported_rate')}",
+            f"- missing slots per question: {agent.get('missing_slots_per_question')}",
+            f"- reference containment: {agent.get('reference_contains_rate')}",
+            "- interpretation: compare matched runs before claiming RDF-governance lift.",
+            "",
+        ]
     return "\n".join(lines)
 
 
@@ -641,6 +715,34 @@ def run(
 ) -> RunReport:
     """Execute the run: index → query → report. ``only`` limits to one phase."""
     spec = ctx.spec
+    from .ontology.plane_policy import decide_projection, projection_trace_receipt
+    from .ontology.projection_receipt import (
+        load_projection_admission_from_env,
+        load_projection_receipt_from_env,
+    )
+
+    semantic_receipt = load_projection_receipt_from_env()
+    admission = load_projection_admission_from_env()
+    if spec.governance_mode in {"governed", "lockdown"} and admission is None:
+        from .ontology.lifecycle import OntologyLifecycleStore
+
+        state_db = str(spec.governance.get("state_db") or "").strip()
+        lease_id = str(spec.governance.get("lease_id") or "").strip()
+        if not state_db or not lease_id:
+            raise RunSpecError(
+                ["governed/lockdown requires governance.state_db and governance.lease_id"]
+            )
+        admission = OntologyLifecycleStore(state_db).admission(lease_id)
+    staged_receipt = {"per_candidate": True} if spec.governance_mode in {"governed", "lockdown"} else None
+    projection_decision = decide_projection(
+        spec.governance_mode,
+        rust_socket=os.environ.get("SEOCHO_RUST_PROJECTOR_SOCKET"),
+        semantic_receipt=semantic_receipt or staged_receipt,
+        admission=admission,
+    )
+    governance_receipt = projection_trace_receipt(
+        projection_decision, semantic_receipt=semantic_receipt, admission=admission
+    )
     started_at = datetime.now().isoformat(timespec="seconds")
     payload: Dict[str, Any] = {
         "run": {
@@ -655,44 +757,88 @@ def run(
             "vector": spec.vector_kind() if spec.uses_vector_store() else "",
             "database": ctx.database,
             "workspace_id": spec.resolved_workspace_id(),
+            "governance_mode": spec.governance_mode,
+            "projection_governance": governance_receipt,
         }
     }
+    from .eval.experiment_observability import agents_sdk_runtime_receipt, direct_runtime_receipt, experiment_run_trace
 
-    phase_count = 2 if not only and not spec.index_only() else 1
-    phase = 1
-    durations: Dict[str, float] = {}
+    agents_config = _agents_sdk_config(spec)
+    if agents_config:
+        bundle_dir, max_turns = agents_config
+        toolset_digest = hashlib.sha256(b"ontology_profile,ontology_slice,run_cypher").hexdigest()
+        runtime_receipt = agents_sdk_runtime_receipt(max_turns=max_turns, toolset_digest=toolset_digest)
+    else:
+        runtime_receipt = direct_runtime_receipt()
 
-    if only in (None, "index"):
-        _emit(quiet, f"Phase {phase}/{phase_count}: Indexing ({ctx.documents_path})")
-        started = time.monotonic()
-        payload["indexing"] = _run_index_phase(ctx, force=force, quiet=quiet, track=track)
-        durations["index_s"] = round(time.monotonic() - started, 2)
-        phase += 1
-        _emit(quiet)
+    with experiment_run_trace(
+        receipt={**runtime_receipt, "projection_governance": governance_receipt}, run_name=spec.name,
+        workspace_id=spec.resolved_workspace_id(),
+    ) as experiment_manifest:
+        payload["run"]["experiment"] = experiment_manifest
+        phase_count = 2 if not only and not spec.index_only() else 1
+        phase = 1
+        durations: Dict[str, float] = {}
 
-    if only in (None, "query") and not spec.index_only():
-        mode = build_agent_config(spec).execution_mode
-        _emit(quiet, f"Phase {phase}/{phase_count}: Querying ({len(spec.questions)} questions, mode={mode})")
-        started = time.monotonic()
-        payload["queries"] = _run_query_phase(ctx, quiet=quiet)
-        durations["query_s"] = round(time.monotonic() - started, 2)
-        _emit(quiet)
+        if only in (None, "index"):
+            _emit(quiet, f"Phase {phase}/{phase_count}: Indexing ({ctx.documents_path})")
+            started = time.monotonic()
+            payload["indexing"] = _run_index_phase(ctx, force=force, quiet=quiet, track=track)
+            durations["index_s"] = round(time.monotonic() - started, 2)
+            phase += 1
+            _emit(quiet)
 
-    payload["run"]["finished_at"] = datetime.now().isoformat(timespec="seconds")
-    payload["run"]["durations"] = durations
+        if only in (None, "query") and not spec.index_only():
+            mode = build_agent_config(spec).execution_mode
+            _emit(quiet, f"Phase {phase}/{phase_count}: Querying ({len(spec.questions)} questions, mode={mode})")
+            started = time.monotonic()
+            payload["queries"] = (_run_agents_sdk_query_phase(ctx, quiet=quiet, bundle_dir=bundle_dir, max_turns=max_turns)
+                                  if agents_config else _run_query_phase(ctx, quiet=quiet))
+            durations["query_s"] = round(time.monotonic() - started, 2)
+            _emit(quiet)
 
-    ctx.output_dir.mkdir(parents=True, exist_ok=True)
-    report_json = ctx.output_dir / "report.json"
-    report_md = ctx.output_dir / "report.md"
-    report_json.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-    report_md.write_text(_render_report_md(payload), encoding="utf-8")
+        indexing_summary = payload.get("indexing") or {}
+        query_records = payload.get("queries") or []
+        if int(indexing_summary.get("files_failed", 0) or 0) or any(
+            record.get("error") for record in query_records
+        ):
+            experiment_manifest["outcome"] = "partial"
 
-    if not quiet:
-        _print_summary(payload)
-        print(f"Report: {report_md}")
-        print(f"        {report_json}")
+        payload["run"]["finished_at"] = datetime.now().isoformat(timespec="seconds")
+        payload["run"]["durations"] = durations
+        # A single run produces a baseline. Cross-arm causal claims use the
+        # explicit, conservative comparison helper rather than a blended score.
+        from .eval.semantic_scorecard import score_semantic_utility
 
-    return RunReport(payload=payload, report_json=report_json, report_md=report_md)
+        candidates = [
+            (item.get("indexing") or {}).get("governance_candidate")
+            for item in (indexing_summary.get("results") or [])
+            if (item.get("indexing") or {}).get("governance_candidate")
+        ]
+        governance = None
+        if candidates:
+            governance = {
+                "promotable": all(bool(item.get("projection_receipt_sha256")) for item in candidates),
+                "rdf_bundle_sha256": candidates[0].get("rdf_bundle_sha256"),
+                "projection_receipt_sha256": candidates[0].get("projection_receipt_sha256"),
+                "candidate_count": len(candidates),
+            }
+        payload["agent_scorecard"] = score_semantic_utility(
+            payload.get("indexing"), payload.get("queries"), governance=governance,
+        ).to_dict()
+
+        ctx.output_dir.mkdir(parents=True, exist_ok=True)
+        report_json = ctx.output_dir / "report.json"
+        report_md = ctx.output_dir / "report.md"
+        report_json.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        report_md.write_text(_render_report_md(payload), encoding="utf-8")
+
+        if not quiet:
+            _print_summary(payload)
+            print(f"Report: {report_md}")
+            print(f"        {report_json}")
+
+        return RunReport(payload=payload, report_json=report_json, report_md=report_md)
 
 
 def _print_summary(payload: Dict[str, Any]) -> None:

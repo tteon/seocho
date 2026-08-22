@@ -156,6 +156,15 @@ def register(subparsers) -> None:
     ontology_eval_answers_parser.add_argument("--workers", type=int, default=6, help="Concurrent workers (default: 6)")
     ontology_eval_answers_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
+    ontology_learn_parser = ontology_subparsers.add_parser(
+        "learn", help="Create a review-only LLMs4OL candidate report from an extracted graph",
+    )
+    ontology_learn_parser.add_argument("--schema", required=True, help="Existing ontology file; never modified")
+    ontology_learn_parser.add_argument("--graph", required=True, help="Extracted graph JSON input")
+    ontology_learn_parser.add_argument("--output", required=True, help="Explicit review-report JSON output path")
+    ontology_learn_parser.add_argument("--min-support", type=int, default=2, help="Minimum observed support per candidate")
+    ontology_learn_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
 
     ontology_import_parser = ontology_subparsers.add_parser(
         "import",
@@ -185,6 +194,78 @@ def register(subparsers) -> None:
     ontology_clone_parser.add_argument(
         "--json", dest="output_json", action="store_true", help="JSON output")
 
+    # Lifecycle commands deliberately use explicit state/root arguments.  They
+    # never infer a host path from an agent prompt or a bundle manifest.
+    bundle_parser = ontology_subparsers.add_parser("bundle", help="Build or verify immutable RDF ontology bundles")
+    bundle_sub = bundle_parser.add_subparsers(dest="bundle_action", required=True)
+    bundle_build = bundle_sub.add_parser("build", help="Atomically publish a new immutable bundle")
+    bundle_build.add_argument("--schema", required=True)
+    bundle_build.add_argument("--output", required=True, help="New (nonexistent) bundle directory")
+    bundle_build.add_argument("--json", dest="output_json", action="store_true")
+    bundle_verify = bundle_sub.add_parser("verify", help="Verify manifest and artifact hashes")
+    bundle_verify.add_argument("--bundle", required=True)
+    bundle_verify.add_argument("--json", dest="output_json", action="store_true")
+
+    def lifecycle_args(parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("--state-db", default=".seocho/ontology/state.sqlite", help="Single-host SQLite/WAL state database")
+        parser.add_argument("--workspace", required=True)
+        parser.add_argument("--package", required=True)
+        parser.add_argument("--json", dest="output_json", action="store_true")
+
+    activate = ontology_subparsers.add_parser("activate", help="CAS-activate a verified immutable bundle")
+    lifecycle_args(activate)
+    activate.add_argument("--bundle", required=True)
+    activate.add_argument("--fencing-token", required=True, type=int)
+    activate.add_argument("--expected", default=None, help="Required current generation:epoch for a swap")
+
+    status = ontology_subparsers.add_parser("status", help="Show active ontology and live writer leases")
+    lifecycle_args(status)
+
+    lease = ontology_subparsers.add_parser("lease", help="Acquire, renew, or release a persistent writer lease")
+    lease_sub = lease.add_subparsers(dest="lease_action", required=True)
+    for action in ("acquire", "renew", "release"):
+        lp = lease_sub.add_parser(action)
+        lp.add_argument("--state-db", default=".seocho/ontology/state.sqlite")
+        lp.add_argument("--owner", required=True, help="Stable process identity, never a model-generated value")
+        lp.add_argument("--json", dest="output_json", action="store_true")
+        if action == "acquire":
+            lp.add_argument("--workspace", required=True); lp.add_argument("--package", required=True)
+            lp.add_argument("--purpose", required=True); lp.add_argument("--ttl", type=int, default=60)
+        else:
+            lp.add_argument("--lease-id", required=True)
+            if action == "renew": lp.add_argument("--ttl", type=int, default=60)
+
+    # ``lock`` is a compatibility spelling for lease, not an unsafe second
+    # locking implementation.  It keeps operator intent obvious in scripts.
+    lock = ontology_subparsers.add_parser("lock", help="Alias of persistent writer lease commands")
+    lock_sub = lock.add_subparsers(dest="lease_action", required=True)
+    for action in ("acquire", "renew", "release"):
+        lp = lock_sub.add_parser(action)
+        lp.add_argument("--state-db", default=".seocho/ontology/state.sqlite")
+        lp.add_argument("--owner", required=True); lp.add_argument("--json", dest="output_json", action="store_true")
+        if action == "acquire":
+            lp.add_argument("--workspace", required=True); lp.add_argument("--package", required=True)
+            lp.add_argument("--purpose", required=True); lp.add_argument("--ttl", type=int, default=60)
+        else:
+            lp.add_argument("--lease-id", required=True)
+            if action == "renew": lp.add_argument("--ttl", type=int, default=60)
+
+    gc = ontology_subparsers.add_parser("gc", help="Report candidate immutable bundles; dry-run only")
+    gc.add_argument("--root", required=True, help="Directory containing immutable bundle directories")
+    gc.add_argument("--dry-run", action="store_true", required=True, help="Required: no deletion is implemented")
+    gc.add_argument("--json", dest="output_json", action="store_true")
+
+    context_parser = ontology_subparsers.add_parser("context", help="Return verified, bounded ontology context for an agent")
+    context_sub = context_parser.add_subparsers(dest="context_action", required=True)
+    profile_parser = context_sub.add_parser("profile", help="Return one purpose-scoped immutable profile")
+    profile_parser.add_argument("--bundle", required=True); profile_parser.add_argument("--purpose", required=True, choices=["indexing", "query", "projection"])
+    profile_parser.add_argument("--json", dest="output_json", action="store_true")
+    slice_parser = context_sub.add_parser("slice", help="Return a bounded JIT slice; never raw ontology files")
+    slice_parser.add_argument("--bundle", required=True); slice_parser.add_argument("--purpose", required=True, choices=["indexing", "query", "projection"])
+    slice_parser.add_argument("--terms", required=True, help="Comma-separated retrieval terms")
+    slice_parser.add_argument("--max-chars", type=int, default=4000)
+    slice_parser.add_argument("--json", dest="output_json", action="store_true")
+
 
 def handle(args: argparse.Namespace) -> int:
     from ..ontology_governance import (
@@ -196,6 +277,63 @@ def handle(args: argparse.Namespace) -> int:
         load_ontology_file,
     )
     import yaml
+
+    if args.ontology_command == "bundle":
+        from ..ontology import Ontology
+        from ..ontology.lifecycle import build_bundle_atomically, verify_rdf_bundle
+        if args.bundle_action == "build":
+            result = build_bundle_atomically(Ontology.load(args.schema), args.output)
+        else:
+            result = verify_rdf_bundle(args.bundle)
+        print(json.dumps(result, indent=2, ensure_ascii=False) if getattr(args, "output_json", False) else result)
+        return 0 if result.get("ok", result.get("verified", False)) else 1
+
+    if args.ontology_command in {"activate", "status"}:
+        from ..ontology.lifecycle import OntologyLifecycleStore
+        store = OntologyLifecycleStore(args.state_db)
+        if args.ontology_command == "activate":
+            expected = None
+            if args.expected:
+                try:
+                    generation, epoch = args.expected.split(":", 1); expected = (int(generation), int(epoch))
+                except ValueError as exc:
+                    raise SeochoError("--expected must be generation:epoch") from exc
+            ok, active = store.activate(args.workspace, args.package, args.bundle, fencing_token=args.fencing_token, expected=expected)
+            result = {"ok": ok, "active": active.__dict__ if active else None}
+            code = 0 if ok else 1
+        else:
+            result = store.status(args.workspace, args.package); code = 0
+        print(json.dumps(result, indent=2, ensure_ascii=False) if getattr(args, "output_json", False) else result)
+        return code
+
+    if args.ontology_command in {"lease", "lock"}:
+        from ..ontology.lifecycle import OntologyLifecycleStore
+        store = OntologyLifecycleStore(args.state_db)
+        if args.lease_action == "acquire":
+            result = store.acquire(args.workspace, args.package, purpose=args.purpose, owner=args.owner, ttl_seconds=args.ttl).to_dict()
+        elif args.lease_action == "renew":
+            result = store.renew(args.lease_id, owner=args.owner, ttl_seconds=args.ttl).to_dict()
+        else:
+            result = {"released": store.release(args.lease_id, owner=args.owner)}
+        print(json.dumps(result, indent=2, ensure_ascii=False) if getattr(args, "output_json", False) else result)
+        return 0
+
+    if args.ontology_command == "gc":
+        from ..ontology.lifecycle import verify_rdf_bundle
+        root = Path(args.root)
+        candidates = [str(path) for path in sorted(root.iterdir()) if path.is_dir() and (path / "manifest.json").exists() and verify_rdf_bundle(path).get("ok")]
+        result = {"dry_run": True, "deletions": [], "candidate_bundles": candidates, "note": "GC is report-only; immutable bundles are never deleted by this command."}
+        print(json.dumps(result, indent=2, ensure_ascii=False) if getattr(args, "output_json", False) else result)
+        return 0
+
+    if args.ontology_command == "context":
+        from ..ontology.lifecycle import load_agent_profile, slice_agent_profile
+        if args.context_action == "profile":
+            result = load_agent_profile(args.bundle, args.purpose)
+        else:
+            result = slice_agent_profile(args.bundle, args.purpose, args.terms.split(","), max_chars=args.max_chars)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return 0
 
     if args.ontology_command == "check":
         ontology = load_ontology_file(args.schema)
@@ -541,6 +679,34 @@ def handle(args: argparse.Namespace) -> int:
             for cat in sorted(report.by_category):
                 print(f"  {cat or '(uncategorized)'}: {report.by_category[cat]} "
                       f"(n={report.by_category_n.get(cat, 0)})")
+        return 0
+
+    if args.ontology_command == "learn":
+        from ..ontology import Ontology
+        from ..ontology.learning import learn_from_graph
+
+        ontology = Ontology.load(args.schema)
+        with Path(args.graph).open(encoding="utf-8") as handle:
+            graph = json.load(handle)
+        if not isinstance(graph, dict):
+            raise SeochoError("--graph must contain an extracted-graph JSON object")
+        report = learn_from_graph(graph, ontology, min_support=args.min_support)
+        payload = report.to_dict()
+        destination = Path(args.output)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        result = {
+            "output": str(destination),
+            "promotion": payload["promotion"],
+            "counts": {key: len(payload[key]) for key in ("terms", "taxonomy", "relations", "axioms")},
+        }
+        print(
+            json.dumps(result, indent=2, ensure_ascii=False)
+            if getattr(args, "output_json", False)
+            else f"review-only candidate report written: {destination}"
+        )
         return 0
 
     if args.ontology_command == "import":

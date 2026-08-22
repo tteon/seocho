@@ -21,9 +21,43 @@ those receipts in candidate approval and projection logs. A profile can be
 regenerated freely when prompt presentation changes; only a JSON-LD/Turtle/
 SHACL change creates a new canonical bundle digest and requires governance.
 
+## Module-quality admission for agents
+
+Each generated profile now also carries `module_quality`: a versioned
+structural scorecard, threshold policy, and decision. The normal profile is
+scored against the full ontology; a publisher can supply a narrower
+`module_specs[purpose]` evaluation boundary with its classes, required
+relationship interface, sibling modules, and threshold overrides. This
+metadata does not silently narrow the profile vocabulary: a prompt-slice change
+remains an explicit, separately reviewable context decision. The stored
+measures include relative size, target-fit, intra/inter-module distance,
+cohesion, coupling, redundancy, encapsulation, independence, attribute
+richness, and inheritance richness.
+
+The decision is a control-plane primitive, not a scalar “quality score”:
+
+- `ready`: use the bounded profile.
+- `needs_reasoning`: the agent must take the bounded extra verification steps
+  stated in the gate, normally an `ontology_slice` for the interface terms.
+- `reject`: withhold vocabulary and deny slices; select or repair an ontology
+  version before graph work.
+
+This does **not** claim OWL logical completeness. `source_subset_valid` checks
+that declared classes and internal relationship contracts exist in the source;
+`interface_complete` checks the caller-declared interface. Entailment
+preservation, SHACL conformance, and promotion remain separate semantic
+evidence recorded in the RDF governance receipt. This distinction keeps an
+agent from treating a convenient small module as proof of semantic correctness.
+
+The Agent SDK `ontology_profile` tool returns only the action-oriented gate and
+profile digests to preserve context budget. The full numeric scorecard and
+policy are immutable metadata in the profile artifact, linked by
+`profile_sha256`; trace spans and the
+`seocho.ontology.module.quality.decision.count` metric record each exposure.
+
 The intended promotion path is:
 
-    JSON-LD source -> Turtle/SHACL -> Oxigraph validation/reasoning ->
+    JSON-LD source -> Turtle/SHACL -> offline SHACL validation ->
     governance receipt (promotable=true) -> approved candidate ->
     projection profile -> seochod Rust Bolt write -> DozerDB canonical graph
 
@@ -32,3 +66,83 @@ directly to `seochod`. Filesystem-managed bundles should be immutable version
 directories, with a separate atomic `current` pointer controlled by the
 SEOCHO CLI. This gives agents stable read snapshots and makes rollback a pointer
 change rather than an in-place edit.
+
+For just-in-time context, use `seocho ontology context profile --bundle ...
+--purpose query` for the fixed purpose profile, or `ontology context slice
+--terms Account,TRANSFER --max-chars 4000` for a bounded, verified view. A
+slice returns its canonical bundle and profile digests plus allowed vocabulary;
+it never returns a host path or silently injects the entire ontology. This is
+the CLI-level primitive that an Agents SDK tool should expose, rather than
+placing a raw JSON-LD file into every prompt.
+
+`build_graph_agent(..., ontology_bundle_dir=...)` wires the same two tools
+(`ontology_profile`, `ontology_slice`) into a real OpenAI Agents SDK agent.
+Without that explicit argument, the existing graph agent remains compatible and
+does not claim agent-selected JIT context delivery.
+
+Oxigraph is the bounded RDF read model in this flow; it is not the SHACL
+validator. The current offline validation implementation is PySHACL. This
+separation keeps expensive governance work out of the request and projection
+hot paths.
+
+For an externally prepared receipt, set `SEOCHO_RDF_GOVERNANCE_RECEIPT` and
+`SEOCHO_AGENT_ONTOLOGY_PROFILE` together in the SEOCHO process. Normal
+`governed` CLI ingestion instead stages a *new* RDF candidate after each LLM
+extraction, validates it offline, and derives the projection receipt from the
+bundle's `projection` profile. In both cases, set
+`SEOCHOD_REQUIRE_GOVERNANCE=1` and `SEOCHOD_CONTROL_DB=<lifecycle.sqlite>` in
+the governed daemon process. The daemon independently verifies the live lease
+and stamps the resulting hashes on canonical nodes and relationships.
+
+## Governed E2E contract
+
+The run spec declares projection canonicality independently from extraction
+enforcement:
+
+```yaml
+governance:
+  mode: governed # direct | shadow | governed | lockdown
+```
+
+`governed` and `lockdown` fail preflight unless a valid projection receipt,
+live lifecycle lease, and local `seochod` socket are present. The online
+preflight also checks DozerDB and daemon health before an LLM request is sent.
+Each E2E report and root experiment trace records the selected mode, receipt
+hashes, lease ID, generation, epoch, and fencing token without recording raw
+RDF or filesystem paths. `direct` and `shadow` reports explicitly set
+`canonical_claim_allowed=false`; neither is evidence of a governed canonical
+write.
+
+The present CLI workflow intentionally keeps semantic validation offline:
+produce an extracted candidate RDF graph, validate it with
+`seocho ontology rdf-governance`, then use the resulting receipt for the
+approved projection. A normal immediate LLM indexing run must not reuse a
+receipt for a different candidate graph; candidate staging/promotion is the
+required boundary before calling it a governed ingestion workflow.
+
+### Reproducible live governed run
+
+Use one fresh `workspace_id` per run. This prevents a prior exploratory write
+from confounding an ontology or model comparison; `--force` reindexes known
+sources but is not a substitute for experiment isolation.
+
+1. Build an immutable bundle and activate it in the single-host lifecycle
+   store. Acquire a short-lived `projection` lease; put its ID, bundle path,
+   and lifecycle SQLite path in the run spec's `governance` block.
+2. Start a dedicated governed `seochod` process with DozerDB credentials,
+   `SEOCHOD_CONTROL_DB`, and `SEOCHOD_REQUIRE_GOVERNANCE=1`. Export its unique
+   Unix socket as `SEOCHO_RUST_PROJECTOR_SOCKET` only for this run.
+3. Run `uv run seocho run <spec> --dry-run`. It must pass ontology, document,
+   model, graph, lease, and daemon checks before any paid LLM call.
+4. Run with `SEOCHO_TRACE_BACKEND=jsonl` and a per-run
+   `SEOCHO_TRACE_JSONL_PATH`, then inspect `report.json` plus the root
+   `experiment.run`, per-candidate `governance.candidate.stage`, and
+   `seochod.project` spans. A valid run has one successful projection span per
+   staged document and `receipt_present=true` in the scorecard.
+
+For a direct/shadow *comparison* arm, do not send it to that governed daemon:
+the rejection is expected. Use a second isolated `seochod` socket without the
+governance-required/control-DB settings, retain the same Rust binary, DozerDB,
+model, corpus, and run settings, and record
+`canonical_claim_allowed=false`. This isolates the cost of governance rather
+than accidentally comparing different drivers or bypassing canonical admission.

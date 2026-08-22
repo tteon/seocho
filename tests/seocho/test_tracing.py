@@ -8,6 +8,7 @@ from seocho.tracing import (
     disable_tracing,
     enable_tracing,
     is_backend_enabled,
+    log_query,
 )
 
 
@@ -134,3 +135,38 @@ def test_default_jsonl_path_honours_env(monkeypatch) -> None:
     assert default_jsonl_path() == "./traces/seocho.jsonl"
     monkeypatch.setenv("SEOCHO_TRACE_JSONL_PATH", "/tmp/custom.jsonl")
     assert default_jsonl_path() == "/tmp/custom.jsonl"
+
+
+def test_log_query_is_content_free_without_explicit_capture(monkeypatch, tmp_path: Path) -> None:
+    """Rich local diagnostics must not silently become JSONL/OTLP payloads."""
+    output = tmp_path / "trace.jsonl"
+    monkeypatch.delenv("SEOCHO_TRACE_CAPTURE_CONTENT", raising=False)
+    try:
+        enable_tracing(backend="jsonl", output=str(output))
+        log_query(
+            question="What is the customer secret?",
+            ontology_name="finance",
+            model="test-model",
+            cypher="MATCH (n {secret: 'do-not-export'}) RETURN n",
+            answer="The secret is do-not-export.",
+            metadata={
+                "cypher": "MATCH (n {secret: 'do-not-export'}) RETURN n",
+                "params": {"secret": "do-not-export"},
+                "answer_envelope": {"answer": "The secret is do-not-export."},
+                "support_assessment": {"status": "supported", "missing_slots": ["internal_slot"]},
+                "evidence_bundle": {
+                    "coverage": 0.5,
+                    "slot_fills": {"supporting_fact": "do-not-export"},
+                    "provenance": [{"source": "private"}],
+                },
+            },
+        )
+    finally:
+        disable_tracing()
+
+    raw = output.read_text(encoding="utf-8")
+    assert "do-not-export" not in raw
+    assert "customer secret" not in raw
+    record = json.loads(raw)
+    assert record["metadata"]["support_assessment"]["missing_slot_count"] == 1
+    assert record["metadata"]["evidence_summary"]["provenance_count"] == 1

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from seocho.dataplane.seochod import SeochodProjectionClient
 from seocho.store.graph import Neo4jGraphStore
 
 
@@ -41,3 +42,56 @@ def test_write_routes_to_rust_projector_when_socket_is_configured(
     assert captured["socket"] == "/tmp/seochod.sock"
     assert captured["workspace_id"] == "workspace-a"
     assert captured["source_id"] == "source-a"
+    assert result["governance"]["mode"] == "direct"
+    assert not result["governance"]["canonical_claim_allowed"]
+
+
+def test_rust_projection_uses_the_same_business_identity_as_python_writer(
+    monkeypatch: Any,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeProjector:
+        def __init__(self, _: str) -> None:
+            pass
+
+        def project(self, nodes: Any, relationships: Any, **_: Any) -> dict[str, Any]:
+            captured["nodes"] = nodes
+            captured["relationships"] = relationships
+            return {"nodes_created": 2, "relationships_created": 1, "errors": []}
+
+    monkeypatch.setenv("SEOCHO_RUST_PROJECTOR_SOCKET", "/tmp/seochod.sock")
+    monkeypatch.setattr("seocho.dataplane.seochod.SeochodProjectionClient", FakeProjector)
+    store = object.__new__(Neo4jGraphStore)
+    store._schema_cache, store._schema_cache_ts = {}, {}
+    store._index_stats_cache, store._index_stats_cache_ts = {}, {}
+
+    store.write(
+        [
+            {"id": "company-local-1", "label": "Company", "properties": {"name": "Beta Industries"}},
+            {"id": "person-local-1", "label": "Person", "properties": {"name": "Jane"}},
+        ],
+        [{"source": "person-local-1", "target": "company-local-1", "type": "WORKS_AT", "properties": {}}],
+        workspace_id="workspace-a",
+    )
+
+    assert captured["nodes"][0]["id"] == "Beta Industries"
+    assert captured["nodes"][0]["properties"]["id"] == "Beta Industries"
+    assert captured["relationships"][0]["source"] == "Jane"
+    assert captured["relationships"][0]["target"] == "Beta Industries"
+
+
+def test_direct_projection_omits_absent_governance_fields(monkeypatch: Any) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_request(self: Any, payload: dict[str, Any]) -> dict[str, Any]:
+        captured.update(payload)
+        return {"ok": True, "nodes_created": 0, "relationships_created": 0}
+
+    monkeypatch.setattr(SeochodProjectionClient, "_request", fake_request)
+    SeochodProjectionClient("/tmp/seochod.sock").project(
+        [], [], database="neo4j", workspace_id="workspace-a", source_id="source-a"
+    )
+
+    assert "semantic_receipt" not in captured
+    assert "admission" not in captured

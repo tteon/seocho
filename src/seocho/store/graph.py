@@ -46,6 +46,41 @@ def _is_property_value(value: Any) -> bool:
         return all(isinstance(item, (str, int, float, bool)) or item is None for item in value)
     return False
 
+
+def _canonical_projection_payload(
+    nodes: Sequence[Dict[str, Any]], relationships: Sequence[Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Prepare a Rust payload with the Python writer's identity semantics.
+
+    Extractors commonly use document-local IDs. The Python writer already
+    canonicalises them to a declared ``name`` before merging; the Rust daemon
+    deliberately does not infer business keys. Do that in the control plane so
+    both paths retain the same identity rules.
+    """
+    canonical_ids: Dict[str, str] = {}
+    canonical_nodes: List[Dict[str, Any]] = []
+    for node in nodes:
+        item = dict(node)
+        props = dict(item.get("properties") or {})
+        original_id = str(item.get("id", ""))
+        canonical_id = str(props.get("name") or original_id or props.get("id", ""))
+        if original_id:
+            canonical_ids[original_id] = canonical_id
+        props["id"] = canonical_id
+        item["id"] = canonical_id
+        item["properties"] = props
+        canonical_nodes.append(item)
+
+    canonical_relationships: List[Dict[str, Any]] = []
+    for relationship in relationships:
+        item = dict(relationship)
+        source, target = str(item.get("source", "")), str(item.get("target", ""))
+        item["source"] = canonical_ids.get(source, source)
+        item["target"] = canonical_ids.get(target, target)
+        item["properties"] = dict(item.get("properties") or {})
+        canonical_relationships.append(item)
+    return canonical_nodes, canonical_relationships
+
 # Neo4j database naming: 3-63 chars, lowercase alpha start, alphanumeric only
 _VALID_DB_NAME_RE = re.compile(r"^[a-z][a-z0-9]{2,62}$")
 _RESERVED_DB_NAMES = {"system", "neo4j"}
@@ -431,8 +466,9 @@ class GraphStore(ABC):
         source_id: str,
         *,
         database: str = "neo4j",
+        workspace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Delete all nodes and relationships created by a given source_id.
+        """Delete graph data for a source, optionally within one workspace.
 
         Returns summary with ``nodes_deleted``, ``relationships_deleted``.
         """
@@ -541,23 +577,50 @@ class Neo4jGraphStore(GraphStore):
         source_id: str = "",
         triples: Optional[Sequence[Dict[str, Any]]] = None,
         graph_model: str = "lpg",
+        governance_mode: str | None = None,
+        semantic_receipt: Optional[Dict[str, Any]] = None,
+        admission: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         # The Python SDK remains the ontology/policy control plane.  When this
         # explicit opt-in socket is configured, the canonical DozerDB projection
         # crosses the OS boundary to the Rust Bolt driver and fails closed.
         # Reading, query safety, and schema management remain in this adapter.
         rust_socket = os.environ.get("SEOCHO_RUST_PROJECTOR_SOCKET")
+        from ..ontology.plane_policy import decide_projection
+        from ..ontology.projection_receipt import (
+            load_projection_admission_from_env,
+            load_projection_receipt_from_env,
+        )
+
+        # Receipt loading is intentionally performed before routing.  A partial
+        # receipt configuration is an operator error in every mode; in direct
+        # and shadow it is reported as absent only when not configured at all.
+        semantic_receipt = semantic_receipt if semantic_receipt is not None else load_projection_receipt_from_env()
+        admission = admission if admission is not None else load_projection_admission_from_env()
+        decision = decide_projection(
+            governance_mode or getattr(self, "_governance_mode", None),
+            rust_socket=rust_socket,
+            semantic_receipt=semantic_receipt,
+            admission=admission,
+            graph_model=graph_model,
+        )
         if rust_socket:
             if graph_model == "rdf" and triples:
                 raise RuntimeError("seochod supports approved LPG projection only")
             from ..dataplane.seochod import SeochodProjectionClient
 
+            projection_nodes, projection_relationships = _canonical_projection_payload(
+                nodes, relationships
+            )
+
             result = SeochodProjectionClient(rust_socket).project(
-                nodes,
-                relationships,
+                projection_nodes,
+                projection_relationships,
                 database=database,
                 workspace_id=workspace_id,
                 source_id=source_id,
+                semantic_receipt=semantic_receipt,
+                admission=admission,
             )
             self.invalidate_schema_cache(database)
             return {
@@ -566,6 +629,7 @@ class Neo4jGraphStore(GraphStore):
                 "errors": result.get("errors", []),
                 "merge_conflicts": result.get("merge_conflicts", []),
                 "driver": result.get("driver", "rust-neo4j"),
+                "governance": decision.to_dict(),
             }
 
         # Validate database name (skip for default 'neo4j')
@@ -574,7 +638,9 @@ class Neo4jGraphStore(GraphStore):
 
         # RDF mode: write triples via n10s
         if graph_model == "rdf" and triples:
-            return self._write_rdf(triples, database=database, source_id=source_id)
+            rdf_summary = self._write_rdf(triples, database=database, source_id=source_id)
+            rdf_summary["governance"] = decision.to_dict()
+            return rdf_summary
 
         # seocho-uxs.1: merge_conflicts surfaces value divergence when a MERGE
         # lands on an existing node whose user-facing property already holds a
@@ -584,6 +650,7 @@ class Neo4jGraphStore(GraphStore):
             "relationships_created": 0,
             "errors": [],
             "merge_conflicts": [],
+            "governance": decision.to_dict(),
         }
 
         # seocho-4rg (Lamport): stamp a writer timestamp so concurrent/replayed
@@ -599,6 +666,12 @@ class Neo4jGraphStore(GraphStore):
         # row neither loses its siblings nor its error message — behavior stays
         # identical to the old per-row loop, just N round-trips -> #labels.
         nodes_by_label: Dict[str, List[Dict[str, Any]]] = {}
+        # Extraction-local IDs (often ``c1``) are not stable across documents.
+        # Prefer a declared business name when present and remap relationship
+        # endpoints in this payload to the same canonical identity.  Otherwise
+        # a graph-level UNIQUE(name) constraint rejects a second source that
+        # describes the same company/person with a different local ID.
+        canonical_ids: Dict[str, str] = {}
         for node in nodes:
             label = node.get("label", "Entity")
             if not _LABEL_RE.match(label):
@@ -609,7 +682,10 @@ class Neo4jGraphStore(GraphStore):
             props["_workspace_id"] = workspace_id
             props["_writer_ts"] = now
             props["_writer_agent"] = source_id or "unknown"
-            node_id = node.get("id", props.get("name", ""))
+            original_id = str(node.get("id", ""))
+            node_id = str(props.get("name") or original_id or props.get("id", ""))
+            if original_id:
+                canonical_ids[original_id] = node_id
             props["id"] = node_id
             nodes_by_label.setdefault(label, []).append({"id": node_id, "props": props})
 
@@ -634,7 +710,8 @@ class Neo4jGraphStore(GraphStore):
             props["_writer_ts"] = now
             props["_writer_agent"] = source_id or "unknown"
             rels_by_type.setdefault((rtype, source_label, target_label), []).append(
-                {"src": rel.get("source", ""), "tgt": rel.get("target", ""), "props": props})
+                {"src": canonical_ids.get(str(rel.get("source", "")), rel.get("source", "")),
+                 "tgt": canonical_ids.get(str(rel.get("target", "")), rel.get("target", "")), "props": props})
 
         with self._driver.session(database=database) as session:
             # --- Nodes (one UNWIND per label) ---
@@ -1021,8 +1098,20 @@ class Neo4jGraphStore(GraphStore):
         inside transactions; opt in only when you've verified your
         deployment supports it).
         """
-        stmts = ontology.to_cypher_constraints()
+        # All SDK writes stamp `_workspace_id`, so graph constraints must use
+        # the same tenant key. A global `name UNIQUE` makes two legitimate
+        # workspaces collide before the writer's workspace-scoped MERGE runs.
+        stmts = ontology.to_cypher_constraints(workspace_scoped=True)
         summary = {"success": 0, "errors": []}
+
+        legacy = []
+        for label, node in ontology.nodes.items():
+            identity = set(node.identity_keys)
+            if len(node.identity_keys) == 1:
+                legacy.append(f"constraint_{label}_identity_unique")
+            for pname, prop in node.properties.items():
+                if prop.unique and pname not in identity:
+                    legacy.append(f"constraint_{label}_{pname}_unique")
 
         with self._driver.session(database=database) as session:
             if transactional:
@@ -1052,6 +1141,13 @@ class Neo4jGraphStore(GraphStore):
                         f"transactional ensure_constraints rolled back: {exc}"
                     )
             else:
+                # Only remove SEOCHO's documented legacy names. Arbitrary
+                # operator constraints are never discovered/deleted here.
+                for name in legacy:
+                    try:
+                        session.run(f"DROP CONSTRAINT {name} IF EXISTS")
+                    except Exception as exc:
+                        summary["errors"].append(f"drop legacy constraint {name}: {exc}")
                 for stmt in stmts:
                     try:
                         session.run(stmt)
@@ -1291,6 +1387,7 @@ class Neo4jGraphStore(GraphStore):
         source_id: str,
         *,
         database: str = "neo4j",
+        workspace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         summary = {"nodes_deleted": 0, "relationships_deleted": 0, "errors": []}
 
@@ -1299,8 +1396,9 @@ class Neo4jGraphStore(GraphStore):
             try:
                 result = session.run(
                     "MATCH ()-[r]->() WHERE r._source_id = $sid "
+                    "AND ($workspace_id IS NULL OR r._workspace_id = $workspace_id) "
                     "WITH r LIMIT 10000 DELETE r RETURN count(r) AS cnt",
-                    sid=source_id,
+                    sid=source_id, workspace_id=workspace_id,
                 )
                 record = result.single()
                 summary["relationships_deleted"] = record["cnt"] if record else 0
@@ -1315,23 +1413,25 @@ class Neo4jGraphStore(GraphStore):
             try:
                 session.run(
                     "MATCH (n) WHERE n._sources IS NOT NULL AND $sid IN n._sources "
+                    "AND ($workspace_id IS NULL OR n._workspace_id = $workspace_id) "
                     "AND size([s IN n._sources WHERE s <> $sid]) > 0 "
                     "WITH n, [s IN n._sources WHERE s <> $sid] AS rest LIMIT 10000 "
                     "SET n._sources = rest, "
                     "    n._source_id = CASE WHEN n._source_id = $sid "
                     "THEN rest[-1] ELSE n._source_id END",
-                    sid=source_id,
+                    sid=source_id, workspace_id=workspace_id,
                 )
             except Exception as exc:
                 summary["errors"].append(f"Source retire: {exc}")
 
             try:
                 result = session.run(
-                    "MATCH (n) WHERE (n._sources IS NULL AND n._source_id = $sid) "
+                    "MATCH (n) WHERE ((n._sources IS NULL AND n._source_id = $sid) "
                     "OR (n._sources IS NOT NULL AND $sid IN n._sources "
-                    "AND size([s IN n._sources WHERE s <> $sid]) = 0) "
+                    "AND size([s IN n._sources WHERE s <> $sid]) = 0)) "
+                    "AND ($workspace_id IS NULL OR n._workspace_id = $workspace_id) "
                     "WITH n LIMIT 10000 DETACH DELETE n RETURN count(n) AS cnt",
-                    sid=source_id,
+                    sid=source_id, workspace_id=workspace_id,
                 )
                 record = result.single()
                 summary["nodes_deleted"] = record["cnt"] if record else 0

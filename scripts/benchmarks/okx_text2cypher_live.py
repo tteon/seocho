@@ -11,13 +11,24 @@ from pathlib import Path
 
 from neo4j import GraphDatabase
 
+from seocho.eval.text2cypher_judge import judge_receipt, judge_text2cypher
+from seocho.metrics import get_metrics
+from seocho.ontology.online_query_admission import admit_online_query
 from seocho.query.text2cypher import generate_validated_cypher
 from seocho.query.workload_compiler import Text2CypherFallbackPolicy
-from seocho.store.llm import MaraBackend
+from seocho.store.llm import MaraBackend, create_llm_backend
+from seocho.tracing import (
+    configure_tracing_from_env,
+    disable_tracing,
+    flush_tracing,
+    start_span,
+)
 
 
 async def run(args: argparse.Namespace) -> dict:
-    driver = GraphDatabase.driver(args.bolt_uri, auth=("neo4j", args.graph_password))
+    driver = GraphDatabase.driver(
+        args.bolt_uri, auth=(args.graph_user, args.graph_password)
+    )
     with driver.session() as session:
         seed = session.run(
             "MATCH (i:ExchangeIntent)-[:HAS_EVENT]->(e:ExchangeMemoryEvent) "
@@ -33,8 +44,16 @@ async def run(args: argparse.Namespace) -> dict:
     }
     policy = Text2CypherFallbackPolicy(
         allowed_labels=("ExchangeIntent", "ExchangeMemoryEvent"),
-        allowed_relationships=("HAS_EVENT", "NEXT"),
-        allowed_properties=("id", "workspace", "step", "sequence", "actor", "recipient", "provenance"),
+        allowed_relationships=("HAS_EVENT",),
+        allowed_properties=(
+            "id",
+            "workspace",
+            "step",
+            "sequence",
+            "actor",
+            "recipient",
+            "provenance",
+        ),
         workspace_property="workspace",
         required_parameters=("workspace_id", "intent_id"),
         max_graph_hops=2,
@@ -46,23 +65,103 @@ async def run(args: argparse.Namespace) -> dict:
         with driver.session() as session:
             session.run("EXPLAIN " + cypher, **values).consume()
 
-    result = await generate_validated_cypher(
-        question="List the ordered memory steps recorded for this exchange transaction.",
-        schema={
-            "labels": policy.allowed_labels,
-            "relationships": policy.allowed_relationships,
-            "properties": policy.allowed_properties,
-            "tenant_scope": "workspace:$workspace_id",
-        },
-        params=params,
-        policy=policy,
-        backend=MaraBackend(model=args.model),
-        model=args.model,
-        explain=explain,
-    )
-    with driver.session() as session:
-        records = session.run(result.cypher, **result.params).data()
-    driver.close()
+    async def generate_and_execute():
+        result = await generate_validated_cypher(
+            question="List the ordered memory steps recorded for this exchange transaction.",
+            schema={
+                "labels": policy.allowed_labels,
+                "relationships": policy.allowed_relationships,
+                "properties": policy.allowed_properties,
+                "tenant_scope": "workspace:$workspace_id",
+            },
+            params=params,
+            policy=policy,
+            backend=MaraBackend(model=args.model),
+            model=args.model,
+            explain=explain,
+        )
+        with driver.session() as session:
+            return result, session.run(result.cypher, **result.params).data()
+
+    governance = None
+    try:
+        if args.governed_bundle:
+            if not all(
+                (args.state_db, args.workspace_id, args.package_id, args.lease_owner)
+            ):
+                raise ValueError(
+                    "governed mode requires --state-db, --workspace-id, --package-id, and --lease-owner"
+                )
+            with admit_online_query(
+                bundle_dir=args.governed_bundle,
+                state_db=args.state_db,
+                workspace_id=args.workspace_id,
+                package_id=args.package_id,
+                owner=args.lease_owner,
+            ) as admitted:
+                profile = admitted.profile
+                if not set(policy.allowed_labels) <= set(
+                    profile.get("allowed_node_labels", [])
+                ):
+                    raise ValueError(
+                        "query policy exceeds the active ontology profile labels"
+                    )
+                if not set(policy.allowed_relationships) <= set(
+                    profile.get("allowed_relationship_types", [])
+                ):
+                    raise ValueError(
+                        "query policy exceeds the active ontology profile relationships"
+                    )
+                governance = admitted.receipt()
+                result, records = await generate_and_execute()
+        else:
+            result, records = await generate_and_execute()
+    finally:
+        driver.close()
+    task_contract = {
+        "required_labels": list(policy.allowed_labels),
+        "required_relationship": "HAS_EVENT",
+        "required_fields": ["step"],
+        "workspace_scope": "workspace:$workspace_id on every matched node",
+        "parameterized_limit": "LIMIT $limit",
+        "read_only": True,
+    }
+    judge = None
+    if args.judge_model:
+        judge_backend = create_llm_backend(provider="mara", model=args.judge_model)
+        try:
+            judgement = judge_text2cypher(
+                judge_backend,
+                model=args.judge_model,
+                question="List the ordered memory steps recorded for this exchange transaction.",
+                task_contract=task_contract,
+                cypher=result.cypher,
+                explain_succeeded=result.explained,
+                result_rows=len(records),
+                result_fields=sorted(
+                    {str(key) for record in records for key in record}
+                ),
+            )
+            judge = {
+                "model": args.judge_model,
+                **judge_receipt(judgement, cypher=result.cypher),
+            }
+            metrics = get_metrics()
+            metrics.add(
+                "seocho.text2cypher.judge.count",
+                attributes={"verdict": judgement.verdict, "outcome": "ok"},
+            )
+            metrics.record("seocho.text2cypher.judge.score", judgement.score)
+        except Exception as exc:
+            judge = {
+                "model": args.judge_model,
+                "outcome": "error",
+                "error_type": type(exc).__name__,
+            }
+            get_metrics().add(
+                "seocho.text2cypher.judge.count",
+                attributes={"verdict": "unavailable", "outcome": "error"},
+            )
     report = {
         "schema_version": "seocho.okx-text2cypher-live.v1",
         "model": args.model,
@@ -73,8 +172,13 @@ async def run(args: argparse.Namespace) -> dict:
         "result_rows": len(records),
         "workspace_scoped": "$workspace_id" in result.cypher,
         "parameterized_limit": "LIMIT $limit" in result.cypher,
+        "governance": governance,
+        "judge": judge,
         "passed": bool(records)
-        and any(any(value not in (None, [], {}) for value in record.values()) for record in records)
+        and any(
+            any(value not in (None, [], {}) for value in record.values())
+            for record in records
+        )
         and result.explained,
     }
     return report
@@ -83,15 +187,50 @@ async def run(args: argparse.Namespace) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--bolt-uri", default="bolt://127.0.0.1:7687")
+    parser.add_argument("--graph-user", default="neo4j")
     parser.add_argument("--graph-password", required=True)
-    parser.add_argument("--model", default="gpt-oss-120b")
+    parser.add_argument("--model", default="MiniMax-M2.7", help="Generator model")
+    parser.add_argument(
+        "--judge-model",
+        default="gpt-oss-120b",
+        help="Independent Mara judge; pass an empty value to skip",
+    )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--governed-bundle",
+        help="Verified active RDF bundle required for governed mode",
+    )
+    parser.add_argument(
+        "--state-db", help="Lifecycle SQLite/WAL state database for governed mode"
+    )
+    parser.add_argument("--workspace-id", help="Lifecycle workspace for governed mode")
+    parser.add_argument(
+        "--package-id", help="Lifecycle ontology package for governed mode"
+    )
+    parser.add_argument(
+        "--lease-owner", help="Stable process identity for governed-mode query lease"
+    )
     args = parser.parse_args()
-    report = asyncio.run(run(args))
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
-    print(json.dumps(report, indent=2, sort_keys=True))
-    raise SystemExit(0 if report["passed"] else 1)
+    tracing_enabled = configure_tracing_from_env()
+    try:
+        with start_span(
+            "text2cypher.live_evaluation",
+            metadata={
+                "generator.model": args.model,
+                "judge.model": args.judge_model or "none",
+            },
+            tags=["evaluation", "text2cypher"],
+        ):
+            report = asyncio.run(run(args))
+        report["tracing_enabled"] = tracing_enabled
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+        print(json.dumps(report, indent=2, sort_keys=True))
+        raise SystemExit(0 if report["passed"] else 1)
+    finally:
+        if tracing_enabled:
+            flush_tracing()
+            disable_tracing()
 
 
 if __name__ == "__main__":

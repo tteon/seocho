@@ -306,6 +306,90 @@ def _check_vector(spec: RunSpec) -> "PreflightCheck | None":
     )
 
 
+def _check_projection_governance(spec: RunSpec, *, online: bool) -> PreflightCheck:
+    """Check a declared projection contract before any paid LLM call.
+
+    The result is a readiness check, not an authorization decision: the Rust
+    daemon re-reads the active pointer and lease immediately before every
+    governed graph write.
+    """
+    import os
+
+    from .ontology.plane_policy import ProjectionPolicyError, decide_projection
+    from .ontology.projection_receipt import (
+        ProjectionReceiptError,
+        load_projection_admission_from_env,
+        load_projection_receipt_from_env,
+    )
+
+    socket_path = os.getenv("SEOCHO_RUST_PROJECTOR_SOCKET", "").strip() or None
+    if spec.governance_mode in {"governed", "lockdown"}:
+        bundle_dir = str(spec.governance.get("bundle_dir") or "").strip()
+        if not bundle_dir:
+            return PreflightCheck(
+                name="projection governance", status="fail",
+                detail="governed candidate staging requires governance.bundle_dir",
+                fix="set governance.bundle_dir to the immutable active RDF bundle",
+            )
+        if not Path(bundle_dir).is_dir():
+            return PreflightCheck(name="projection governance", status="fail",
+                                  detail=f"governance.bundle_dir does not exist: {bundle_dir}")
+    try:
+        receipt = load_projection_receipt_from_env()
+        admission = load_projection_admission_from_env()
+        # A governed run stages a distinct receipt after each extraction, but
+        # its lease capability is already concrete and must be checked before
+        # paid work begins. Prefer an explicitly supplied capability for
+        # operator tooling; otherwise derive the run-scoped one from its
+        # lifecycle store rather than requiring an unrelated environment file.
+        if spec.governance_mode in {"governed", "lockdown"} and admission is None:
+            from .ontology.lifecycle import OntologyLifecycleStore
+
+            state_db = str(spec.governance.get("state_db") or "").strip()
+            lease_id = str(spec.governance.get("lease_id") or "").strip()
+            if not state_db or not lease_id:
+                raise ValueError(
+                    "governed candidate staging requires governance.state_db and governance.lease_id"
+                )
+            admission = OntologyLifecycleStore(state_db).admission(lease_id)
+        # In a governed run the receipt is created after extraction from each
+        # candidate payload.  A pre-existing receipt is optional evidence, not
+        # a substitute for that per-candidate stage.
+        staged_receipt = {"per_candidate": True} if spec.governance_mode in {"governed", "lockdown"} else None
+        decision = decide_projection(
+            spec.governance_mode,
+            rust_socket=socket_path,
+            semantic_receipt=receipt or staged_receipt,
+            admission=admission,
+        )
+    except (ProjectionPolicyError, ProjectionReceiptError, ValueError) as exc:
+        return PreflightCheck(
+            name="projection governance", status="fail", detail=str(exc),
+            fix=("for governed/lockdown configure the Rust socket, promotable RDF receipt, "
+                 "projection profile, lifecycle state DB, and live projection lease"),
+        )
+    if online and decision.requires_rust_projector:
+        try:
+            from .dataplane.seochod import SeochodProjectionClient
+
+            health = SeochodProjectionClient(socket_path or "").health()
+            if not health.get("ok"):
+                raise RuntimeError(health.get("error") or "health rejected")
+        except Exception as exc:  # no paid work can begin in a strict mode
+            return PreflightCheck(
+                name="projection governance", status="fail",
+                detail=f"{spec.governance_mode} capability is valid but seochod is unavailable: {exc}",
+                fix="start seochod with SEOCHOD_CONTROL_DB and SEOCHOD_REQUIRE_GOVERNANCE=1",
+            )
+    detail = (f"mode={spec.governance_mode}; "
+              f"canonical_claim_allowed={str(decision.canonical_claim_allowed).lower()}")
+    if decision.missing:
+        detail += "; optional signals absent=" + ",".join(decision.missing)
+    if spec.governance_mode in {"governed", "lockdown"}:
+        detail += "; receipt=per-candidate-stage"
+    return PreflightCheck(name="projection governance", status="ok", detail=detail)
+
+
 def run_preflight(spec: RunSpec, *, online: bool = False) -> PreflightReport:
     """Run all preflight checks for a run spec.
 
@@ -321,6 +405,7 @@ def run_preflight(spec: RunSpec, *, online: bool = False) -> PreflightReport:
             report.checks.append(check)
     report.checks.extend(_check_models(spec))
     report.checks.append(_check_graph(spec, online=online))
+    report.checks.append(_check_projection_governance(spec, online=online))
     vector_check = _check_vector(spec)
     if vector_check is not None:
         report.checks.append(vector_check)

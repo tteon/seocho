@@ -1829,7 +1829,7 @@ class Ontology:
     # Cypher constraint generation
     # ------------------------------------------------------------------
 
-    def to_cypher_constraints(self) -> List[str]:
+    def to_cypher_constraints(self, *, workspace_scoped: bool = False) -> List[str]:
         """Generate Cypher CREATE CONSTRAINT / CREATE INDEX statements."""
         stmts: List[str] = []
         for label, nd in self.nodes.items():
@@ -1848,23 +1848,24 @@ class Ontology:
                 # silently, and precisely for the property the writer dedupes on.
                 (only,) = nd.identity_keys
                 if only in nd.properties:
-                    stmts.append(
-                        f"CREATE CONSTRAINT constraint_{label}_identity_unique "
-                        f"IF NOT EXISTS FOR (n:{label}) REQUIRE n.{only} IS UNIQUE"
-                    )
+                    if workspace_scoped:
+                        stmts.append(f"CREATE CONSTRAINT constraint_{label}_identity_workspace_unique IF NOT EXISTS FOR (n:{label}) REQUIRE (n._workspace_id, n.{only}) IS UNIQUE")
+                    else:
+                        stmts.append(f"CREATE CONSTRAINT constraint_{label}_identity_unique IF NOT EXISTS FOR (n:{label}) REQUIRE n.{only} IS UNIQUE")
             if len(nd.identity_keys) > 1:
-                props = ", ".join(f"n.{k}" for k in nd.identity_keys)
-                cname = f"constraint_{label}_identity_unique"
+                props = ", ".join(["n._workspace_id", *[f"n.{k}" for k in nd.identity_keys]]) if workspace_scoped else ", ".join(f"n.{k}" for k in nd.identity_keys)
+                cname = f"constraint_{label}_identity_workspace_unique" if workspace_scoped else f"constraint_{label}_identity_unique"
                 stmts.append(
                     f"CREATE CONSTRAINT {cname} IF NOT EXISTS "
                     f"FOR (n:{label}) REQUIRE ({props}) IS UNIQUE"
                 )
             for pname, p in nd.properties.items():
                 if p.unique and pname not in identity:
-                    cname = f"constraint_{label}_{pname}_unique"
+                    cname = f"constraint_{label}_{pname}_workspace_unique" if workspace_scoped else f"constraint_{label}_{pname}_unique"
+                    props = f"(n._workspace_id, n.{pname})" if workspace_scoped else f"n.{pname}"
                     stmts.append(
                         f"CREATE CONSTRAINT {cname} IF NOT EXISTS "
-                        f"FOR (n:{label}) REQUIRE n.{pname} IS UNIQUE"
+                        f"FOR (n:{label}) REQUIRE {props} IS UNIQUE"
                     )
             for pname, p in nd.properties.items():
                 if p.index and not p.unique:

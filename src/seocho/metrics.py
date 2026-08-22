@@ -88,6 +88,10 @@ _TOKEN_COUNT_BUCKETS = (
     16.0, 64.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0,
     8192.0, 16384.0, 32768.0, 131072.0,
 )
+_BYTE_SIZE_BUCKETS = (
+    256.0, 1024.0, 4096.0, 16_384.0, 65_536.0, 262_144.0,
+    1_048_576.0, 2_097_152.0, 8_388_608.0,
+)
 # Small cardinal counts: retrieval candidates, attempts, batch entries.
 _ITEM_COUNT_BUCKETS = (1.0, 2.0, 3.0, 5.0, 8.0, 13.0, 21.0, 50.0, 100.0, 500.0)
 
@@ -136,6 +140,12 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.projection.batch.entry_count", "histogram", "{entry}", ("projection",), "Entries processed per projection batch."),
         _spec("seocho.projection.replay.count", "counter", "{entry}", ("projection", "outcome"), "Projection replay results."),
         _spec("seocho.projection.fencing_rejection.count", "counter", "{rejection}", ("projection",), "Rejected stale projector owners."),
+        _spec("seocho.projection.daemon.request.duration", "histogram", "s", ("outcome",), "Rust projection-daemon round-trip duration."),
+        _spec("seocho.projection.daemon.request.count", "counter", "{request}", ("outcome",), "Rust projection-daemon requests."),
+        _spec("seocho.projection.daemon.payload_bytes", "histogram", "By", (), "Rust projection-daemon request payload size."),
+        _spec("seocho.governance.candidate.stage.duration", "histogram", "s", ("outcome",), "Candidate RDF staging and SHACL duration."),
+        _spec("seocho.governance.candidate.stage.count", "counter", "{candidate}", ("outcome",), "Candidate RDF staging outcomes."),
+        _spec("seocho.governance.candidate.payload_bytes", "histogram", "By", (), "Serialized candidate RDF size."),
         _spec("seocho.retrieval.duration", "histogram", "s", ("source", "outcome"), "Retrieval operation duration."),
         _spec("seocho.retrieval.inflight", "up_down_counter", "{query}", ("source",), "In-flight retrieval queries."),
         _spec("seocho.retrieval.admission_rejection.count", "counter", "{rejection}", ("source", "reason"), "Retrieval queries rejected before backend execution."),
@@ -151,6 +161,8 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.text2cypher.duration", "histogram", "s", ("stage", "outcome"), "Text2Cypher stage duration."),
         _spec("seocho.text2cypher.validation_failure.count", "counter", "{failure}", ("reason",), "Rejected generated Cypher."),
         _spec("seocho.text2cypher.execution_failure.count", "counter", "{failure}", ("error.type",), "Cypher execution failures."),
+        _spec("seocho.text2cypher.judge.count", "counter", "{judgement}", ("verdict", "outcome"), "Blinded Text2Cypher LLM-judge outcomes."),
+        _spec("seocho.text2cypher.judge.score", "histogram", "1", (), "Blinded Text2Cypher LLM-judge score."),
         _spec("seocho.query.plan.count", "counter", "{plan}", ("sargable",), "Executed query plans by sargability."),
         _spec("seocho.query.db_hits.count", "counter", "{dbhit}", (), "Cumulative database hits across executed plans."),
         _spec("seocho.query.scan.count", "counter", "{scan}", ("operator",), "Full-scan plan operators observed."),
@@ -179,6 +191,16 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.context.item_count", "histogram", "{item}", ("strategy", "state"), "Candidate or selected context items."),
         _spec("seocho.context.budget_exceeded.count", "counter", "{request}", ("strategy",), "Context budget exceedances."),
         _spec("seocho.context.policy_filtered.count", "counter", "{item}", ("reason",), "Context items removed by policy."),
+        _spec("seocho.ontology.tool.call.count", "counter", "{call}", ("tool", "outcome"), "Bounded ontology-context tool calls."),
+        _spec("seocho.ontology.tool.duration", "histogram", "s", ("tool", "outcome"), "Bounded ontology-context tool duration."),
+        _spec("seocho.ontology.slice.size", "histogram", "By", ("kind",), "Ontology slice or evidence-pack size."),
+        _spec("seocho.ontology.module.quality.decision.count", "counter", "{decision}", ("disposition",), "Module-quality policy decisions exposed to agents."),
+        _spec("seocho.ontology.lock.operation.count", "counter", "{operation}", ("operation", "outcome"), "Ontology activation and lease lifecycle operations."),
+        _spec("seocho.ontology.learning.candidate.count", "counter", "{candidate}", ("kind",), "Offline ontology-learning candidates by bounded kind."),
+        _spec("seocho.ontology.learning.duration", "histogram", "s", ("outcome",), "Offline ontology-learning analysis duration."),
+        _spec("seocho.ontology.learning.prompt_ablation.duration", "histogram", "s", ("arm", "outcome"), "Paired ontology-learning prompt-ablation duration."),
+        _spec("seocho.ontology.learning.prompt_ablation.count", "counter", "{request}", ("arm", "outcome"), "Paired ontology-learning prompt-ablation outcomes."),
+        _spec("seocho.ontology.learning.prompt_ablation.evidence_coverage", "histogram", "1", ("arm",), "Candidate items carrying source evidence in prompt ablation."),
         _spec("db.client.operation.duration", "histogram", "s", ("db.system", "operation", "outcome"), "Graph client operation duration, wall time at the driver."),
         _spec("db.client.operation.server_share", "histogram", "1", ("db.system", "operation"), "Server fraction of a graph operation; the remainder is client hydration (ADR-0111)."),
         _spec("gen_ai.client.operation.duration", "histogram", "s", ("gen_ai.provider.name", "gen_ai.request.model", "gen_ai.operation.name", "error.type"), "GenAI client operation duration."),
@@ -192,6 +214,12 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.governance.policy_version_mismatch.count", "counter", "{mismatch}", ("stage",), "Policy version mismatches."),
         _spec("seocho.governance.ontology_version_mismatch.count", "counter", "{mismatch}", ("stage",), "Ontology version mismatches."),
         _spec("seocho.observability.export_failure.count", "counter", "{failure}", ("signal", "exporter"), "Telemetry export failures."),
+        _spec("seocho.observability.trace_complete.count", "counter", "{trace}", ("workflow", "outcome"), "Experiment traces with complete required stages."),
+        _spec("seocho.experiment.run.duration", "histogram", "s", ("runtime", "outcome"), "End-to-end experiment-run duration."),
+        _spec("seocho.experiment.run.count", "counter", "{run}", ("runtime", "outcome"), "Completed experiment runs."),
+        _spec("seocho.benchmark.dataset.prepare.duration", "histogram", "s", ("benchmark", "outcome"), "Benchmark dataset preparation duration."),
+        _spec("seocho.benchmark.dataset.prepare.count", "counter", "{run}", ("benchmark", "outcome"), "Benchmark dataset preparation outcomes."),
+        _spec("seocho.benchmark.dataset.case.count", "counter", "{case}", ("benchmark", "question_type"), "Prepared benchmark cases by bounded question type."),
         _spec("seocho.critical.scenario.runs", "counter", "{run}", ("scenario_id", "support_status"), "Critical evaluation scenario runs."),
         _spec("seocho.critical.scenario.passed", "counter", "{run}", ("scenario_id",), "Passed critical evaluation scenarios."),
         _spec("seocho.critical.silent_stale", "counter", "{answer}", ("scenario_id",), "Silent stale answers in evaluation."),
@@ -382,6 +410,11 @@ def build_histogram_views() -> tuple:
             aggregation=ExplicitBucketHistogramAggregation(
                 _TOKEN_COUNT_BUCKETS
             ),
+        ),
+        View(
+            instrument_unit="By",
+            instrument_name="*",
+            aggregation=ExplicitBucketHistogramAggregation(_BYTE_SIZE_BUCKETS),
         ),
     ) + tuple(
         View(

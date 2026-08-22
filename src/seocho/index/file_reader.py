@@ -475,6 +475,8 @@ class FileIndexer:
                 total_result.skipped_chunks += result.skipped_chunks
                 if not total_result.source_id:
                     total_result.source_id = result.source_id
+                if result.governance_candidate:
+                    total_result.governance_candidate = result.governance_candidate
         finally:
             if strict_validation is not None:
                 self.pipeline.strict_validation = original_strict

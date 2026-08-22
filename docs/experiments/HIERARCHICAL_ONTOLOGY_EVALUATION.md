@@ -34,6 +34,18 @@ uv run python scripts/benchmarks/evaluation_case_envelopes.py \
 The output has only case hashes, layer states, and coverage counts; raw source
 text, answers, triples, and Cypher remain in the local input artifact.
 
+For GraphRAG-Bench, begin with its content-free reference ledger rather than
+copying the academic-only upstream content:
+
+```bash
+uv run python scripts/benchmarks/bootstrap_graphrag_case_envelopes.py \
+  --ledger .seocho/benchmarks/graphrag-bench/cases.jsonl \
+  --output .seocho/gold/graphrag-bench-envelope.jsonl
+```
+
+The bootstrapped rows are deliberately all graph/query `unannotated`. They are
+an annotation queue, not experimental gold.
+
 ## Benchmark roles
 
 GraphRAG-Bench remains an answer/rationale track. Its question files do not

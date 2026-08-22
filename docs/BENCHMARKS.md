@@ -156,6 +156,40 @@ Use GraphRAG-Bench for:
 This is the query/reasoning benchmark track. It should not be used as the only
 measure of ingestion quality.
 
+The supported external dataset is the official
+[`jeremycp3/GraphRAG-Bench`](https://github.com/jeremycp3/GraphRAG-Bench)
+textbook benchmark. Its five `Question/{FB,MC,MS,OE,TF}.jsonl` files are an
+answer/rationale track; they do **not** supply gold Cypher, RDF triples,
+projection receipts, leases, or question-to-textbook-span bindings. Preserve
+those gaps explicitly rather than treating them as zero values.
+
+Prepare a local, provenance-pinned adapter before indexing:
+
+```bash
+uv run python scripts/benchmarks/prepare_graphrag_bench.py \
+  --question-dir .seocho/datasets/graphrag-bench/questions \
+  --out .seocho/benchmarks/graphrag-bench/cases.jsonl
+```
+
+The source corpus, prepared JSONL, manifests, and model outputs stay local.
+The upstream dataset card permits academic research only and prohibits
+commercial use, distribution, and modification. The prepared JSONL is therefore
+a content-free reference ledger, not a copied or transformed question dataset;
+the runner must read the local source snapshot directly.
+The adapter records each upstream question-file SHA-256 and marks unavailable
+`corpus_binding` and `text2cypher` labels as `unbound`/`unannotated`. A later
+SEOCHO extension must add reviewed labels in a separate keyed file and be
+reported as `GraphRAG-Bench × SEOCHO`, never as an official leaderboard result.
+
+For this track, report the upstream-compatible answer/rationale result
+separately from SEOCHO governance outcomes. Add the following operational
+evidence to the JSONL trace and immutable run manifest: source snapshot,
+corpus document/span bindings, ontology bundle/profile identity, slice bytes
+and token estimate, candidate Cypher/validation/execution outcome, evidence
+coverage, receipt/lease/fence outcome, repair or abstention count, and model
+latency/cost. Keep case IDs, source text, file paths, workspace IDs, and
+digests out of metric labels.
+
 ## Peer Systems
 
 The current peer baseline set is:

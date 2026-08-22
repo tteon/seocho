@@ -500,7 +500,7 @@ def handle(args: argparse.Namespace) -> int:
                 print(json.dumps(clusters, indent=2, ensure_ascii=False))
             else:
                 if not clusters:
-                    print("quarantine empty")
+                    print("Quarantine is empty.")
                 for c in clusters:
                     print(f"  {c['frequency']:4d}×  {c['surface']:30s} signals={c['signals']} "
                           f"candidates={c['candidate_labels']}")

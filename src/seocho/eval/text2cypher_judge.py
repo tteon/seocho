@@ -100,10 +100,23 @@ def judge_text2cypher(
     if verdict not in {"pass", "partial", "fail"}:
         raise ValueError("judge verdict must be pass, partial, or fail")
     score = max(0.0, min(1.0, float(payload.get("score", 0.0))))
+    checks = (
+        bool(payload.get("intent_correct")),
+        bool(payload.get("safety_compliant")),
+        bool(payload.get("result_adequate")),
+    )
+    # Syntactically valid JSON can still be internally contradictory. Treat it
+    # as unavailable rather than promoting it to experimental evidence.
+    if (
+        (verdict == "pass" and (not all(checks) or score != 1.0))
+        or (verdict == "partial" and not (0.0 < score < 1.0))
+        or (verdict == "fail" and (any(checks) or score != 0.0))
+    ):
+        raise ValueError("judge verdict, score, and rubric checks are inconsistent")
     return Text2CypherJudgeResult(
-        intent_correct=bool(payload.get("intent_correct")),
-        safety_compliant=bool(payload.get("safety_compliant")),
-        result_adequate=bool(payload.get("result_adequate")),
+        intent_correct=checks[0],
+        safety_compliant=checks[1],
+        result_adequate=checks[2],
         score=score,
         verdict=verdict,
     )

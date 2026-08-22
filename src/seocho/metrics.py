@@ -161,6 +161,8 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.text2cypher.duration", "histogram", "s", ("stage", "outcome"), "Text2Cypher stage duration."),
         _spec("seocho.text2cypher.validation_failure.count", "counter", "{failure}", ("reason",), "Rejected generated Cypher."),
         _spec("seocho.text2cypher.execution_failure.count", "counter", "{failure}", ("error.type",), "Cypher execution failures."),
+        _spec("seocho.text2cypher.judge.count", "counter", "{judgement}", ("verdict", "outcome"), "Blinded Text2Cypher LLM-judge outcomes."),
+        _spec("seocho.text2cypher.judge.score", "histogram", "1", (), "Blinded Text2Cypher LLM-judge score."),
         _spec("seocho.query.plan.count", "counter", "{plan}", ("sargable",), "Executed query plans by sargability."),
         _spec("seocho.query.db_hits.count", "counter", "{dbhit}", (), "Cumulative database hits across executed plans."),
         _spec("seocho.query.scan.count", "counter", "{scan}", ("operator",), "Full-scan plan operators observed."),

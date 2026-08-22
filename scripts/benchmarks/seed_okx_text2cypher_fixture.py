@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 
 from neo4j import GraphDatabase
 
@@ -13,11 +14,23 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--bolt-uri", required=True)
     parser.add_argument("--graph-user", required=True)
-    parser.add_argument("--graph-password", required=True)
+    password = parser.add_mutually_exclusive_group(required=True)
+    password.add_argument("--graph-password", help="Graph password (avoid in shared shells)")
+    password.add_argument(
+        "--graph-password-env",
+        help="Environment variable containing the graph password",
+    )
     parser.add_argument("--workspace-id", default="seocho-text2cypher-e2e-fixture")
     args = parser.parse_args()
+    graph_password = (
+        os.environ.get(args.graph_password_env, "")
+        if args.graph_password_env
+        else args.graph_password
+    )
+    if not graph_password:
+        raise SystemExit("graph password environment variable is unset or empty")
     driver = GraphDatabase.driver(
-        args.bolt_uri, auth=(args.graph_user, args.graph_password)
+        args.bolt_uri, auth=(args.graph_user, graph_password)
     )
     try:
         with driver.session() as session:

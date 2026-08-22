@@ -244,6 +244,11 @@ least one prespecified quality/safety outcome. H5 requires zero torn tuples.
 Latency overhead is reported; a p95 overhead >15% needs a documented safety or
 quality benefit rather than being hidden in an average.
 
+The detailed layer-to-benchmark mapping is maintained in
+[`HIERARCHICAL_ONTOLOGY_EVALUATION.md`](../experiments/HIERARCHICAL_ONTOLOGY_EVALUATION.md).
+It requires a common case lineage while explicitly prohibiting a blended grand
+score or the invention of graph/Cypher labels from an answer-only benchmark.
+
 ## Observability Contract
 
 Before a paid formal arm, emit one `experiment.run` root span and JSONL record

@@ -42,6 +42,12 @@ from .semantic_scorecard import (
     compare_semantic_utility,
     score_semantic_utility,
 )
+from .case_envelope import (
+    CASE_ENVELOPE_SCHEMA_VERSION,
+    annotation_coverage,
+    case_receipt,
+    validate_case_envelope,
+)
 
 __all__ = [
     "BenchmarkCorpus",
@@ -61,4 +67,8 @@ __all__ = [
     "SemanticUtilityScorecard",
     "compare_semantic_utility",
     "score_semantic_utility",
+    "CASE_ENVELOPE_SCHEMA_VERSION",
+    "annotation_coverage",
+    "case_receipt",
+    "validate_case_envelope",
 ]

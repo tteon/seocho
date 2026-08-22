@@ -7,6 +7,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import os
 from pathlib import Path
 
 from neo4j import GraphDatabase
@@ -188,7 +189,12 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--bolt-uri", default="bolt://127.0.0.1:7687")
     parser.add_argument("--graph-user", default="neo4j")
-    parser.add_argument("--graph-password", required=True)
+    password = parser.add_mutually_exclusive_group(required=True)
+    password.add_argument("--graph-password", help="Graph password (avoid in shared shells)")
+    password.add_argument(
+        "--graph-password-env",
+        help="Environment variable containing the graph password",
+    )
     parser.add_argument("--model", default="MiniMax-M2.7", help="Generator model")
     parser.add_argument(
         "--judge-model",
@@ -211,6 +217,14 @@ def main() -> None:
         "--lease-owner", help="Stable process identity for governed-mode query lease"
     )
     args = parser.parse_args()
+    graph_password = (
+        os.environ.get(args.graph_password_env, "")
+        if args.graph_password_env
+        else args.graph_password
+    )
+    if not graph_password:
+        raise SystemExit("graph password environment variable is unset or empty")
+    args.graph_password = graph_password
     tracing_enabled = configure_tracing_from_env()
     try:
         with start_span(

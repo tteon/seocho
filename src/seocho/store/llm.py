@@ -630,7 +630,11 @@ class OpenAICompatibleBackend(LLMBackend):
             )
         kwargs.update(reasoning_overrides)
         if provider_options:
-            allowed = {"prompt_cache_key", "cache_salt", "thinking"}
+            # structured_outputs carries a decode-time constraint (vLLM >= 0.27 takes an
+            # EBNF as {"grammar": ...}); it rides extra_body like the cache options do.
+            # Callers that set it must not also set response_format — the two are mutually
+            # exclusive ways of constraining the same output and vLLM refuses both at once.
+            allowed = {"prompt_cache_key", "cache_salt", "thinking", "structured_outputs"}
             unknown = sorted(set(provider_options) - allowed)
             if unknown:
                 raise ValueError(

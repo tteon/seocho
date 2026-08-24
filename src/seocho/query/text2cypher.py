@@ -24,6 +24,17 @@ class Text2CypherResult:
     attempts: int
     explained: bool
     prompt_version: str = "seocho.text2cypher.v1"
+    # Wall time spent generating, across every attempt. Callers attributing episode time
+    # need it on the SUCCESS path here — and on the FAILURE path it rides the raised
+    # ValueError as `exc.generate_ms`, because a failed generation still spent its wall
+    # time in the LLM. Measured before that stamp existed: one 26-episode harness run
+    # booked 101.7 s of failed-generation LLM time as *database* time, because the
+    # episode's residual accounting had nowhere else to put it.
+    generate_ms: float = 0.0
+    # Token usage summed across attempts (prompt/completion/cached), from the backend's
+    # LLMResponse.usage. cached_tokens is what makes prefix-cache economics measurable
+    # per call rather than server-wide.
+    usage: Mapping[str, int] | None = None
 
 
 async def generate_validated_cypher(
@@ -35,8 +46,19 @@ async def generate_validated_cypher(
     backend: LLMBackend,
     model: str,
     explain: Explain,
+    grammar: str | None = None,
 ) -> Text2CypherResult:
-    """Generate, validate, EXPLAIN, and at most once repair a read query."""
+    """Generate, validate, EXPLAIN, and at most once repair a read query.
+
+    ``grammar`` — an EBNF (see :mod:`seocho.query.grammar`) enforced at decode time via
+    ``provider_options={"structured_outputs": {"grammar": ...}}``. When set,
+    ``response_format`` is not sent: the two are mutually exclusive ways of constraining
+    the same output and vLLM refuses both at once (the grammar itself produces the JSON
+    envelope, so the contract still holds). Only meaningful on an endpoint that honors
+    structured outputs — verify with :func:`seocho.query.grammar.grammar_is_honored`
+    first, because some endpoints accept the option with HTTP 200 and silently ignore it,
+    and the resulting A/B is a false null that looks like a finding.
+    """
 
     # The contract has to be stated exactly, because the validator checks it
     # exactly. "It must include tenant scope" left the model to guess the
@@ -59,6 +81,7 @@ async def generate_validated_cypher(
     feedback: list[str] = []
     metrics = get_metrics()
     started = time.perf_counter()
+    usage_totals = {"prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0}
 
     def _finish(outcome: str) -> None:
         metrics.record(
@@ -87,11 +110,16 @@ async def generate_validated_cypher(
             # generations in the SF1000 arm comparison. Reasoning-capable models also
             # spend budget before emitting the object.
             max_tokens=int(os.getenv("SEOCHO_TEXT2CYPHER_MAX_TOKENS", "2000")),
-            response_format={"type": "json_object"},
+            response_format=None if grammar else {"type": "json_object"},
             task_hint="text2cypher",
             mode="pipeline",
             model=model,
+            provider_options=(
+                {"structured_outputs": {"grammar": grammar}} if grammar else None
+            ),
         )
+        for key in usage_totals:
+            usage_totals[key] += int((response.usage or {}).get(key, 0) or 0)
         payload = response.json()
         cypher = str(payload.get("cypher", "")).strip()
         violations = validate_text2cypher_fallback(cypher, params=params, policy=policy)
@@ -120,9 +148,16 @@ async def generate_validated_cypher(
             params=dict(params),
             attempts=attempt,
             explained=True,
+            generate_ms=round((time.perf_counter() - started) * 1000, 3),
+            usage=dict(usage_totals),
         )
     _finish("rejected")
-    raise ValueError("text2cypher rejected: " + ",".join(feedback))
+    exc = ValueError("text2cypher rejected: " + ",".join(feedback))
+    # The failed attempts spent this wall time in the LLM; a caller attributing episode
+    # time must not book it elsewhere just because the generation raised.
+    exc.generate_ms = round((time.perf_counter() - started) * 1000, 3)  # type: ignore[attr-defined]
+    exc.usage = dict(usage_totals)  # type: ignore[attr-defined]
+    raise exc
 
 
 __all__ = ["Text2CypherResult", "generate_validated_cypher"]

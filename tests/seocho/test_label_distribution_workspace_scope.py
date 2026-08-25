@@ -13,7 +13,7 @@ class _CapturingConnector:
     def __init__(self):
         self.calls = []
 
-    def query(self, query, params=None, database=None):
+    def query(self, query, params=None, database=None, **kwargs):
         self.calls.append({"query": query, "params": params, "database": database})
         return []
 

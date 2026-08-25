@@ -41,7 +41,7 @@ class RecordingStore:
         self._lock = threading.Lock()
 
     def query(self, cypher, *, params=None, database=None,
-              enforce_workspace_filter=False):
+              enforce_workspace_filter=False, **kwargs):
         with self._lock:
             self.inflight += 1
             self.max_seen = max(self.max_seen, self.inflight)

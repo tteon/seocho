@@ -76,9 +76,7 @@ def test_loader_balances_smoke_subset_and_writes_jsonl(tmp_path) -> None:
     assert manifest["files"]["FB"]["rows_total"] == 2
     assert manifest["files"]["FB"]["rows_selected"] == 1
     assert write_jsonl(cases, destination) == 5
-    rows = [
-        json.loads(line)
-        for line in destination.read_text(encoding="utf-8").splitlines()
-    ]
+    with destination.open("r", encoding="utf-8") as f:
+        rows = [json.loads(line) for line in f]
     assert len(rows) == 5
     assert all("question" not in row and "answer" not in row for row in rows)

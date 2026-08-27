@@ -979,7 +979,7 @@ def _print_search_results(results: Sequence[SearchResult], output_json: bool) ->
         return
 
     if not results:
-        print("no memories found")
+        print("No memories found.")
         return
 
     for index, result in enumerate(results, start=1):
@@ -994,7 +994,7 @@ def _print_graphs(graphs: Iterable[GraphTarget], output_json: bool) -> None:
         return
 
     if not graph_list:
-        print("no graph targets configured")
+        print("No graph targets configured.")
         return
 
     for graph in graph_list:
@@ -1008,7 +1008,7 @@ def _print_artifacts(artifacts: Sequence[SemanticArtifactSummary], output_json: 
         return
 
     if not artifacts:
-        print("no semantic artifacts found")
+        print("No semantic artifacts found.")
         return
 
     for artifact in artifacts:

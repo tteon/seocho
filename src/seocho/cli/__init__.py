@@ -87,7 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
     search_parser.add_argument("--database", action="append", dest="databases", default=[], help="Database scope")
     _add_client_options(search_parser, include_scope=True, include_json=True)
 
-    chat_parser = subparsers.add_parser("chat", help="Ask from memories")
+    chat_parser = subparsers.add_parser("chat", help="Chat with the agent using memory context")
     chat_parser.add_argument("message", help="Question to ask")
     chat_parser.add_argument("--limit", type=int, default=5, help="Max number of retrieval results")
     chat_parser.add_argument("--graph-id", action="append", dest="graph_ids", default=[], help="Graph routing hint")

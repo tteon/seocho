@@ -1326,7 +1326,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
             break
         label = label[0].upper() + label[1:] if label else label
         desc = input(f"  Description for {label}: ").strip()
-        props_input = input(f"  Properties for {label} (comma-separated, e.g. name,age,role): ").strip()
+        props_input = input(f"  Properties for {label} (comma-separated, e.g. name, age, role): ").strip()
         props: Dict[str, P] = {}
         if props_input:
             for i, pname in enumerate(props_input.split(",")):

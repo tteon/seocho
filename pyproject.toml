@@ -49,7 +49,7 @@ local = [
 ci = [
     "faiss-cpu",
     "fastapi",
-    "lancedb",
+    "lancedb<=0.37.1",
     "neo4j-rust-ext",  # Rust PackStream codec, ADR-0111: W2 3.6x, parity-gated; pulls matching neo4j
     "numpy",
     "openai",
@@ -69,7 +69,7 @@ dev = [
     "fastapi",
     "fastparquet",
     "build",
-    "lancedb",
+    "lancedb<=0.37.1",
     "pytest>=7.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",

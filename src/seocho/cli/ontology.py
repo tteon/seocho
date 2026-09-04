@@ -500,7 +500,7 @@ def handle(args: argparse.Namespace) -> int:
                 print(json.dumps(clusters, indent=2, ensure_ascii=False))
             else:
                 if not clusters:
-                    print("quarantine empty")
+                    print("Quarantine empty.")
                 for c in clusters:
                     print(f"  {c['frequency']:4d}×  {c['surface']:30s} signals={c['signals']} "
                           f"candidates={c['candidate_labels']}")
@@ -601,7 +601,7 @@ def handle(args: argparse.Namespace) -> int:
             else:
                 term_records = parse_review_sheet(raw)
         else:
-            print("datahub-apply: provide --terms <file> or --gms <url>")
+            print("Datahub-apply: Provide --terms <file> or --gms <url>.")
             return 2
         spec = datahub_glossary_to_mapping_spec(term_records, only_status=args.status, ontology_name=ontology.name)
         new_onto = apply_mapping_spec(ontology, spec)

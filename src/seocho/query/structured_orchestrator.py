@@ -157,6 +157,7 @@ class StructuredQueryOrchestrator:
             self._strip_workspace_scope(cypher),
             params={**gen_params, "workspace_id": workspace_id, "limit": self.row_cap},
             database=self.database,
+            workspace_id=workspace_id,
         )
 
     # -- intern organ, READ side (seocho-zfe): string -> canonical entity ------
@@ -204,14 +205,20 @@ class StructuredQueryOrchestrator:
             rows = self.graph_store.query(
                 f"MATCH (n) WHERE {ws_clause}n.name IS NOT NULL "
                 "AND toLower(n.name) = toLower($t) RETURN n.name AS name LIMIT 1",
-                params=params, database=self.database)
+                params=params, database=self.database,
+                workspace_id=workspace_id,
+                enforce_workspace_filter=bool(workspace_id is not None),
+            )
             if rows:
                 return rows[0]["name"]
             rows = self.graph_store.query(
                 f"MATCH (n) WHERE {ws_clause}n.name IS NOT NULL AND "
                 "(toLower(n.name) CONTAINS toLower($t) OR toLower($t) CONTAINS toLower(n.name)) "
                 "RETURN n.name AS name ORDER BY size(n.name) ASC LIMIT 1",
-                params=params, database=self.database)
+                params=params, database=self.database,
+                workspace_id=workspace_id,
+                enforce_workspace_filter=bool(workspace_id is not None),
+            )
             return rows[0]["name"] if rows else None
         except Exception:
             return None

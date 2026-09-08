@@ -1,0 +1,1 @@
+Always stream .jsonl files in seocho using lazy file iteration (with path.open('r') as f: for line in f:) rather than path.read_text().splitlines() to avoid memory overhead from loading large evaluation/index traces into memory at once.

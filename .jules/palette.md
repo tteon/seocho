@@ -1,1 +1,0 @@
-- CLI empty state and error messages in `src/seocho/cli/` should use proper sentence case and punctuation. Fixed "no memories found", "no graph targets configured", "no semantic artifacts found", etc.

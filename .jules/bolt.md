@@ -1,0 +1,5 @@
+- Optimization: In `src/seocho/eval/graphrag_bench.py`, loading `.jsonl` evaluation traces used `path.read_text().splitlines()`. For large trace files (which evaluation benchmarks frequently involve), this loads the entire file into memory as a single string, splits it, and allocates a massive list of strings before iterating.
+- This creates unnecessary memory overhead and latency during dataset loading, which is a key priority bottleneck ("avoidable file I/O or JSONL overhead", "obvious CI/test inefficiencies").
+- The optimization changes this to use lazy file iteration (`with path.open() as f: for line in f:`). This streams the file line-by-line, drastically reducing the peak memory footprint, maintaining O(1) memory usage during the read instead of O(N) where N is file size.
+- A manual `.strip()` was kept where necessary for blank line skipping, and `json.loads` handles the trailing newline seamlessly.
+- Note: `json.load(f)` does not stream in Python (it reads the whole file), so iterating line by line and using `json.loads(line)` is the correct streaming strategy for `.jsonl` files.

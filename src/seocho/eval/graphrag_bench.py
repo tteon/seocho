@@ -142,26 +142,25 @@ def load_question_directory(
                 raise FileNotFoundError(f"missing official question file: {path}")
             digest = sha256_file(path)
             parsed: list[GraphRAGBenchCase] = []
-            for row_index, line in enumerate(
-                path.read_text(encoding="utf-8").splitlines(), start=1
-            ):
-                if not line.strip():
-                    continue
-                try:
-                    raw = json.loads(line)
-                except json.JSONDecodeError as exc:
-                    raise ValueError(f"{path}:{row_index}: invalid JSON") from exc
-                if not isinstance(raw, Mapping):
-                    raise ValueError(f"{path}:{row_index}: expected an object")
-                parsed.append(
-                    parse_question_row(
-                        raw,
-                        question_type=question_type,
-                        row_index=row_index,
-                        source_file=path.name,
-                        source_sha256=digest,
+            with path.open("r", encoding="utf-8") as f:
+                for row_index, line in enumerate(f, start=1):
+                    if not line.strip():
+                        continue
+                    try:
+                        raw = json.loads(line)
+                    except json.JSONDecodeError as exc:
+                        raise ValueError(f"{path}:{row_index}: invalid JSON") from exc
+                    if not isinstance(raw, Mapping):
+                        raise ValueError(f"{path}:{row_index}: expected an object")
+                    parsed.append(
+                        parse_question_row(
+                            raw,
+                            question_type=question_type,
+                            row_index=row_index,
+                            source_file=path.name,
+                            source_sha256=digest,
+                        )
                     )
-                )
             selected = parsed[:limit_per_type] if limit_per_type else parsed
             cases.extend(selected)
             files[question_type] = {

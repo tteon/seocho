@@ -1,0 +1,2 @@
+- Use `with path.open("r", encoding="utf-8") as f:` instead of `path.read_text(encoding="utf-8").splitlines()` for reading `.jsonl` files to avoid loading the entire file into memory before splitting into lines.
+- Performance tests correctly identify I/O issues, particularly the overhead with eager `.jsonl` parsing via `read_text().splitlines()` in GraphRAG benchmarking tools. Switching to a lazy `with path.open("r", encoding="utf-8") as f:` significantly reduces memory load, particularly for datasets with hundreds of thousands of entries.

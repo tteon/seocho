@@ -14,7 +14,8 @@ audit. The wider local experiment implementation remains separately reviewable.
 - [x] Track `uv.lock`, select Python 3.11 locally, preserve the CI version matrix.
 - [x] Provide `platform-setup`, `platform-check`, and `platform-ci`.
 - [x] Correct stale compose and tracing guidance relevant to setup.
-- [x] Validate setup in a fresh environment; basic CI: 1,126 passed, 3 skipped.
+- [x] Validate setup in a fresh environment; final main-based basic CI:
+  1,133 passed, 3 skipped.
 - [x] Check offline lock validity, SDK import path and docs contracts.
 - [ ] Pass required GitHub checks and merge into main.
 

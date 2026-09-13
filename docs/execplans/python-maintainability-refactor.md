@@ -19,7 +19,8 @@ preserving public entrypoints and experiment evidence.
 - [x] Consolidate semantic helpers and remove verified unused code.
 - [x] Separate CLI commands, SDK plan/async ownership and indexing phases.
 - [x] Clarify file tracking and measure its local I/O behavior.
-- [ ] Update architecture contracts, run basic CI, review and land on main.
+- [x] Update architecture contracts, run basic CI and review the final diff;
+      PR #679 records delivery to main.
 
 ## Surprises & Discoveries
 
@@ -47,7 +48,8 @@ imports, decorator registrations and optional provider implementations.
 
 Implementation complete; basic CI passed with 1,214 tests and 5 skips.
 Public CLI argument trees/defaults and Seocho/AsyncSeocho method signatures
-match the baseline snapshot. Landing remains. No live backend compatibility,
+match the baseline snapshot. Delivery status is recorded in
+[PR #679](https://github.com/tteon/seocho/pull/679). No live backend compatibility,
 answer quality or production performance claim follows from offline tests.
 
 ## Context and Orientation
@@ -164,3 +166,8 @@ import/module/runtime/root/ADR/doc contracts, generated website documentation
 quality, and a scaffold dry-run with a visibly placeholder credential (no model
 or graph connections). The real credential-free smoke correctly refused the
 run. Original research edits and experiment memory/receipts remain untouched.
+
+Final review: the committed candidate passes the complete basic gate, including
+commit identity checks. CLI smoke, public signature snapshots and targeted
+provider tests pass. Remaining compatibility shims and decorator registrations
+were deliberately retained; no required refactoring item was left as a proposal.

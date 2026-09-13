@@ -9,6 +9,7 @@ snapshot fails loudly when a command appears, disappears, or moves.
 from __future__ import annotations
 
 import argparse
+import json
 
 import pytest
 
@@ -79,6 +80,33 @@ def test_json_flag_convention() -> None:
             if action.dest == "output_json" and "--json" not in action.option_strings:
                 offenders.append(name)
     assert not offenders, f"commands whose JSON switch rejects --json: {offenders}"
+
+
+@pytest.mark.parametrize("json_output", [False, True])
+def test_local_ask_output_and_cleanup(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    json_output: bool,
+) -> None:
+    answer = '서울: "quoted"\nsecond line'
+    calls = []
+
+    class Client:
+        def ask(self, question: str, **kwargs: object) -> str:
+            calls.append((question, kwargs))
+            return answer
+
+        def close(self) -> None:
+            calls.append("closed")
+
+    monkeypatch.setattr(cli, "_build_local_client", lambda args: Client())
+    argv = ["local-ask", "Question?", "--database", "fixture"]
+    if json_output:
+        argv.append("--json")
+    assert cli.main(argv) == 0
+    output = capsys.readouterr().out
+    assert (json.loads(output) == {"answer": answer}) if json_output else output == answer + "\n"
+    assert calls[0] == ("Question?", {"database": "fixture", "reasoning_mode": False, "repair_budget": 2})
+    assert calls[-1] == "closed"
 
 
 @pytest.fixture

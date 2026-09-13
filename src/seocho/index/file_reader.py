@@ -235,6 +235,11 @@ def read_json_file(path: Path) -> List[Dict[str, Any]]:
     if isinstance(data, list):
         records = []
         for i, item in enumerate(data):
+            if not isinstance(item, dict):
+                logger.warning(
+                    "Skipping non-object item at %s index %d (%s)",
+                    path, i, type(item).__name__,
+                )
             if isinstance(item, dict):
                 content = item.get("content", json.dumps(item))
                 meta = _record_metadata(
@@ -262,6 +267,11 @@ def read_jsonl_file(path: Path) -> List[Dict[str, Any]]:
                 continue
             try:
                 item = json.loads(line)
+                if not isinstance(item, dict):
+                    logger.warning(
+                        "Skipping non-object JSON at %s line %d (%s)",
+                        path, i, type(item).__name__,
+                    )
                 if isinstance(item, dict):
                     content = item.get("content", json.dumps(item))
                     meta = _record_metadata(

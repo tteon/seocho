@@ -100,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     ask_parser.add_argument("--graph-id", action="append", dest="graph_ids", default=[], help="Graph routing hint")
     ask_parser.add_argument("--database", action="append", dest="databases", default=[], help="Database scope")
     ask_parser.add_argument("--local", action="store_true", help="Use local engine (no server needed)")
-    ask_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (local mode)")
+    ask_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD, YAML, or TTL)")
     ask_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI (local mode)")
     ask_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user (local mode)")
     ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password (local mode)")
@@ -330,7 +330,7 @@ def build_parser() -> argparse.ArgumentParser:
     index_parser = subparsers.add_parser("index", help="Index files from a directory into the graph")
     index_parser.add_argument("path", help="File or directory to index")
     index_parser.add_argument("--database", default="neo4j", help="Target database")
-    index_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD or YAML)")
+    index_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD, YAML, or TTL)")
     index_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j/DozerDB URI")
     index_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
     index_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
@@ -350,7 +350,7 @@ def build_parser() -> argparse.ArgumentParser:
     local_ask_parser = subparsers.add_parser("local-ask", help="Ask a question against local graph (no server)")
     local_ask_parser.add_argument("question", help="Question to ask")
     local_ask_parser.add_argument("--database", default="neo4j", help="Target database")
-    local_ask_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file")
+    local_ask_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD, YAML, or TTL)")
     local_ask_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI")
     local_ask_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
     local_ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
@@ -364,10 +364,11 @@ def build_parser() -> argparse.ArgumentParser:
     local_ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     local_ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (auto-retry)")
     local_ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts")
+    local_ask_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
     status_parser = subparsers.add_parser("status", help="Show graph database status")
     status_parser.add_argument("--database", default="neo4j", help="Target database")
-    status_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file")
+    status_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD, YAML, or TTL)")
     status_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI")
     status_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
     status_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
@@ -408,7 +409,7 @@ def build_parser() -> argparse.ArgumentParser:
     bundle_export_parser.add_argument("--output", required=True, help="Output bundle JSON file")
     bundle_export_parser.add_argument("--app-name", default=None, help="Portable app name")
     bundle_export_parser.add_argument("--database", default="neo4j", help="Default database for the portable runtime")
-    bundle_export_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD or YAML)")
+    bundle_export_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD, YAML, or TTL)")
     bundle_export_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j/DozerDB URI")
     bundle_export_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
     bundle_export_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
@@ -979,7 +980,7 @@ def _print_search_results(results: Sequence[SearchResult], output_json: bool) ->
         return
 
     if not results:
-        print("no memories found")
+        print("No memories found.")
         return
 
     for index, result in enumerate(results, start=1):
@@ -994,7 +995,7 @@ def _print_graphs(graphs: Iterable[GraphTarget], output_json: bool) -> None:
         return
 
     if not graph_list:
-        print("no graph targets configured")
+        print("No graph targets configured.")
         return
 
     for graph in graph_list:
@@ -1008,7 +1009,7 @@ def _print_artifacts(artifacts: Sequence[SemanticArtifactSummary], output_json: 
         return
 
     if not artifacts:
-        print("no semantic artifacts found")
+        print("No semantic artifacts found.")
         return
 
     for artifact in artifacts:
@@ -1326,7 +1327,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
             break
         label = label[0].upper() + label[1:] if label else label
         desc = input(f"  Description for {label}: ").strip()
-        props_input = input(f"  Properties for {label} (comma-separated, e.g. name,age,role): ").strip()
+        props_input = input(f"  Properties for {label} (comma-separated, e.g. name, age, role): ").strip()
         props: Dict[str, P] = {}
         if props_input:
             for i, pname in enumerate(props_input.split(",")):
@@ -1547,7 +1548,10 @@ def _cmd_local_ask(args: argparse.Namespace) -> int:
             reasoning_mode=args.reasoning,
             repair_budget=args.repair_budget,
         )
-        print(answer)
+        if getattr(args, "output_json", False):
+            print(json.dumps({"answer": answer}, indent=2))
+        else:
+            print(answer)
     finally:
         client.close()
 

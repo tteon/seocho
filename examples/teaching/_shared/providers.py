@@ -1,4 +1,4 @@
-"""Unified 4-provider interface for the teaching notebooks.
+"""Unified 5-provider interface for the teaching notebooks.
 
 Wraps ``seocho.create_llm_backend`` with notebook-friendly helpers:
 
@@ -7,7 +7,7 @@ Wraps ``seocho.create_llm_backend`` with notebook-friendly helpers:
     chat(name, text, *, system=...) -> str
     compare_providers(user_prompt)  -> pandas.DataFrame
 
-All 4 providers (Kimi / DeepSeek / OpenAI / Grok) share the same
+All 5 providers (Kimi / DeepSeek / OpenAI / Grok / Z.AI) share the same
 OpenAI-compatible call shape; Kimi auto-clamps temperature=1.0 inside the
 backend (no caller-side workaround needed).
 """
@@ -48,6 +48,12 @@ PROVIDERS = {
         "model": "grok-4.20-reasoning",
         "key_env": "XAI_API_KEY",
         "tagline": "fresh web-grounded answers, reasoning mode",
+    },
+    "zai": {
+        "provider": "zai",
+        "model": "glm-5.1",
+        "key_env": "ZAI_API_KEY",
+        "tagline": "Zhipu GLM global, cost-efficient bilingual reasoning",
     },
 }
 

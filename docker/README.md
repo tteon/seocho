@@ -41,15 +41,5 @@ in the **project directory**, which defaults to the directory of the *first*
 The `make` targets already do this; the pattern only matters when you invoke
 Compose by hand.
 
-## Neo4j Enterprise TLS stack
-
-`compose.tls-enterprise.yaml` has no `make` target because it needs an Enterprise
-licence and generated certificates. It backs the cert-rotation qualification in
-`scripts/benchmarks/neo4j_tls_rotation_probe.py`.
-
-```bash
-bash scripts/setup/generate-neo4j-tls-cert.sh
-NEO4J_ACCEPT_LICENSE_AGREEMENT=yes NEO4J_TLS_PASSWORD=... \
-  docker compose --project-directory . -f docker/compose.tls-enterprise.yaml \
-  --profile tls-enterprise up -d
-```
+The former Enterprise TLS overlay was removed (#617). Deployment-specific TLS
+configuration belongs with the deployment; it is not part of this local stack.

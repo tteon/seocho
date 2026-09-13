@@ -31,6 +31,7 @@ metadata, and one-command local stack entry points.
 | `README.md`, `QUICKSTART.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `LICENSE` | yes | Standard public project entry points |
 | `AGENTS.md`, `CLAUDE.md` | yes | Coding-agent orientation and SEOCHO-specific guardrails |
 | `pyproject.toml`, `Makefile`, `.env.example`, `.gitignore`, `.dockerignore` | yes | Python packaging, common commands, and repo/tool defaults |
+| `.python-version`, `uv.lock` | yes | Contributor Python default and reviewed dependency resolution |
 | `compose.yaml` | yes | The one default local stack; every other compose file lives under `docker/` |
 | `llms.txt` | yes | Machine-readable docs index; the convention requires the repository root |
 | `.gitattributes` | only with active rules | Do not keep an empty placeholder |

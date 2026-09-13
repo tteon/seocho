@@ -113,3 +113,11 @@ are documented in `docs/WORKFLOW.md`.
   root `README.md`.
 - Keep root hierarchy changes covered by
   `scripts/ci/check-root-hierarchy-contract.sh`.
+
+### Locked experiment environment
+
+Basic CI and scheduled Codex workflows install with `uv sync --locked --extra ci`.
+The committed `uv.lock` is checked offline before basic CI runs. The Python
+version matrix sets `UV_PYTHON` explicitly so `.python-version` remains a local
+default. Use [the experiment environment](EXPERIMENT_PLATFORM.md) to reproduce
+these checks in an isolated virtualenv.

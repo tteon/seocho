@@ -156,7 +156,7 @@ Primary surfaces:
 - local tracker linting may be used in maintainer workspaces, but it is not a
   public repository contract
 - current dev quality gates in `Makefile` run against `extraction-service`
-- default `make up` now rebuilds an image-backed `extraction-service` so the
+- `make up-build` rebuilds an image-backed `extraction-service` so the
   running runtime matches a known source snapshot
 - use `make up-live` or `make dev-up` only when you explicitly want bind-mounted
   edits from `extraction/`, `runtime/`, and `seocho/` reflected immediately
@@ -298,3 +298,7 @@ the runtime shell validation contract in `scripts/ci/check-runtime-shell-contrac
 - schedule follow-up issues for unresolved risks
 - keep release readiness and open-source community operations aligned with
   `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`
+
+For an isolated, locked development environment, use
+[EXPERIMENT_PLATFORM.md](EXPERIMENT_PLATFORM.md): `make platform-setup`,
+`make platform-check`, then `make platform-ci`.

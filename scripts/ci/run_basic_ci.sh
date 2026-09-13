@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
+# Fail if the committed dependency resolution no longer matches the project.
+uv lock --check --offline
+
 py_compile_files="$(
   git ls-files \
     'runtime/**/*.py' \

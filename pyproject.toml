@@ -36,6 +36,7 @@ seocho = "seocho.cli:main"
 
 [project.optional-dependencies]
 local = [
+    "fastembed",
     "fastapi",
     "httpx>=0.25.0",
     "neo4j-rust-ext",  # Rust PackStream codec, ADR-0111: W2 3.6x, parity-gated; pulls matching neo4j
@@ -48,17 +49,20 @@ local = [
 ]
 ci = [
     "faiss-cpu",
+    "fastembed",
     "fastapi",
     "lancedb",
     "neo4j-rust-ext",  # Rust PackStream codec, ADR-0111: W2 3.6x, parity-gated; pulls matching neo4j
     "numpy",
     "openai",
     "openai-agents",
+    "pandas",
     "pydantic>=2.0",
     "pytest>=7.0",
     "pytest-asyncio>=0.21.0",
     "pyyaml",
     "ruff",
+    "setuptools>=68",
     "httpx>=0.25.0",
     "tenacity>=8.2.0",
     "uvicorn",
@@ -66,6 +70,7 @@ ci = [
 dev = [
     "datasets",
     "faiss-cpu",
+    "fastembed",
     "fastapi",
     "fastparquet",
     "build",
@@ -83,6 +88,7 @@ dev = [
     "black",
     "isort",
     "ruff",
+    "setuptools>=68",
     "neo4j-rust-ext",  # Rust PackStream codec, ADR-0111: W2 3.6x, parity-gated; pulls matching neo4j
     "numpy",
     "openai",
@@ -96,6 +102,7 @@ dev = [
     "tenacity>=8.2.0",
     "tomli; python_version < '3.11'",
     "uvicorn",
+    "pyoxigraph>=0.5.9",
 ]
 notebook = [
     "jupyter",

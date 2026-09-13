@@ -77,7 +77,7 @@ jobs:
         if: steps.secret_check.outputs.ready == 'true'
         env:
           UV_CACHE_DIR: /tmp/uv-cache
-        run: uv sync --extra ci
+        run: uv sync --locked --extra ci
 
       - name: Run Codex review pass
         if: steps.secret_check.outputs.ready == 'true'

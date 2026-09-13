@@ -16,6 +16,9 @@ jobs:
   basic:
     name: basic (${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    env:
+      # Preserve the matrix when the contributor default is Python 3.11.
+      UV_PYTHON: ${{ matrix.python-version }}
     permissions:
       contents: read
     strategy:
@@ -44,7 +47,7 @@ jobs:
       - name: Sync CI dependencies
         env:
           UV_CACHE_DIR: /tmp/uv-cache
-        run: uv sync --extra ci
+        run: uv sync --locked --extra ci
 
       - name: Run basic checks
         env:

@@ -54,6 +54,42 @@ def test_local_commands_are_real_commands() -> None:
     assert LOCAL_COMMANDS <= set(top.choices)
 
 
+@pytest.mark.parametrize("argv", [
+    ["ask", "question", "--local"], ["local-ask", "question"],
+    ["index", "fixture.jsonl"], ["status"],
+    ["bundle", "export", "--output", "fixture.bundle.json"],
+])
+def test_local_cli_accepts_zai_and_explicit_model(argv: list[str]) -> None:
+    args = build_parser().parse_args([*argv, "--provider", "zai"])
+    assert args.provider == "zai"
+    assert args.model is None  # Let the provider preset/config supply the model.
+    args = build_parser().parse_args([*argv, "--provider", "zai", "--model", "glm-4.7"])
+    assert args.model == "glm-4.7"
+
+
+@pytest.mark.parametrize("provider,model", [("zai", "glm-5.1"), ("mara", "MiniMax-M2.7")])
+def test_local_client_uses_provider_model_default(
+    monkeypatch: pytest.MonkeyPatch, provider: str, model: str,
+) -> None:
+    from seocho import config_file
+    from seocho.store import graph, llm
+
+    captured = {}
+
+    def create_backend(**kwargs: object) -> object:
+        captured.update(kwargs)
+        captured["effective_model"] = kwargs["model"] or llm.get_provider_spec(kwargs["provider"]).default_model
+        return object()
+
+    monkeypatch.setattr(config_file, "load_config", lambda: {})
+    monkeypatch.setattr(cli, "_load_local_ontology", lambda path: object())
+    monkeypatch.setattr(graph, "Neo4jGraphStore", lambda *args: object())
+    monkeypatch.setattr(llm, "create_llm_backend", create_backend)
+    monkeypatch.setattr(cli, "Seocho", lambda **kwargs: object())
+    cli._build_local_client(build_parser().parse_args(["local-ask", "q", "--provider", provider]))
+    assert captured["effective_model"] == model
+
+
 def test_unknown_command_exits_2() -> None:
     with pytest.raises(SystemExit) as excinfo:
         build_parser().parse_args(["no-such-command"])

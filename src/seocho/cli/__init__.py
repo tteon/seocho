@@ -106,11 +106,11 @@ def build_parser() -> argparse.ArgumentParser:
     ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password (local mode)")
     ask_parser.add_argument(
         "--provider",
-        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen", "zai"],
         default="mara",
         help="OpenAI-compatible LLM provider preset (local mode)",
     )
-    ask_parser.add_argument("--model", default="MiniMax-M2.7", help="LLM model (local mode)")
+    ask_parser.add_argument("--model", default=None, help="LLM model (local mode)")
     ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL (local mode)")
     ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (local mode)")
     ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts (local mode)")
@@ -336,11 +336,11 @@ def build_parser() -> argparse.ArgumentParser:
     index_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     index_parser.add_argument(
         "--provider",
-        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen", "zai"],
         default="mara",
         help="OpenAI-compatible LLM provider preset",
     )
-    index_parser.add_argument("--model", default="MiniMax-M2.7", help="LLM model for extraction")
+    index_parser.add_argument("--model", default=None, help="LLM model for extraction")
     index_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     index_parser.add_argument("--force", action="store_true", help="Re-index even if unchanged")
     index_parser.add_argument("--recursive", action="store_true", default=True, help="Scan subdirectories")
@@ -356,11 +356,11 @@ def build_parser() -> argparse.ArgumentParser:
     local_ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     local_ask_parser.add_argument(
         "--provider",
-        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen", "zai"],
         default="mara",
         help="OpenAI-compatible LLM provider preset",
     )
-    local_ask_parser.add_argument("--model", default="MiniMax-M2.7", help="LLM model")
+    local_ask_parser.add_argument("--model", default=None, help="LLM model")
     local_ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     local_ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (auto-retry)")
     local_ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts")
@@ -374,11 +374,11 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     status_parser.add_argument(
         "--provider",
-        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen", "zai"],
         default="mara",
         help="OpenAI-compatible LLM provider preset",
     )
-    status_parser.add_argument("--model", default="MiniMax-M2.7", help="LLM model used for local queries")
+    status_parser.add_argument("--model", default=None, help="LLM model used for local queries")
     status_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     status_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
@@ -415,11 +415,11 @@ def build_parser() -> argparse.ArgumentParser:
     bundle_export_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     bundle_export_parser.add_argument(
         "--provider",
-        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen", "zai"],
         default="mara",
         help="OpenAI-compatible LLM provider preset",
     )
-    bundle_export_parser.add_argument("--model", default="MiniMax-M2.7", help="LLM model")
+    bundle_export_parser.add_argument("--model", default=None, help="LLM model")
     bundle_export_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     bundle_export_parser.add_argument(
         "--prompt-preset",
@@ -1415,7 +1415,7 @@ def _build_local_client(args: argparse.Namespace) -> Seocho:
     neo4j_user = getattr(args, "neo4j_user", None) or get_default(cfg, "neo4j", "user", "neo4j")
     neo4j_password = getattr(args, "neo4j_password", None) or get_default(cfg, "neo4j", "password", "password")
     provider = getattr(args, "provider", None) or get_default(cfg, "llm", "provider", "mara")
-    model = getattr(args, "model", None) or get_default(cfg, "llm", "model", "MiniMax-M2.7")
+    model = getattr(args, "model", None) or get_default(cfg, "llm", "model", None)
     llm_base_url = getattr(args, "llm_base_url", None) or get_default(cfg, "llm", "base_url", None)
 
     ontology = _load_local_ontology(schema)

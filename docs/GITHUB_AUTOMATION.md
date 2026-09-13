@@ -69,8 +69,9 @@ GitHub issue templates collect the minimum information maintainers need:
 - release checklists: version, release type, validation gates, release notes,
   and `#seocho-updates` Discord announcement draft
 
-The pull request template mirrors the repository PR contract: `Feature`, `Why`,
-`Design`, `Validation`, `Risks / Gaps`, and `Docs`. Maintainers should ask for
+The pull request template mirrors the repository PR contract: problem/resulting
+behavior, design/compatibility, validation, optional experiment evidence, and
+risks/documentation. Maintainers should ask for
 exact validation commands before reviewing behavior-changing PRs.
 
 The triage workflow checks out only the trusted base branch, even for fork PRs.

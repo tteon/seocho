@@ -199,6 +199,19 @@ class TestQueryStrategy:
         assert "- department: risk" in system
         assert "- persona: portfolio manager" in system
 
+    def test_render_answer_still_sanitizes_and_limits_nonempty_context(
+        self, ontology: Ontology,
+    ) -> None:
+        qs = QueryStrategy(ontology)
+        system, _ = qs.render_answer(
+            "Who?", '[{"name": "Alice"}]',
+            query_context={"role": "\x00" + "x" * 2001},
+        )
+
+        assert "\x00" not in system
+        assert "- role: " + "x" * 2000 + "... (truncated)" in system
+        assert "x" * 2001 not in system
+
     def test_render_query_ignores_query_context(self, ontology):
         baseline = QueryStrategy(ontology).render("Who works at Samsung?")
         with_context = QueryStrategy(ontology).render(

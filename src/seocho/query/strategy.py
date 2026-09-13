@@ -84,10 +84,15 @@ def _is_empty_context_value(value: Any) -> bool:
     if value is None:
         return True
     if isinstance(value, str):
-        return not _sanitize_prompt_value(value).strip()
+        # Decide emptiness before display truncation adds a nonempty marker.
+        return not _strip_prompt_control_chars(value).strip()
     if isinstance(value, (list, tuple, set, dict)):
         return len(value) == 0
     return False
+
+
+def _strip_prompt_control_chars(text: str) -> str:
+    return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
 
 
 def _sanitize_prompt_value(value: Any) -> str:
@@ -95,8 +100,7 @@ def _sanitize_prompt_value(value: Any) -> str:
 
     Strips control characters and truncates to prevent prompt injection.
     """
-    text = str(value)
-    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
+    text = _strip_prompt_control_chars(str(value))
     if len(text) > 2000:
         text = text[:2000] + "... (truncated)"
     return text

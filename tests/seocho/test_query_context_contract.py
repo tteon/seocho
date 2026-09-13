@@ -22,6 +22,16 @@ EMPTY_CONTEXTS = [
     {"role": "", "focus": []},
     {"role": " \t\n"},
     {"focus": [None, "", " \t"], "constraints": {"note": None}},
+    pytest.param({"role": " \t\n\x00" * 1000}, id="long-whitespace-and-controls"),
+    *[
+        pytest.param(context, id=f"blank-{shape}-{length}")
+        for length in (2000, 2001)
+        for shape, context in (
+            ("scalar", {"role": " " * length}),
+            ("list", {"focus": [" " * length]}),
+            ("mapping", {"constraints": {"note": " " * length}}),
+        )
+    ],
 ]
 QUESTION = "What was Apple Inc.'s total revenue for fiscal year 2024?"
 FINANCE_ROWS = [

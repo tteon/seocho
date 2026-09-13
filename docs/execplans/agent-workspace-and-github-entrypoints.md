@@ -15,7 +15,7 @@ Local tasks: seocho-89go (workspace) and seocho-6gbq (GitHub).
 - [x] Implement read-only doctor and explicit isolated task checkout commands.
 - [x] Record actual reversible cleanup and a local workspace index.
 - [x] Redesign README, contributor navigation and public intake templates.
-- [ ] Validate, review, merge, update GitHub metadata and verify the final state.
+- [x] Validate, review and merge PR #676; update GitHub metadata and verify main.
 
 ## Surprises & Discoveries
 
@@ -51,7 +51,8 @@ tests pass. README/contribution/issue guidance is rewritten; ADR-0232 records
 the public entrypoint choice. Local Basic CI tests: 1171 passed, 5 skipped. Runtime/module/import/root/docs
 checks pass. The identity check rejected the synthetic `test` at the reserved invalid domain
 address, so the disposable Git fixture now uses the allowed example.com domain;
-no real address was exposed. Final identity/site checks and landing remain pending.
+no real address was exposed. Final identity and both site checks passed. PR #676 merged at 95dce428;
+GitHub about metadata was updated and read back successfully.
 No disk-space or developer-productivity improvement is claimed.
 
 ## Context and Orientation
@@ -109,3 +110,23 @@ Public PRs reference ADR/ExecPlan and validation summaries, not private datasets
 The workspace helper uses Python's standard library and Git. It requires no
 agent vendor, credentials or hosted tracker. Beads remains a maintainer-local
 requirement; public contributors can use GitHub task identifiers.
+
+## Delivery record — 2026-09-13
+
+
+The clean main checkout now lives in the common repository’s ignored
+.seocho/worktrees/main, with a freshly synchronized locked dev environment.
+make agent-doctor reports zero local changes there. make agent-check on that
+checkout reports 1171 passed, 5 skipped, 15 warnings, plus passing repository
+contracts. GitHub Python 3.10/3.11/3.12 and both site checks passed for PR #676.
+
+GitHub now describes ontology-aligned middleware, links https://seocho.blog/,
+and has nine relevant technical topics. Original tracked research-file hashes
+remain unchanged. A separate untracked IAM-policy file appeared after cleanup
+and was left intact; the immediate before/after cleanup Git status was identical.
+The local workspace receipt records that later observation separately.
+
+No dataset, original result or tool-discovery directory was deleted. Cache moves
+were location cleanup, not a disk-space-reclamation claim. Validation and PR
+summaries were copied from temporary checkouts into .seocho/workspace so the
+completion evidence survives temporary-directory cleanup.

@@ -305,7 +305,7 @@ seocho run [CONFIG] [options]
 
 Exit codes: 0 completed · 1 partial/failed run or preflight failure · 2 invalid config.
 Completion describes execution, not answer correctness. Empty answers and partial
-file failures return 1. See [Experiment Platform](EXPERIMENT_PLATFORM.md) for
+file failures return 1. See [Experiment Platform](https://github.com/tteon/seocho/blob/main/docs/EXPERIMENT_PLATFORM.md) for
 versioned receipts and offline `seocho runs compare`.
 ```
 

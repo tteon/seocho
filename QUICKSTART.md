@@ -63,7 +63,7 @@ What happened:
   slots, and selected graph evidence
 
 For private datasets, failure diagnostics, and saved-run comparisons, see
-[Experiment Platform](docs/EXPERIMENT_PLATFORM.md).
+[Experiment Platform](https://github.com/tteon/seocho/blob/main/docs/EXPERIMENT_PLATFORM.md).
 
 ## 3. The Smallest SDK Example
 

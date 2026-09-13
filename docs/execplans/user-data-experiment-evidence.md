@@ -50,8 +50,10 @@ and changed questions/corpora cannot produce a claimed matched improvement.
 
 Implemented versioned report checkpoints, diagnostics, input/source evidence,
 offline matched comparison, no-track CLI and failed-index retry handling. Focused
-validation: 125 passed. Strict mypy: 5 modules pass. Basic CI before the final
-three test additions: 1158 passed, 5 skipped; final CI and remote checks pending.
+validation: 125 passed. Strict mypy: 5 modules pass. Final local Basic CI: 1161 passed, 5 skipped. Remote Python 3.10/3.11/3.12
+checks pass. Initial site checks found two new relative links unsupported by
+both docs generators; source links now use canonical GitHub URLs. Remote site
+revalidation and landing remain pending.
 Docs and ADR contracts passed. Generated a user project and ran offline dry-run
 successfully. No new quality or performance measurement has been made.
 

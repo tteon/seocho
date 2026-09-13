@@ -2,6 +2,12 @@
 
 ## 2026-09-13
 
+- Proposed `ADR-0224-query-context-synthesis-only.md`
+  - preserve semantic retrieval, deterministic computation, and fallback paths
+    with ask-time context; reframe only the final answer using the same evidence
+  - report current semantic evidence and synthesis metadata without additional
+    retrieval; validate public SDK contracts including consecutive requests
+
 - [Accepted] `ADR-0232-public-product-and-experiment-entrypoints.md`
   - make README, contributor navigation and GitHub intake reflect actual
     prerequisites, user-data experiment evidence and maintainable agent workflows

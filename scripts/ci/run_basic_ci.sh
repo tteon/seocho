@@ -67,6 +67,7 @@ uv run pytest \
   extraction/tests/test_api_endpoints.py \
   extraction/tests/test_sdk_client.py \
   tests/seocho/test_client_boundaries.py \
+  tests/seocho/test_query_context_contract.py \
   tests/seocho/test_runtime_bundle.py \
   tests/seocho/test_internal_design_seams.py \
   tests/seocho/test_query_proxy_workspace_enforcement.py \

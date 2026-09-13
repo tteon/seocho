@@ -32,6 +32,8 @@ class SemanticResult:
     slots: Optional[ObservationSlots] = None
     query_slots: Optional[QuerySlots] = None
     hint: Optional[ArbiterHint] = None
+    cypher: str = ""
+    params: dict[str, Any] = field(default_factory=dict)
 
 
 def clarification_message(hint: Any) -> str:
@@ -119,4 +121,5 @@ def semantic_answer(
         return SemanticResult(route="NARRATIVE", slots=slots, query_slots=qs, hint=hint)
 
     return SemanticResult(route=STRUCTURED, answer=format_observation(rows[0]),
-                          rows=rows, slots=slots, query_slots=qs, hint=hint)
+                          rows=rows, slots=slots, query_slots=qs, hint=hint,
+                          cypher=cypher, params=params)

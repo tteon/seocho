@@ -143,6 +143,83 @@ class TestQueryStrategy:
         assert "Alice" in user
         assert "Who?" in user
         assert "Verification:" in system
+        assert "User Query Context" not in system
+
+    def test_render_answer_with_none_query_context_is_unchanged(self, ontology):
+        qs = QueryStrategy(ontology)
+        baseline = qs.render_answer("Who?", '[{"name": "Alice"}]')
+
+        with_none = qs.render_answer("Who?", '[{"name": "Alice"}]', query_context=None)
+
+        assert with_none == baseline
+
+    def test_render_answer_with_empty_query_context_is_unchanged(self, ontology):
+        qs = QueryStrategy(ontology)
+        baseline = qs.render_answer("Who?", '[{"name": "Alice"}]')
+
+        with_empty = qs.render_answer(
+            "Who?",
+            '[{"name": "Alice"}]',
+            query_context={"role": "", "focus": []},
+        )
+
+        assert with_empty == baseline
+
+    def test_render_answer_includes_query_context(self, ontology):
+        qs = QueryStrategy(ontology)
+
+        system, user = qs.render_answer(
+            "Who?",
+            '[{"name": "Alice"}]',
+            query_context={
+                "role": "finance analyst",
+                "task": "financial impact review",
+                "focus": ["metrics", "evidence gaps"],
+                "constraints": ["do not infer missing values"],
+            },
+        )
+
+        assert "User Query Context" in system
+        assert "finance analyst" in system
+        assert "financial impact review" in system
+        assert "metrics, evidence gaps" in system
+        assert "do not infer missing values" in system
+        assert "Do not use it to introduce facts" in system
+        assert "Alice" in user
+
+    def test_render_answer_includes_custom_query_context_keys(self, ontology):
+        qs = QueryStrategy(ontology)
+
+        system, _ = qs.render_answer(
+            "Who?",
+            '[{"name": "Alice"}]',
+            query_context={"department": "risk", "persona": "portfolio manager"},
+        )
+
+        assert "- department: risk" in system
+        assert "- persona: portfolio manager" in system
+
+    def test_render_answer_still_sanitizes_and_limits_nonempty_context(
+        self, ontology: Ontology,
+    ) -> None:
+        qs = QueryStrategy(ontology)
+        system, _ = qs.render_answer(
+            "Who?", '[{"name": "Alice"}]',
+            query_context={"role": "\x00" + "x" * 2001},
+        )
+
+        assert "\x00" not in system
+        assert "- role: " + "x" * 2000 + "... (truncated)" in system
+        assert "x" * 2001 not in system
+
+    def test_render_query_ignores_query_context(self, ontology):
+        baseline = QueryStrategy(ontology).render("Who works at Samsung?")
+        with_context = QueryStrategy(ontology).render(
+            "Who works at Samsung?",
+            query_context={"role": "finance analyst"},
+        )
+
+        assert with_context == baseline
 
     def test_schema_info_sanitized(self, ontology):
         qs = QueryStrategy(ontology, schema_info={"bad\x00key": "val" * 1000})

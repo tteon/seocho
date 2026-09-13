@@ -28,13 +28,79 @@ from typing import Any, Dict, List, Optional
 from seocho.ontology import Ontology
 
 
+def _render_query_context(query_context: Any) -> str:
+    """Render optional ask-time context for answer synthesis prompts."""
+    if not isinstance(query_context, dict) or not query_context:
+        return ""
+
+    lines = [
+        "--- User Query Context ---",
+        "Use this context only to prioritize answer framing and interpretation.",
+        "Do not use it to introduce facts that are not supported by the query results.",
+    ]
+    context_lines: List[str] = []
+    known_keys = ("role", "task", "focus", "constraints")
+    extra_keys = sorted(
+        (key for key in query_context.keys() if key not in known_keys),
+        key=_sanitize_prompt_value,
+    )
+    for key in (*known_keys, *extra_keys):
+        value = query_context.get(key)
+        if _is_empty_context_value(value):
+            continue
+        if isinstance(value, (list, tuple, set)):
+            items = [item for item in value if not _is_empty_context_value(item)]
+            if isinstance(value, set):
+                items = sorted(items, key=_sanitize_prompt_value)
+            rendered = ", ".join(_sanitize_prompt_value(item).strip() for item in items)
+        elif isinstance(value, dict):
+            rendered = ", ".join(
+                f"{_sanitize_prompt_value(k)}={_sanitize_prompt_value(v)}"
+                for k, v in value.items()
+                if not _is_empty_context_value(v)
+            )
+        else:
+            rendered = _sanitize_prompt_value(value).strip()
+        if rendered:
+            context_lines.append(f"- {_sanitize_prompt_value(key)}: {rendered}")
+
+    if not context_lines:
+        return ""
+
+    lines.extend(context_lines)
+    lines.append(
+        "If the retrieved evidence is missing information needed for this context, "
+        "say what is missing."
+    )
+    return "\n".join(lines)
+
+
+def _has_effective_query_context(query_context: Any) -> bool:
+    """Return whether ask-time context contains any renderable values."""
+    return bool(_render_query_context(query_context))
+
+
+def _is_empty_context_value(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        # Decide emptiness before display truncation adds a nonempty marker.
+        return not _strip_prompt_control_chars(value).strip()
+    if isinstance(value, (list, tuple, set, dict)):
+        return len(value) == 0
+    return False
+
+
+def _strip_prompt_control_chars(text: str) -> str:
+    return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
+
+
 def _sanitize_prompt_value(value: Any) -> str:
     """Sanitize a user-provided value before inserting into a prompt.
 
     Strips control characters and truncates to prevent prompt injection.
     """
-    text = str(value)
-    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
+    text = _strip_prompt_control_chars(str(value))
     if len(text) > 2000:
         text = text[:2000] + "... (truncated)"
     return text
@@ -649,6 +715,11 @@ class QueryStrategy(PromptStrategy):
         parts.append("")
         parts.append("Verification: Check that every answer claim is grounded in the provided query results.")
 
+        query_context = _render_query_context(kwargs.get("query_context"))
+        if query_context:
+            parts.append("")
+            parts.append(query_context)
+
         system = "\n".join(parts)
         user = (
             f'Question:\n"""\n{question}\n"""\n\n'
@@ -741,6 +812,10 @@ class RDFQueryStrategy(PromptStrategy):
             parts.append("Ontology profile: " + ctx["ontology_profile"])
         parts.append("Node types: " + ctx["node_types"])
         parts.append("Produce a clear factual answer from the query results.")
+        query_context = _render_query_context(kwargs.get("query_context"))
+        if query_context:
+            parts.append("")
+            parts.append(query_context)
 
         system = "\n".join(parts)
         user = f"Question: {question}\n\nQuery results:\n{cypher_result}"

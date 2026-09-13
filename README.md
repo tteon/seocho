@@ -149,9 +149,26 @@ client = Seocho.local(
 try:
     client.add("Jane Park is the CEO of Acme Corp.", database="neo4j")
     print(client.ask("Who leads Acme Corp?", database="neo4j"))
+    print(client.ask(
+        "What does Acme Corp.'s leadership imply?",
+        database="neo4j",
+        query_context={
+            "role": "business analyst",
+            "task": "integration planning",
+            "focus": ["operational impact", "evidence gaps"],
+        },
+    ))
 finally:
     client.close()
 ```
+
+Local deterministic-engine calls accept optional `query_context` hints for
+final answer synthesis; retrieval and Cypher generation remain unchanged,
+including the optional semantic fast path. Already computed answers are
+reframed using the same evidence, adding one final LLM call and its cost and
+latency. Empty context is a no-op; clarification requests stay unchanged.
+See the [query context contract](docs/SDK_CONTRACT.md#26-ask-time-query-context)
+for supported modes, response metadata, and failure behavior.
 
 Use `Seocho.remote("http://localhost:8001")` for an existing runtime service.
 See the [SDK guide](docs/PYTHON_INTERFACE_QUICKSTART.md),

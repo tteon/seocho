@@ -16,7 +16,7 @@ product or a fifth backend plugin surface. Work item: seocho-qf8m.
 - [x] Make run outcomes, artifacts, preflight and cleanup reliable.
 - [x] Add versioned input/source evidence and offline matched comparison.
 - [x] Add contract tests, focused Python type/lint gates and user documentation.
-- [ ] Validate, review, merge and verify main.
+- [x] Validate, review, merge PR #675 and verify main at 540ad50d.
 
 ## Surprises & Discoveries
 
@@ -53,7 +53,8 @@ offline matched comparison, no-track CLI and failed-index retry handling. Focuse
 validation: 125 passed. Strict mypy: 5 modules pass. Final local Basic CI: 1161 passed, 5 skipped. Remote Python 3.10/3.11/3.12
 checks pass. Initial site checks found two new relative links unsupported by
 both docs generators; source links now use canonical GitHub URLs. Remote site
-revalidation and landing remain pending.
+revalidation passed. PR #675 merged at 540ad50d and local task seocho-qf8m
+was closed after verification.
 Docs and ADR contracts passed. Generated a user project and ran offline dry-run
 successfully. No new quality or performance measurement has been made.
 
@@ -158,3 +159,12 @@ require recorded external conditions before being used as performance evidence.
 The user additionally requested more records, an agent-oriented local workspace
 cleanup and a substantial GitHub/README redesign. Tasks seocho-89go and
 seocho-6gbq track those separately so this execution change stays reviewable.
+
+## Delivery record — 2026-09-13
+
+
+PR #675 is merged. The follow-up workspace/GitHub change in PR #676 is also
+merged at 95dce428. Final main validation through make agent-check reports
+1171 passed, 5 skipped, with 15 warnings. Required Python 3.10/3.11/3.12,
+documentation and both site workflows passed on the reviewed PR heads. No
+new live answer-quality or performance experiment was performed.

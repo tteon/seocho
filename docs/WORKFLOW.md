@@ -19,8 +19,8 @@ that, start with `QUICKSTART.md` or `docs/RUNTIME_DEPLOYMENT.md`.
 ## Stack Baseline
 
 - Agent runtime: OpenAI Agents SDK
-- Tracing/evaluation contract: vendor-neutral (`none|console|jsonl|opik`)
-- Preferred team observability backend: Opik
+- Tracing/evaluation contract: vendor-neutral (`none|console|jsonl|otlp`)
+- Team observability: operator-selected OTLP collector
 - Canonical neutral trace artifact: JSONL
 - Graph backend: DozerDB
 - MVP tenancy: single-tenant with `workspace_id` propagated end-to-end
@@ -121,7 +121,7 @@ Primary surfaces:
 - monitor split health surfaces (`/health/runtime`, `/health/batch`)
 - enforce runtime policy checks
 - capture traces through the configured observability backend
-- prefer `jsonl` as the portable artifact and Opik as the optional team exporter
+- prefer `jsonl` as the portable artifact and OTLP as the optional team exporter
 
 ### Semantic Path Summary
 

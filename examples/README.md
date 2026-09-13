@@ -27,7 +27,7 @@ The three numbered tutorials form a strict-superset stack — each layer adds ca
 | # | Notebook | Layer | What it adds |
 |---|----------|-------|--------------|
 | 1 | [tutorial_01_vanilla_llm.ipynb](tutorial_01_vanilla_llm.ipynb) | **Vanilla LLM** | `backend.complete(system, user)` over five providers; the instruction-design lever; provider-quirk handling (Kimi temp clamp, JSON-mode fallback, reasoning-content fallback). |
-| 2 | [tutorial_02_agent_enhancement.ipynb](tutorial_02_agent_enhancement.ipynb) | **Agent** | Three pillars — tool use (8 typed tools), multi-turn cache (`Session.add/ask/run`), Opik observability. RoutingPolicy (`fast/balanced/thorough`). Composition patterns: sequential, parallel, supervisor. Adaptive escalation + trace-driven policy selection. |
+| 2 | [tutorial_02_agent_enhancement.ipynb](tutorial_02_agent_enhancement.ipynb) | **Agent** | Three pillars — tool use (8 typed tools), multi-turn cache (`Session.add/ask/run`), OTLP observability. RoutingPolicy (`fast/balanced/thorough`). Composition patterns: sequential, parallel, supervisor. Adaptive escalation + trace-driven policy selection. |
 | 3 | [tutorial_03_ontology_indexing.ipynb](tutorial_03_ontology_indexing.ipynb) | **Ontology** | Replace the hand-written prompt with a versioned schema. Load FIBO Turtle → `seocho.Ontology`. Extend with `merge()`. Diff with `migration_plan()`. Stamp every span with `context_hash`. Pin inferred rules with `ontology_identity_hash`. |
 
 Companion entry points:
@@ -36,7 +36,7 @@ Companion entry points:
 |----------|------------------|
 | [quickstart.ipynb](quickstart.ipynb) | The "run-everything-once" tour: ontology, indexing/agent design YAML, four-provider comparison, observability. |
 | [bring_your_data.ipynb](bring_your_data.ipynb) | Plug in your own data — text files, CSV, JSON. Reuse the patterns from tutorials 1–3. |
-| [finder/](finder/) | FinDER tutorial bundle — four notebooks (Vector vs Graph RAG, FIBO module impact, RDF vs LPG, private Opik workflow) plus their helper modules and Docker env. See [finder/README.md](finder/README.md) for the bundle's index. |
+| [finder/](finder/) | FinDER tutorial bundle — three notebooks (Vector vs Graph RAG, FIBO module impact, network analytics) and a project guide plus their helper modules and Docker env. See [finder/README.md](finder/README.md) for the bundle's index. |
 
 Supporting subtrees:
 
@@ -59,9 +59,9 @@ Supporting subtrees:
 
 - **Pillar 1, tool use** — the LLM picks among 8 typed tools (extract, validate, score, link, write, text2cypher, execute, search).
 - **Pillar 2, multi-turn cache** — `Session` keeps an entity index + query cache; same question = no LLM call.
-- **Pillar 3, observability** — JSONL + Opik spans for every `add() / ask() / run()`, stamped with `user_id` and `workspace_id`.
+- **Pillar 3, observability** — JSONL + OTLP spans for every `add() / ask() / run()`, stamped with `user_id` and `workspace_id`.
 - **RoutingPolicy** — three named modes (`fast()` 0.55/0r/no-repair · `balanced()` 0.70/1r/1-repair · `thorough()` 0.85/2r/3-repair). Same call, different trace shape.
-- **Composition patterns** (§6): sequential basic/advanced · parallel basic/advanced (vote across policies) · supervisor basic/advanced · adaptive escalation (`fast()` → `thorough()` on `degraded`) · trace-driven policy selection (last-N Opik traces feed the next policy choice).
+- **Composition patterns** (§6): sequential basic/advanced · parallel basic/advanced (vote across policies) · supervisor basic/advanced · adaptive escalation (`fast()` → `thorough()` on `degraded`) · trace-driven policy selection (last-N OTLP traces feed the next policy choice).
 
 ### Tutorial 3 — schema as compiled context
 

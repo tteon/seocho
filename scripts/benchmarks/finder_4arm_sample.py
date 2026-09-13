@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""FinDER 4-arm ontology sample run — graph build + QA, Opik-traced.
+"""FinDER 4-arm ontology sample run — graph build + QA, with saved results.
 
 For a stratified sample (default 10 cases/slice → ~60 cases) of
 ``examples/datasets/finder/all_slices.csv``, build a knowledge graph and answer the query under
@@ -16,7 +16,7 @@ Each (case × arm) run:
   - extracts the case's gold reference passages into the graph using the
     xAI KG-engineer extraction template ({{ontology}} + {{text}})
   - answers the query and scores it (number-aware)
-  - emits an Opik trace tagged on the 4 required axes (model, ontology, slice,
+  - records experiment metadata tagged on the 4 required axes (model, ontology, slice,
     prompt) + retrieval:graph  (CLAUDE.md §19 tagging contract)
 
 Outputs:
@@ -313,7 +313,7 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
         llm = create_llm_backend(provider=provider.strip(), model=model.strip())
         client = Seocho(ontology=ontology, graph_store=graph_store, llm=llm,
                         workspace_id=workspace_id, extraction_prompt=extraction_tmpl)
-        # ONE fixed experiment DB (Opik-style name); per-(case×arm) isolated by
+        # ONE fixed experiment DB (experiment-style name); per-(case×arm) isolated by
         # _workspace_id. DB created+onlined once in main().
         client.default_database = database
         try:
@@ -352,7 +352,7 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
 
     # Two retrieval modes that USE this arm's graph: graph-as-context and the
     # vector&graph hybrid. (Pure vector is the arm-independent lane in
-    # finder_vector_arm.py.) Each mode = a separate grok call + Opik trace,
+    # finder_vector_arm.py.) Each mode = a separate grok call and saved result,
     # tagged with the ontology arm; identical metric across modes (§20.3).
     if llm is None:
         try:
@@ -389,9 +389,9 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
 
         def _work(c=context, _exp=case["expected_answer"]):
             ans = _grok_answer(llm, case["query"], c)
-            # Attach the cheap deterministic metric as a feedback score so the
-            # Opik UI shows a sortable/chartable column (judge_score is backfilled
-            # offline by finder_judge). Set metadata too.
+            # Compute the deterministic metric for the saved result. Compatibility
+            # feedback helpers do not export it; judge_score is backfilled
+            # offline by finder_judge.
             m = evaluate_answer(_exp, ans)
             bc.set_feedback_scores({
                 "number_overlap": m["number_overlap_ratio"],
@@ -475,7 +475,7 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--llm", default=os.environ.get("SEOCHO_LLM", "grok/grok-4.3"))
     ap.add_argument("--database", default=os.environ.get("SEOCHO_EXPERIMENT_DB", "yitae0530grok"),
-                    help="Fixed experiment DB (Opik-style name+date+model, Neo4j-sanitized; no hyphens).")
+                    help="Fixed experiment DB (experiment-style name+date+model, Neo4j-sanitized; no hyphens).")
     ap.add_argument("--arms", default="non-ontology,small,medium,large")
     ap.add_argument("--limit-cases", type=int, default=0, help="Cap total cases (smoke). 0=all.")
     ap.add_argument("--dry-run", action="store_true")
@@ -513,22 +513,8 @@ def main() -> int:
         print("(dry-run: stopping before LLM/graph work)")
         return 0
 
-    # NOTE: we deliberately do NOT call configure_tracing_from_env() here.
-    # Enabling SEOCHO's OpikBackend also (a) emits internal sdk.extraction/sdk.query
-    # traces and (b) wraps the LLM client with opik track_openai (chat_completion_create
-    # traces) — both flood the Opik project with logs users don't recognize. Our
-    # experiment runs are labelled ONLY via bc.run_traced + bc.set_trace_
-    # trace_metadata, which use opik's own env/config (~/.opik.config) directly.
-    # Result: the Opik project shows exactly one clean, tagged trace per run.
-    print(f"== tracing: experiment-traces-only (no SEOCHO backend) "
-          f"project={os.environ.get('OPIK_PROJECT_NAME')} ws={os.environ.get('OPIK_WORKSPACE')} ==")
-
-    def flush_tracing():  # opik @track flushes on its own; best-effort explicit flush
-        try:
-            import opik
-            opik.flush_tracker()
-        except Exception:
-            pass
+    # Results are saved by this runner; configure JSONL/OTLP explicitly for spans.
+    from seocho.tracing import flush_tracing
 
     # Validate + create the single experiment DB up front, wait until online.
     from seocho.store.graph import Neo4jGraphStore, sanitize_database_name

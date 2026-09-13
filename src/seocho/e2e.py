@@ -27,11 +27,12 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .run_spec import RunSpec, RunSpecError, load_run_spec, parse_model_ref
 from .run_evidence import collect_evidence, safe_endpoint
 from .run_outcomes import RunDiagnostic, summarize_outcome
+from .run_redaction import redact_diagnostic
 from .run_preflight import run_preflight
 from .run_reporting import FileReportStore, ReportStore, RunReport, render_report_md
 
@@ -63,7 +64,7 @@ class RunContext:
         if self._closed:
             return []
         self._closed = True
-        return _close_resources(self.resources or [self.graph_store, self.index_client, self.query_client])
+        return _close_resources(self.resources or [self.graph_store, self.index_client, self.query_client], self.spec)
 
     def __enter__(self) -> "RunContext":
         return self
@@ -72,7 +73,7 @@ class RunContext:
         self.close()
 
 
-def _close_resources(resources: List[Any]) -> List[Dict[str, str]]:
+def _close_resources(resources: List[Any], spec: Optional[RunSpec] = None) -> List[Dict[str, str]]:
     errors: List[Dict[str, str]] = []
     seen: set[int] = set()
     for resource in reversed(resources):
@@ -85,10 +86,10 @@ def _close_resources(resources: List[Any]) -> List[Dict[str, str]]:
         try:
             close()
         except Exception as exc:
-            diagnostic = RunDiagnostic("cleanup", "resource_close_failed", str(exc),
+            diagnostic = RunDiagnostic("cleanup", "resource_close_failed", redact_diagnostic(spec, exc),
                                        "Inspect resource shutdown before starting another run.")
             errors.append(diagnostic.to_dict())
-            logger.warning("E2E cleanup failed for %s: %s", type(resource).__name__, exc)
+            logger.warning("E2E cleanup failed for %s: %s", type(resource).__name__, redact_diagnostic(spec, exc))
     return errors
 
 
@@ -265,7 +266,7 @@ def build(spec: RunSpec) -> RunContext:
     try:
         return _build(spec, resources)
     except BaseException:
-        _close_resources(resources)
+        _close_resources(resources, spec)
         raise
 
 
@@ -523,7 +524,14 @@ def _run_index_phase(
     total_relationships = 0
     validation_errors: List[str] = []
     for file_result in summary.get("results", []):
+        if file_result.get("error"):
+            file_result["error"] = redact_diagnostic(spec, file_result["error"])
         indexing = file_result.get("indexing") or {}
+        if indexing.get("fallback_reason"):
+            indexing["fallback_reason"] = redact_diagnostic(spec, indexing["fallback_reason"])
+        for field in ("write_errors", "validation_errors"):
+            if indexing.get(field):
+                indexing[field] = [redact_diagnostic(spec, error) for error in indexing[field]]
         total_nodes += int(indexing.get("total_nodes", 0))
         total_relationships += int(indexing.get("total_relationships", 0))
         validation_errors.extend(indexing.get("validation_errors", []) or [])
@@ -542,7 +550,10 @@ def _run_index_phase(
     return summary
 
 
-def _run_query_phase(ctx: RunContext, *, quiet: bool) -> List[Dict[str, Any]]:
+QueryCheckpoint = Callable[[List[Dict[str, Any]], Optional[Dict[str, Any]]], None]
+
+
+def _run_query_phase(ctx: RunContext, *, quiet: bool, checkpoint: Optional[QueryCheckpoint] = None) -> List[Dict[str, Any]]:
     spec = ctx.spec
     records: List[Dict[str, Any]] = []
     total = len(spec.questions)
@@ -554,6 +565,8 @@ def _run_query_phase(ctx: RunContext, *, quiet: bool) -> List[Dict[str, Any]]:
         }
         if question.expect:
             record["expect"] = question.expect
+        if checkpoint:
+            checkpoint(records, record)
         started = time.monotonic()
         try:
             call_kwargs = {
@@ -571,15 +584,19 @@ def _run_query_phase(ctx: RunContext, *, quiet: bool) -> List[Dict[str, Any]]:
                 record["answer"] = answer
         except Exception as exc:
             record["answer"] = ""
-            record["error"] = str(exc)
-            record["diagnostic"] = RunDiagnostic("query", "query_failed", str(exc), "Inspect provider, query and evidence details; retry in a fresh run.", record["id"]).to_dict()
+            record["error"] = redact_diagnostic(spec, exc)
+            record["diagnostic"] = RunDiagnostic("query", "query_failed", record["error"], "Inspect provider, query and evidence details; retry in a fresh run.", record["id"]).to_dict()
             record["latency_s"] = round(time.monotonic() - started, 2)
             records.append(record)
-            _emit(quiet, f"        -> ERROR: {exc}")
+            if checkpoint:
+                checkpoint(records, None)
+            _emit(quiet, f"        -> ERROR: {record['error']}")
             continue
         record["empty"] = not str(answer or "").strip()
         record["latency_s"] = round(time.monotonic() - started, 2)
         records.append(record)
+        if checkpoint:
+            checkpoint(records, None)
         preview = str(answer or "").replace("\n", " ")
         if len(preview) > 100:
             preview = preview[:100] + "..."
@@ -597,7 +614,7 @@ def _agents_sdk_config(spec: RunSpec) -> tuple[str, int] | None:
     return bundle, max(1, int(spec.agent.get("max_turns") or 6))
 
 
-def _run_agents_sdk_query_phase(ctx: RunContext, *, quiet: bool, bundle_dir: str, max_turns: int) -> List[Dict[str, Any]]:
+def _run_agents_sdk_query_phase(ctx: RunContext, *, quiet: bool, bundle_dir: str, max_turns: int, checkpoint: Optional[QueryCheckpoint] = None) -> List[Dict[str, Any]]:
     """Actual ``Runner.run`` query path, kept separate from direct SEOCHO calls."""
     from .agents_runtime import get_agents_runtime
     from .integrations.openai_agents import build_graph_agent
@@ -614,6 +631,10 @@ def _run_agents_sdk_query_phase(ctx: RunContext, *, quiet: bool, bundle_dir: str
     records: List[Dict[str, Any]] = []
     for index, question in enumerate(ctx.spec.questions):
         record: Dict[str, Any] = {"id": question.question_id or str(index + 1), "question": question.question, "runtime_mode": "agents_sdk"}
+        if question.expect:
+            record["expect"] = question.expect
+        if checkpoint:
+            checkpoint(records, record)
         started = time.monotonic()
         try:
             with runtime.trace(f"seocho.j3.{record['id']}"):
@@ -621,9 +642,11 @@ def _run_agents_sdk_query_phase(ctx: RunContext, *, quiet: bool, bundle_dir: str
             record["answer"] = str(getattr(result, "final_output", result) or "")
             record["empty"] = not record["answer"].strip()
         except Exception as exc:
-            record.update(answer="", error=str(exc), empty=True)
+            record.update(answer="", error=redact_diagnostic(ctx.spec, exc), empty=True)
         record["latency_s"] = round(time.monotonic() - started, 2)
         records.append(record)
+        if checkpoint:
+            checkpoint(records, None)
         _emit(quiet, f"  [{index + 1}/{len(ctx.spec.questions)}] agents_sdk -> {'ERROR' if record.get('error') else 'ok'}")
     return records
 
@@ -716,7 +739,7 @@ def _execute_run(
             payload["indexing"] = _run_index_phase(ctx, force=force, quiet=quiet, track=track)
             for result in payload["indexing"].get("results", []):
                 if result.get("status") in {"failed", "skipped"}:
-                    detail = result.get("error") or "; ".join((result.get("indexing") or {}).get("write_errors", [])) or "Document produced no usable indexed content."
+                    detail = redact_diagnostic(spec, result.get("error") or "; ".join((result.get("indexing") or {}).get("write_errors", [])) or "Document produced no usable indexed content.")
                     payload["diagnostics"].append(RunDiagnostic(
                         "index", "document_" + result["status"], detail,
                         "Inspect this document's reader, extraction and graph-write result.",
@@ -742,8 +765,13 @@ def _execute_run(
             mode = build_agent_config(spec).execution_mode
             _emit(quiet, f"Phase {phase}/{phase_count}: Querying ({len(spec.questions)} questions, mode={mode})")
             started = time.monotonic()
-            payload["queries"] = (_run_agents_sdk_query_phase(ctx, quiet=quiet, bundle_dir=bundle_dir, max_turns=max_turns)
-                                  if agents_config else _run_query_phase(ctx, quiet=quiet))
+            def checkpoint(records: List[Dict[str, Any]], active: Optional[Dict[str, Any]]) -> None:
+                payload["queries"] = list(records)
+                payload["active_question"] = dict(active) if active else None
+                store.write(payload)
+
+            payload["queries"] = (_run_agents_sdk_query_phase(ctx, quiet=quiet, bundle_dir=bundle_dir, max_turns=max_turns, checkpoint=checkpoint)
+                                  if agents_config else _run_query_phase(ctx, quiet=quiet, checkpoint=checkpoint))
             durations["query_s"] = round(time.monotonic() - started, 2)
             payload["diagnostics"].extend(record["diagnostic"] for record in payload["queries"] if record.get("diagnostic"))
             store.write(payload)
@@ -828,11 +856,11 @@ def _initial_payload(spec: RunSpec) -> Dict[str, Any]:
             "diagnostics": [], "active_stage": "build"}
 
 
-def _record_failure(payload: Dict[str, Any], exc: BaseException, store: ReportStore) -> RunReport:
+def _record_failure(payload: Dict[str, Any], exc: BaseException, store: ReportStore, spec: RunSpec) -> RunReport:
     interrupted = isinstance(exc, (KeyboardInterrupt, SystemExit))
     stage = payload.get("active_stage", "build")
     diagnostic = {"stage": stage, "code": "interrupted" if interrupted else f"{stage}_failed",
-                  "message": str(exc) or type(exc).__name__,
+                  "message": redact_diagnostic(spec, exc) or type(exc).__name__,
                   "action": "Inspect the failed stage; graph writes may be partial. Retry with a fresh output directory."}
     payload["fatal_error"] = diagnostic
     payload["diagnostics"].append(diagnostic)
@@ -856,10 +884,10 @@ def run(
         _execute_run(ctx, only=only, force=force, quiet=quiet, track=track, payload=payload, store=store)
         return store.write(payload)
     except (KeyboardInterrupt, SystemExit) as exc:
-        _record_failure(payload, exc, store)
+        _record_failure(payload, exc, store, ctx.spec)
         raise
     except Exception as exc:
-        return _record_failure(payload, exc, store)
+        return _record_failure(payload, exc, store, ctx.spec)
 
 
 def run_spec_once(
@@ -879,10 +907,10 @@ def run_spec_once(
         ctx.output_dir = directory
         result = run(ctx, only=only, force=force, quiet=quiet, track=track, store=store, payload=payload)
     except (KeyboardInterrupt, SystemExit) as exc:
-        _record_failure(payload, exc, store)
+        _record_failure(payload, exc, store, spec)
         raise
     except Exception as exc:
-        result = _record_failure(payload, exc, store)
+        result = _record_failure(payload, exc, store, spec)
     finally:
         if ctx is not None:
             errors = ctx.close()
@@ -904,10 +932,10 @@ def _preflight_failure(
     payload = _initial_payload(spec)
     payload.update(ok=False, active_stage="preflight",
                    outcome={"status": "failed", "reasons": ["preflight_failed"]},
-                   preflight=[{"name": c.name, "status": c.status, "detail": c.detail, "fix": c.fix}
+                   preflight=[{"name": c.name, "status": c.status, "detail": redact_diagnostic(spec, c.detail), "fix": redact_diagnostic(spec, c.fix)}
                               for c in preflight.checks])
-    payload["diagnostics"] = [RunDiagnostic("preflight", "preflight_failed", c.detail,
-                                            c.fix or "Correct this check before retrying.", c.name).to_dict()
+    payload["diagnostics"] = [RunDiagnostic("preflight", "preflight_failed", redact_diagnostic(spec, c.detail),
+                                            redact_diagnostic(spec, c.fix) or "Correct this check before retrying.", c.name).to_dict()
                               for c in preflight.failures()]
     if not persist:
         return RunReport(payload=payload)
@@ -1309,8 +1337,9 @@ def run_sweep_from_config(
             rows.append(_sweep_row(variant.name, status, result.payload))
         except Exception as exc:  # one broken variant must not sink the sweep
             status = "error"
-            rows.append(_sweep_row(variant.name, "error", detail=str(exc)))
-            _emit(quiet, f"  variant ERROR: {exc}")
+            detail = redact_diagnostic(spec, exc)
+            rows.append(_sweep_row(variant.name, "error", detail=detail))
+            _emit(quiet, f"  variant ERROR: {detail}")
         if status != "ok":
             failed.append(variant.name)
             if fail_fast:

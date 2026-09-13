@@ -39,15 +39,15 @@ uv run ruff check \
 
 # Incremental strict typing and broader Python lint at experiment evidence seams.
 uv run mypy --cache-dir .seocho/cache/mypy --strict --follow-imports=skip \
-  src/seocho/run_outcomes.py src/seocho/run_reporting.py \
+  src/seocho/run_redaction.py src/seocho/run_visualization.py src/seocho/run_outcomes.py src/seocho/run_reporting.py \
   src/seocho/run_evidence.py src/seocho/run_comparison.py src/seocho/cli/runs.py
 uv run ruff check --select E4,E7,E9,F,B,UP,SIM \
-  src/seocho/run_outcomes.py src/seocho/run_reporting.py \
+  src/seocho/run_redaction.py src/seocho/run_visualization.py src/seocho/run_outcomes.py src/seocho/run_reporting.py \
   src/seocho/run_evidence.py src/seocho/run_comparison.py src/seocho/cli/runs.py
 
 uv run pytest \
   tests/seocho/test_coding_workspace.py \
-  tests/seocho/test_run_evidence.py \
+  tests/seocho/test_run_evidence.py tests/seocho/test_run_recovery.py tests/seocho/test_run_visualization.py \
   tests/seocho/test_file_indexer.py \
   extraction/tests/test_runtime_package_aliases.py \
   extraction/tests/test_identity.py \

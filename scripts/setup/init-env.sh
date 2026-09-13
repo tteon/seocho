@@ -7,8 +7,6 @@ ENV_FILE="${ROOT_DIR}/.env"
 
 force=false
 openai_key=""
-opik_url=""
-enable_opik=""
 
 usage() {
   cat <<'USAGE'
@@ -18,8 +16,6 @@ Usage:
 Options:
   --force                    Overwrite existing .env without prompt
   --openai-key <key>         Set OPENAI_API_KEY directly
-  --enable-opik              Enable Opik with default URL
-  --opik-url <url>           Set OPIK_URL explicitly
   -h, --help                 Show this help
 USAGE
 }
@@ -91,15 +87,6 @@ while [[ $# -gt 0 ]]; do
       openai_key="$2"
       shift 2
       ;;
-    --enable-opik)
-      enable_opik="y"
-      shift
-      ;;
-    --opik-url)
-      opik_url="$2"
-      enable_opik="y"
-      shift 2
-      ;;
     -h|--help)
       usage
       exit 0
@@ -132,23 +119,6 @@ if [[ -z "${openai_key}" ]]; then
 fi
 if [[ -n "${openai_key}" ]]; then
   set_env_key "OPENAI_API_KEY" "${openai_key}"
-fi
-
-if [[ -z "${enable_opik}" ]]; then
-  if prompt_yes_no "Enable Opik by default?" "n"; then
-    enable_opik="y"
-  else
-    enable_opik="n"
-  fi
-fi
-
-if [[ "${enable_opik}" == "y" ]]; then
-  if [[ -z "${opik_url}" ]]; then
-    opik_url="$(prompt_with_default "Opik URL" "http://opik-backend:8080")"
-  fi
-  set_env_key "OPIK_URL" "${opik_url}"
-else
-  set_env_key "OPIK_URL" ""
 fi
 
 if prompt_yes_no "Customize service ports now?" "n"; then

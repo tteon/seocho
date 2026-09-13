@@ -11,11 +11,51 @@ import platform
 import subprocess
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from .run_redaction import safe_endpoint as safe_endpoint
 
 from .run_spec import RunSpec
 
-SCHEMA = "seocho.run_evidence.v1"
+SCHEMA = "seocho.run_evidence.v2"
+
+# Explicit behavioral settings: never collect the whole process environment.
+RUNTIME_ENV_KEYS = (
+    "SEOCHO_MULTI_PLAN",
+    "SEOCHO_ANSWER_SHAPE",
+    "SEOCHO_ROUTE_PROFILE",
+    "SEOCHO_SEMANTIC_LAYER",
+    "SEOCHO_MODEL_ROUTING",
+    "SEOCHO_MODEL_ROUTING_TIERS",
+    "SEOCHO_ONTOLOGY_GROUNDING",
+    "SEOCHO_GROUNDING_SCORER",
+    "SEOCHO_PLAN_GATE",
+    "SEOCHO_CHUNK_FALLBACK",
+    "SEOCHO_ONTOLOGY_CRITIQUE",
+    "SEOCHO_ONTOLOGY_DRIFT_POLICY",
+    "SEOCHO_GRAPH_COT_PROPERTIES",
+    "SEOCHO_EXTRACTION_CONCURRENCY",
+    "SEOCHO_DETERMINISTIC_FINANCIAL",
+    "SEOCHO_VERIFIED_FINANCIAL_ANSWER",
+    "SEOCHO_ENFORCE_WORKSPACE_FILTER",
+    "SEOCHO_GRAPH_QUERY_MAX_INFLIGHT",
+    "SEOCHO_GRAPH_QUERY_ADMISSION_WAIT_SECONDS",
+    "SEOCHO_TIMEOUT",
+    "SEOCHO_TEXT2CYPHER_MAX_TOKENS",
+    "SEOCHO_ENABLE_ENRICHMENT_ROUTER",
+    "SEOCHO_RESPONSE_CACHE_PATH",
+    "SEOCHO_QUERY_PRECEDENCE",
+    "VOCABULARY_RESOLVER_ENABLED",
+    "VOCABULARY_GLOBAL_WORKSPACE_ID",
+    "SEMANTIC_ARTIFACT_DIR",
+    "SEOCHO_RUST_PROJECTOR_SOCKET",
+    "SEOCHO_ONTOLOGY_STATE_DB",
+    "SEOCHO_ONTOLOGY_LEASE_ID",
+    "PYTHONHASHSEED",
+)
+RUNTIME_FILE_ENV_KEYS = (
+    "ONTOLOGY_HINTS_PATH",
+    "SEOCHO_RDF_GOVERNANCE_RECEIPT",
+    "SEOCHO_AGENT_ONTOLOGY_PROFILE",
+)
 
 
 def digest(value: object) -> str:
@@ -35,14 +75,6 @@ def file_digest(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             sha.update(chunk)
     return sha.hexdigest()
-
-
-def safe_endpoint(uri: str) -> str:
-    """Keep connection identity, excluding embedded credentials/query strings."""
-    parts = urlsplit(uri)
-    return urlunsplit(
-        (parts.scheme, parts.netloc.rsplit("@", 1)[-1], parts.path, "", "")
-    )
 
 
 def _resolve(spec: RunSpec, value: str) -> Path:
@@ -176,6 +208,21 @@ def collect_evidence(
         except importlib.metadata.PackageNotFoundError:
             versions[name] = None
     conditions["environment"] = digest(versions)
+    runtime_settings: dict[str, Any] = {
+        key: os.environ.get(key) for key in RUNTIME_ENV_KEYS
+    }
+    for key in RUNTIME_FILE_ENV_KEYS:
+        value = os.environ.get(key)
+        runtime_settings[key] = value
+        if value:
+            try:
+                runtime_settings[key] = {
+                    "path": value,
+                    "sha256": _tree_digest(Path(value))[0],
+                }
+            except OSError as exc:
+                gaps.append(f"runtime_settings.{key}: {type(exc).__name__}")
+    conditions["runtime_settings"] = digest(runtime_settings)
     # Endpoint overrides affect experiments even when provider/model names agree.
     overrides = {
         k: v

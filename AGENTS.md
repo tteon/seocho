@@ -92,8 +92,8 @@ surface in the same commit or PR.
 - OpenAI Agents SDK is the agent runtime baseline.
 - DozerDB is the graph database backend baseline.
 - `workspace_id` must be propagated in runtime-facing models, APIs, and traces.
-- Tracing stays vendor-neutral (`none|console|jsonl|otlp`); Opik was removed
-  in ADR-0172. Use JSONL artifacts and an operator-selected OTLP backend.
+- Tracing stays vendor-neutral (`none|console|jsonl|otlp`); use JSONL
+  artifacts and an operator-selected OTLP backend (ADR-0172).
 - Owlready2 is allowed only in offline ontology governance paths, not hot
   request paths.
 

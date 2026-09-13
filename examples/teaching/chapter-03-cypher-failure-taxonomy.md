@@ -89,7 +89,7 @@ def unbounded_path(cypher: str) -> bool: return bool(RE.search(cypher))
 ### #9 Read-only violation
 **증상**: read-only session에서 write op 시도.
 **검출**: `has_write_op()` (#5 와 동일) 으로 사전 차단.
-**처방**: read-mode 백엔드는 write op 받으면 즉시 reject + Opik anomaly log.
+**처방**: read-mode 백엔드는 write op 받으면 즉시 reject + JSONL anomaly log.
 
 ---
 

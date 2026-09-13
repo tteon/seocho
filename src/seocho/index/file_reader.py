@@ -483,6 +483,11 @@ class FileIndexer:
                 total_result.validation_errors.extend(result.validation_errors)
                 total_result.write_errors.extend(result.write_errors)
                 total_result.skipped_chunks += result.skipped_chunks
+                if result.fallback_used:
+                    total_result.fallback_used = True
+                    reason = result.fallback_reason or "degraded extraction"
+                    if reason not in total_result.fallback_reason.split("; "):
+                        total_result.fallback_reason = "; ".join(filter(None, (total_result.fallback_reason, reason)))
                 if not total_result.source_id:
                     total_result.source_id = result.source_id
                 if result.governance_candidate:
@@ -502,7 +507,7 @@ class FileIndexer:
             status="indexed" if total_result.ok else "failed",
             indexing_result=total_result,
             records_found=len(records),
-            error="; ".join(total_result.write_errors) if total_result.write_errors else None,
+            error="; ".join(filter(None, [*total_result.write_errors, total_result.fallback_reason])) or None,
         )
 
     def index_directory(

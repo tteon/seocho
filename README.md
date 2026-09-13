@@ -121,6 +121,11 @@ corpora, missing questions or undeclared conditions prevent aggregate deltas;
 individual failures remain visible. Missing cost or evidence data is marked
 unavailable. For a model change, declare `--change models` instead.
 
+Export a local, searchable visual report and SEOCHO module map with
+`seocho runs view runs/candidate/RUN_ID --output views/candidate.html`.
+Add `--baseline` to inspect the saved-run comparison. Module responsibilities
+are shown separately from observed execution; no external service is needed.
+
 The [experiment guide](docs/EXPERIMENT_PLATFORM.md) covers failures, fingerprints,
 repeatable environments and interpretation. Use [Benchmarks](docs/BENCHMARKS.md)
 for research protocols. An answer rate or reference-string match is a proxy;

@@ -6,7 +6,7 @@ composition) and optionally a baseline (empty ontology). Each run:
   - ingests the case's evidence chunks via Seocho.local() with the chosen
     ontology + Kimi K2.5 LLM (meta prompt prepended)
   - asks the question with reasoning_mode=True and repair_budget=2 (T2.1)
-  - emits an Opik trace with the standardized 5-tag identification set
+  - records experiment metadata with the standardized 5-tag identification set
 
 Outputs:
   outputs/evaluation/finder_phase_experiment/<run_prefix>/aggregate.json

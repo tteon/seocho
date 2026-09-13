@@ -76,7 +76,7 @@ SECTIONS = [
         bullets=[
             "Ch 3 Cypher 생성기는 단독 도구.",
             "Ch 4: 4-axis augmentation → vector/fulltext/Cypher 병렬 → RRF.",
-            "라우팅 결정 자체를 Opik trace로 추적.",
+            "라우팅 결정 자체를 JSONL trace로 추적.",
         ],
     ),
 ]

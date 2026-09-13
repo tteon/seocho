@@ -249,7 +249,7 @@ event = DomainEvent(
 )
 ```
 
-This is the base shape for future tracing and Opik export.
+This is the base shape for future tracing and OTLP export.
 
 ---
 
@@ -416,9 +416,9 @@ SEOCHO should make these visible:
 - provider/model metadata
 - token and latency metrics
 
-Preferred tracing backend: Opik.
+Preferred tracing backend: OTLP.
 
-Contract: vendor-neutral trace payloads first, Opik as team backend.
+Contract: vendor-neutral trace payloads first, OTLP as team backend.
 
 ---
 

@@ -14,7 +14,7 @@ It is the manual verification path for developers who want to understand the run
 | 3 | internal runtime path works | `/platform/ingest/raw`, `/run_agent_semantic` |
 | 4 | governance APIs work | `/rules/*`, `/semantic/artifacts/*` |
 | 5 | scripted demos still run | `examples/*` |
-| 6 | traces can be exported | Opik or JSONL tracing |
+| 6 | traces can be exported | OTLP or JSONL tracing |
 
 Stop after section 2 if you only need product smoke evidence. Continue into
 sections 3-4 when you are debugging runtime internals or governance behavior.
@@ -230,13 +230,15 @@ curl -sS -X POST http://localhost:8001/semantic/artifacts/<ARTIFACT_ID>/approve 
 If you want repeatable staged demos instead of manual calls, continue with
 [BEGINNER_PIPELINES_DEMO.md](BEGINNER_PIPELINES_DEMO.md).
 
-## 6. Optional: Opik
+## 6. Optional: OTLP
 
 ```bash
-make opik-up
+make observability-up
 ```
 
-Open `http://localhost:5173`.
+Open Grafana at `http://localhost:3000`. Configure tracing using the
+[observability example](https://github.com/tteon/seocho/blob/main/examples/observability/README.md); starting the stack
+alone does not enable an exporter in an existing SDK process.
 
 ## 7. Troubleshooting
 

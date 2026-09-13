@@ -39,7 +39,7 @@ On the `main` runtime line, OpenTelemetry is the canonical integration point
 and Grafana/Prometheus are the operational consumers. The LiteLLM usage
 adapter must emit OTEL span attributes and low-cardinality metrics rather than
 introduce a second trace protocol. The existing `StageTimer` remains the
-local timing helper; Opik, Langfuse, and Phoenix are optional exporters only.
+local timing helper; OTLP is the export protocol; any receiving backend is operator-selected.
 
 Recommended metrics are `seocho_agent_calls_total`,
 `seocho_agent_latency_ms`, `seocho_llm_tokens_total`,

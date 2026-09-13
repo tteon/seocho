@@ -18,7 +18,7 @@ Per case:
   - vector-search the case's chunks for the query, take top-k as context
   - answer with grok-4.3 grounded ONLY in the retrieved context
   - score with the shared number-aware evaluate_answer
-  - emit an Opik trace: retrieval:vector, ontology:n-a (CLAUDE.md §19)
+  - record experiment metadata: retrieval:vector, ontology:n-a (CLAUDE.md §19)
 
 Outputs:
   .seocho/lancedb/finder_vector_0530.lance         (persisted embeddings)
@@ -234,19 +234,8 @@ def main() -> int:
     oai_client = OpenAI(timeout=60)
     table = build_lancedb(cases, oai_client, table_name=args.table, chunk_size=args.chunk_size)
 
-    # Experiment-traces-only: do NOT enable SEOCHO's OpikBackend (it emits internal
-    # sdk.extraction/sdk.query traces and wraps the LLM with track_openai →
-    # chat_completion_create noise). Our traces come solely from
-    # bc.run_traced + bc.set_trace_metadata.
-    print(f"== tracing: experiment-traces-only (no SEOCHO backend) "
-          f"project={os.environ.get('OPIK_PROJECT_NAME')} ws={os.environ.get('OPIK_WORKSPACE')} ==")
-
-    def flush_tracing():
-        try:
-            import opik
-            opik.flush_tracker()
-        except Exception:
-            pass
+    # Results are saved by this runner; configure JSONL/OTLP explicitly for spans.
+    from seocho.tracing import flush_tracing
 
     from seocho.store.llm import create_llm_backend
     provider, model = (args.llm.split("/", 1) if "/" in args.llm else ("grok", args.llm))

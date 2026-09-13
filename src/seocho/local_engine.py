@@ -586,6 +586,10 @@ class _LocalEngine:
             )
 
         query_mode = normalize_query_mode(query_mode)
+        # An accepted request must never publish a previous request's evidence,
+        # including when this request returns early or synthesis raises.
+        self._last_query_metadata = {}
+        self._last_run_context = None
         active_ontology = ontology_override or self.ontology
         ontology_context = self._ontology_context_cache.get(
             active_ontology,
@@ -630,25 +634,39 @@ class _LocalEngine:
         self._last_semantic_route = None
         self._last_semantic_hint = None
         if (os.environ.get("SEOCHO_SEMANTIC_LAYER", "").strip().lower()
-                in ("1", "true", "yes") and query_mode != "graph_cot"
-                and effective_query_context is None):
+                in ("1", "true", "yes") and query_mode != "graph_cot"):
+            semantic_timer = StageTimer()
             try:
                 from .query.semantic_query import clarification_message, semantic_answer
 
-                sr = semantic_answer(
-                    question, llm=self.llm, graph_store=self.graph_store,
-                    database=database, workspace_id=self.workspace_id,
-                )
+                with semantic_timer.stage("semantic_retrieval"):
+                    sr = semantic_answer(
+                        question, llm=self.llm, graph_store=self.graph_store,
+                        database=database, workspace_id=self.workspace_id,
+                    )
                 self._last_semantic_route = sr.route
                 self._last_semantic_hint = sr.hint
                 self._log_semantic_route(question, sr)
-                if sr.answer is not None:                       # STRUCTURED hit
-                    return sr.answer
-                if sr.route == "CLARIFY":                       # offer a clarification
-                    return clarification_message(sr.hint)
-                # NARRATIVE / FAIL: fall through to the existing lane below
             except Exception as exc:  # never let the new lane break ask()
                 logger.warning("Semantic-layer lane skipped: %s", exc)
+            else:
+                # Reframing is outside the retrieval fallback handler: an LLM
+                # synthesis failure must not select another retrieval lane.
+                if sr.answer is not None or sr.route == "CLARIFY":
+                    answer = (
+                        sr.answer if sr.answer is not None
+                        else clarification_message(sr.hint)
+                    )
+                    return self._finish_semantic_answer(
+                        question, sr, answer,
+                        database=database,
+                        active_ontology=active_ontology,
+                        ontology_context=ontology_context,
+                        query_mode=query_mode,
+                        query_context=effective_query_context,
+                        timer=semantic_timer,
+                    )
+                # NARRATIVE / FAIL: fall through to the existing lane below
 
         # ADR-0144: wrap the retrieval pipeline in a single rag.ask root span so
         # its stages (compile_cypher -> execute -> retrieve_ctx -> synthesize)
@@ -894,7 +912,7 @@ class _LocalEngine:
         query_mode: str,
         active_ontology: Any,
         ontology_context: Any,
-        query_context: Optional[Dict[str, Any]],
+        query_context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Retrieval pipeline body for ask(), wrapped by the rag.ask span."""
         timer = StageTimer()
@@ -1143,7 +1161,16 @@ class _LocalEngine:
                 intent_data,
                 answer_synthesizer=answer_synthesizer,
             )
-        if deterministic_answer and not query_context:
+        if deterministic_answer:
+            answer_text = deterministic_answer
+            if query_context:
+                with timer.stage("generation"):
+                    answer_text = self._reframe_answer(
+                        question, records, deterministic_answer,
+                        query_context=query_context,
+                        ontology_context=ontology_context,
+                        answer_synthesizer=answer_synthesizer,
+                    )
             timer.mark_total()
             self._last_query_metadata = build_local_query_metadata(
                 workspace_id=self.workspace_id,
@@ -1157,14 +1184,14 @@ class _LocalEngine:
                 params=params,
                 intent_data=intent_data,
                 records=records,
-                answer_text=deterministic_answer,
+                answer_text=answer_text,
                 attempts=attempts,
                 repair_budget=repair_budget,
                 query_mode=query_mode,
                 latency_breakdown_ms=timer.to_dict(),
                 vector_context=vector_context,
                 error="",
-                answer_source="deterministic",
+                answer_source="llm_synthesis" if query_context else "deterministic",
             )
             _query_elapsed = timer.to_dict().get("total_ms", 0.0) / 1000.0
             self._log_query_trace(
@@ -1175,7 +1202,7 @@ class _LocalEngine:
                 reasoning_attempts=len(attempts) if reasoning_mode and attempts else 0,
                 elapsed_seconds=_query_elapsed,
             )
-            return deterministic_answer
+            return answer_text
 
         reasoning_trace = None
         if reasoning_mode and attempts:
@@ -1427,6 +1454,104 @@ class _LocalEngine:
             ontology=ontology,
         )
         return plan.cypher, plan.params, plan.error
+
+    def _finish_semantic_answer(
+        self,
+        question: str,
+        result: Any,
+        answer: str,
+        *,
+        database: str,
+        active_ontology: Any,
+        ontology_context: Any,
+        query_mode: str,
+        query_context: Optional[Dict[str, Any]],
+        timer: StageTimer,
+    ) -> str:
+        """Publish this semantic result using only its already retrieved evidence."""
+        source = "clarification" if result.route == "CLARIFY" else "deterministic"
+        synthesizer = None
+        if result.answer is not None and query_context:
+            synthesizer = QueryAnswerSynthesizer(query_strategy=self._query, llm=self.llm)
+            with timer.stage("generation"):
+                answer = self._reframe_answer(
+                    question, result.rows, answer,
+                    query_context=query_context,
+                    ontology_context=ontology_context,
+                    answer_synthesizer=synthesizer,
+                )
+            source = "llm_synthesis"
+
+        slots = result.query_slots
+        intent = {
+            "intent": "financial_metric_lookup",
+            "anchor_entity": getattr(slots, "entity_surface", ""),
+            "metric_name": getattr(slots, "metric_surface", ""),
+            "years": sorted({str(row["period"]) for row in result.rows if row.get("period")}),
+        } if result.rows else {}
+        timer.mark_total()
+        metadata = build_local_query_metadata(
+            workspace_id=self.workspace_id,
+            agent_design_pattern=str(self.agent_config.extra.get("agent_design_pattern", "") or ""),
+            question=question,
+            database=database,
+            ontology=active_ontology,
+            ontology_context=ontology_context,
+            ontology_context_mismatch={},
+            cypher=result.cypher,
+            params=result.params,
+            intent_data=intent,
+            records=result.rows,
+            answer_text=answer,
+            attempts=[],
+            repair_budget=0,
+            query_mode=query_mode,
+            latency_breakdown_ms=timer.to_dict(),
+            vector_context="",
+            error="",
+            answer_source=source,
+        )
+        metadata["strategy_decision"] = {"route": result.route}
+        # The decomposer also calls the LLM. Do not present a deterministic
+        # formatter's zero synthesis tokens as an exact zero for the request.
+        metadata["token_usage"] = {
+            "source": "unavailable", "exact": False, "scope": "request",
+            "reason": "semantic_decomposition_usage_not_collected",
+        }
+        metadata["answer_envelope"]["token_usage"] = dict(metadata["token_usage"])
+        if synthesizer is not None:
+            metadata["answer_envelope"]["synthesis_usage"] = dict(synthesizer.last_usage or {})
+        self._last_query_metadata = metadata
+        return answer
+
+    def _reframe_answer(
+        self,
+        question: str,
+        records: Sequence[Dict[str, Any]],
+        baseline_answer: str,
+        *,
+        query_context: Dict[str, Any],
+        ontology_context: Any,
+        answer_synthesizer: Optional[QueryAnswerSynthesizer] = None,
+    ) -> str:
+        """Reframe an already computed answer without re-entering retrieval."""
+        from .tracing import start_span
+
+        synthesizer = answer_synthesizer or QueryAnswerSynthesizer(
+            query_strategy=self._query, llm=self.llm,
+        )
+        with start_span(
+            "rag.synthesize",
+            output_data={"result_count": len(records)},
+            metadata={"workspace_id": self.workspace_id, "answer_reframing": True},
+            tags=["rag"],
+        ) as span:
+            answer = synthesizer.synthesize(
+                question, records, query_context=query_context,
+                baseline_answer=baseline_answer,
+            )
+            self._annotate_synthesis_span(span, synthesizer, ontology_context)
+        return answer
 
     def _build_deterministic_answer(
         self,

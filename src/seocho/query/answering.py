@@ -115,6 +115,7 @@ class QueryAnswerSynthesizer:
         vector_context: str = "",
         answer_shape: Any = None,
         query_context: Optional[Dict[str, Any]] = None,
+        baseline_answer: Optional[str] = None,
     ) -> str:
         records_json = json.dumps(records, default=str)
         if query_context:
@@ -128,6 +129,14 @@ class QueryAnswerSynthesizer:
                 question,
                 records_json,
             )
+        if baseline_answer is not None:
+            system_ans += (
+                "\n\nReframe the existing answer using the user query context. "
+                "Preserve its factual claims, numbers, units, periods, and uncertainty. "
+                "Use the query results only as supporting evidence; do not replace "
+                "the computed answer or invent missing facts."
+            )
+            user_ans += f"\n\nExisting answer (computed from the same evidence):\n{baseline_answer}"
         if reasoning_trace:
             user_ans += f"\n\nReasoning trace (query attempts):\n{reasoning_trace}"
         if vector_context:

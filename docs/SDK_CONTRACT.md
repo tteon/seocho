@@ -90,6 +90,53 @@ writes. Use the rule profile store pattern (SQLite-backed) for
 collision-prone state, or serialize approvals at the application layer
 until seocho-35n4 lands.
 
+### 2.6 Ask-time query context
+
+`Seocho.ask(..., query_context={...})` and `ask_response(...)` accept optional
+role/task/focus/constraints hints in local mode with `engine="deterministic"`.
+Custom keys are supported. Context values are sanitized before rendering.
+
+- Context affects final answer framing only. With the same question, graph
+  state, configuration, and provider retrieval responses, route selection,
+  Cypher, parameters, returned rows, and fallback decisions are unchanged.
+- `SEOCHO_SEMANTIC_LAYER` continues to run its decomposition, arbitration,
+  and exact-key lookup. A successful answer and its rows feed final reframing;
+  `CLARIFY` returns the original clarification without an extra LLM call.
+  `NARRATIVE`/`FAIL` follow the same existing fallback path.
+- Deterministic finance and other deterministic answers are computed first.
+  Reframing receives that computed answer and the same rows, with instructions
+  to preserve facts, numbers, units, periods, and uncertainty. This adds one
+  final LLM synthesis call, with additional cost and latency. For a path that
+  already uses LLM synthesis, context augments that call without adding another.
+- `None`, `{}`, and context containing only empty/whitespace values are no-ops,
+  including empty focus lists. Their prompts and DB/LLM calls match omission.
+- Effective context is rejected with `ValueError` before query I/O for local
+  `engine="structured"` and before HTTP transport in remote mode. Empty context
+  remains a no-op on these surfaces too.
+- Reframing failures propagate as synthesis errors; they do not retry retrieval
+  or silently switch to another route. Reframing is visible in `rag.synthesize`
+  with `answer_reframing=true`. A reframed deterministic pipeline answer reports
+  `answer_source="llm_synthesis"` in its answer envelope.
+- Semantic success and clarification responses publish fresh metadata from that
+  request's result, without additional graph reads. Cypher/parameters, database,
+  evidence provenance, row count, route, and latency never come from a previous
+  question. Failed accepted requests clear previous metadata.
+- `ask_response().answer_envelope` preserves the engine's answer source and usage
+  fields. On the semantic fast path, provider-reported final-call tokens appear
+  in `synthesis_usage` (an empty mapping means unavailable). Request-wide
+  `token_usage` is explicitly unavailable because decomposition usage is not
+  collected; a deterministic formatter does not imply a zero-token request.
+
+Retrieval parity is an orchestration contract, not a guarantee of identical
+outputs across independent stochastic LLM runs. Instructions constrain final
+wording but cannot guarantee that a model preserves every fact. The offline
+contract suite exercises the real SDK/planner/arbiter/answering code with DB
+and LLM doubles; it does not establish live database compatibility, answer
+quality, or measured latency/cost.
+
+Tests: `tests/seocho/test_query_context_contract.py` (included in basic CI).
+Decision: [ADR-0224](decisions/ADR-0224-query-context-synthesis-only.md).
+
 ## 3. Explicit non-goals
 
 These are **not** promised by the SDK and should not be inferred from

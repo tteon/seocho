@@ -49,17 +49,18 @@ def _render_query_context(query_context: Any) -> str:
         if _is_empty_context_value(value):
             continue
         if isinstance(value, (list, tuple, set)):
-            items = list(value)
+            items = [item for item in value if not _is_empty_context_value(item)]
             if isinstance(value, set):
                 items = sorted(items, key=_sanitize_prompt_value)
-            rendered = ", ".join(_sanitize_prompt_value(item) for item in items)
+            rendered = ", ".join(_sanitize_prompt_value(item).strip() for item in items)
         elif isinstance(value, dict):
             rendered = ", ".join(
                 f"{_sanitize_prompt_value(k)}={_sanitize_prompt_value(v)}"
                 for k, v in value.items()
+                if not _is_empty_context_value(v)
             )
         else:
-            rendered = _sanitize_prompt_value(value)
+            rendered = _sanitize_prompt_value(value).strip()
         if rendered:
             context_lines.append(f"- {_sanitize_prompt_value(key)}: {rendered}")
 
@@ -83,7 +84,7 @@ def _is_empty_context_value(value: Any) -> bool:
     if value is None:
         return True
     if isinstance(value, str):
-        return value == ""
+        return not _sanitize_prompt_value(value).strip()
     if isinstance(value, (list, tuple, set, dict)):
         return len(value) == 0
     return False

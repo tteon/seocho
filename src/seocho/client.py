@@ -1248,6 +1248,7 @@ class Seocho:
             metadata = self.last_query_metadata
             semantic_context = dict(metadata.get("semantic_context", {}) or {})
             answer_envelope = {
+                **dict(metadata.get("answer_envelope", {}) or {}),
                 "schema_version": "answer_envelope.v1",
                 "answer": response,
                 "query_mode": str(metadata.get("query_mode", normalized_query_mode) or normalized_query_mode),
@@ -1274,7 +1275,10 @@ class Seocho:
             )
 
         if query_context:
-            raise ValueError("query_context is currently supported only in local engine mode.")
+            from .query.strategy import _has_effective_query_context
+
+            if _has_effective_query_context(query_context):
+                raise ValueError("query_context is currently supported only in local engine mode.")
 
         resolved_databases = list(databases or ([] if database is None else [database]))
         if _should_route_ask_to_semantic(

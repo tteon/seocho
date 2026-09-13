@@ -106,6 +106,7 @@ def build_local_query_metadata(
 
 def _roll_up_latency(latency_breakdown_ms: Dict[str, float]) -> Dict[str, float]:
     retrieval_keys = (
+        "semantic_retrieval_ms",
         "schema_ms",
         "plan_ms",
         "execute_ms",

@@ -27,6 +27,13 @@ export MARA_API_KEY=...
 Prefer OpenAI/DeepSeek/Kimi? Export that provider's key and swap the `llm=`
 string below (`"openai/gpt-4o"`, `"deepseek/deepseek-chat"`, `"kimi/kimi-k2.5"`).
 
+The Z.AI global API preset uses `ZAI_API_KEY` and `llm="zai/glm-5.1"`.
+This selects its general chat-completion endpoint; it does not configure a
+Coding Plan endpoint or an embedding model.
+Local CLI commands also accept `--provider zai --model glm-5.1`. When no model
+is set on the command line or in project config, the selected provider supplies
+its default model.
+
 ## 2. Create And Run A Project
 
 ```bash

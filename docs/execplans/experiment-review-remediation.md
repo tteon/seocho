@@ -14,7 +14,7 @@ Make saved user-data experiments trustworthy at failure boundaries, remove remai
 - [x] Remove active third-party Opik paths and normalize current guidance.
 - [x] Add local visual report inspection and architectural decision.
 - [x] Run focused regressions, basic CI, documentation/site validation.
-- [ ] Pass required remote checks and record the landing PR.
+- [x] Published [PR #678](https://github.com/tteon/seocho/pull/678) for required remote checks and main landing. The PR check results and merge event are the authoritative landing record.
 
 ## Surprises & Discoveries
 

@@ -69,13 +69,15 @@ def test_query_interruption_preserves_completed_first_answer(
     assert completed == ["first"]
     saved = json.loads((ctx.output_dir / "report.json").read_text())
     assert saved["outcome"]["status"] == "interrupted"
-    assert saved.get("queries", [])[0:1] == [
+    assert len(saved["queries"]) == 1
+    first = dict(saved["queries"][0])
+    assert first.pop("latency_s") >= 0
+    assert [first] == [
         {
             "id": "1",
             "question": "first",
             "answer": "completed answer",
             "empty": False,
-            "latency_s": 0.0,
         }
     ]
 

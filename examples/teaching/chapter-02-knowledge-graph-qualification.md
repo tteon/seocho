@@ -3,12 +3,12 @@
 ## Learning Objectives
 - GDS 핵심 지표(node similarity, degree centrality, clustering coefficient, link prediction) 각각을 *그래프 품질 진단* 관점에서 해석한다.
 - GDS in-memory projection → algorithm → write-back 한 사이클을 DozerDB에서 실행한다.
-- 평가 도구를 `@function_tool`로 노출하고, agent의 도구 선택 reasoning을 Opik trace로 검증한다.
+- 평가 도구를 `@function_tool`로 노출하고, agent의 도구 선택 reasoning을 JSONL trace로 검증한다.
 
 ## Prerequisites
 - Chapter 1 완료 (FIBO + FinDER 인덱싱된 그래프)
 - DozerDB `gds.*` 권한 (CLAUDE.md §8 — `apoc.*, n10s.*` 외 별도 확인 필요)
-- Opik 워크스페이스 (`tteon`) 접근
+- 로컬 JSONL trace 파일 읽기 권한
 
 ## 2.1 GDS Overview & Evaluation Metric
 
@@ -99,9 +99,9 @@ CALL gds.graph.drop('finder-fibo')
 
 ---
 
-## 2.5 Action Check with Opik — Reasoning & Tool_use
+## 2.5 Action Check with JSONL — Reasoning & Tool_use
 
-### Opik trace에서 확인할 3가지
+### JSONL trace에서 확인할 3가지
 1. **Tool input/output 페어** — 입력이 docstring 스펙대로인지
 2. **Reasoning step의 도구 선택 근거** — 어떤 사용자 의도가 어떤 도구로 이어졌는지
 3. **비용** — 토큰 / latency / 도구 호출 횟수
@@ -113,7 +113,7 @@ CALL gds.graph.drop('finder-fibo')
 - [ ] reasoning step이 도구 결과와 모순되지 않는가
 
 ### Hands-on
-> TODO: 같은 질의를 5회 반복 실행 → Opik에서 평균 toolcall 수, 평균 latency, 답변 일관성 측정.
+> TODO: 같은 질의를 5회 반복 실행 → JSONL에서 평균 toolcall 수, 평균 latency, 답변 일관성 측정.
 
 ### Code Anchor
 - `seocho/eval/` (벤치마크 하니스)
@@ -123,5 +123,5 @@ CALL gds.graph.drop('finder-fibo')
 ## Deliverables
 - [ ] 4개 지표 결과 리포트 (히스토그램 + top-10)
 - [ ] `@function_tool` 4개 구현 + 단위 테스트
-- [ ] Opik trace 캡처 (모호 docstring vs 명확 docstring 비교)
+- [ ] JSONL trace 캡처 (모호 docstring vs 명확 docstring 비교)
 - [ ] Evaluation checklist 결과 요약

@@ -67,12 +67,12 @@ SECTIONS = [
         bullets=[
             "USER: '이 그래프 품질을 4가지 관점에서 평가해줘.'",
             "각 provider 가 4개 도구를 어떤 순서/조합으로 호출하는지 비교.",
-            "Opik trace 의 tool_call_item 으로 그대로 캡처.",
+            "JSONL trace 의 tool_call_item 으로 그대로 캡처.",
         ],
         notes="Kimi는 비교적 더 많은 도구를 호출, OpenAI는 가장 짧은 chain, Grok은 reasoning step이 길다 (대체로).",
     ),
     slide(
-        title="Opik에서 보는 4가지",
+        title="JSONL에서 보는 4가지",
         bullets=[
             "호출 수 — 4개를 다 부르는가?",
             "병렬화 — 독립 호출을 직렬화하지 않았는가?",

@@ -18,8 +18,8 @@ work intact; construct the landing branch from current main.
   structured-output support. Credit original contributions through PR links.
 - [x] Check focused CLI, graph benchmark, file reader, and provider tests.
 - [x] Run full basic CI: 1,126 passed, 3 skipped; focused suites: 101 passed.
-- [ ] Await required GitHub checks on the final commit.
-- [ ] Merge the validated consolidation and close superseded PRs with links.
+- [x] Required GitHub checks passed before merge.
+- [x] Merged #673 and closed superseded PRs with links.
 
 ## Decisions and review lenses
 
@@ -66,6 +66,6 @@ client. JSON/JSONL input warnings contain location/type, not record content.
 
 ## Outcomes
 
-Landing and closure results are pending final validation. Remaining experimental
+Merged #673 at 86a6e3f2 after validation; backlog disposition is recorded in the linked PR. Remaining experimental
 and security PRs must retain an explicit finding and acceptance gate; closing a
 duplicate is not evidence that every proposed behavior was accepted.

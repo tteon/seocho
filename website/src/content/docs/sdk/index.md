@@ -90,7 +90,7 @@ If you want the product rationale first, read [/docs/why_seocho/](/docs/why_seoc
 | `s.register_ontology("db", onto)` | Different schema per database |
 | `ontology.to_jsonld("schema.jsonld")` | Version-controlled schema files |
 | `Workbench` | Compare ontology/model/prompt combinations at scale |
-| `enable_tracing(backend="console")` | Pluggable observability (console, JSONL, Opik) |
+| `enable_tracing(backend="console")` | Pluggable observability (console, JSONL, OTLP) |
 
 ## Agent Sessions
 

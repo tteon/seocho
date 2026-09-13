@@ -1,8 +1,7 @@
 # Local observability stack (ADR-0144)
 
-A lightweight, local OpenTelemetry stack for SEOCHO traces — the alternative to
-self-hosted Opik (8 containers) when you just want local visibility. Opik stays
-the **cloud** team backend; this is for local development.
+A local OpenTelemetry stack for SEOCHO traces and metrics. JSONL files remain
+the portable evidence format; configure this collector explicitly for dashboards.
 
 Four containers:
 
@@ -71,7 +70,6 @@ Open Grafana at <http://localhost:3000> (anonymous admin) → **Explore → Temp
   use.** Image tags are pinned — bump deliberately.
 - Full prompt/Cypher bodies are only captured with `SEOCHO_TRACE_CAPTURE_CONTENT=1`
   (off by default). Attributes (ids, hashes, counts, timings) always flow.
-- Port `9091` (not 9090) avoids clashing with the `opik` profile's MinIO console.
 
 ## Live acceptance
 

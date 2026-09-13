@@ -122,7 +122,7 @@ pdf = [
 ]
 otel = [
     # ADR-0144: the OpenTelemetry tracing backend (otlp). Exports spans to an
-    # OTel Collector; the vendor-neutral default since ADR-0166 removed Opik.
+    # OTel Collector; the vendor-neutral export contract (ADR-0172).
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp-proto-grpc",
 ]

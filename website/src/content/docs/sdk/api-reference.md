@@ -174,7 +174,7 @@ from seocho.tracing import enable_tracing
 
 enable_tracing(backend="console")                    # stdout
 enable_tracing(backend="jsonl", output="trace.jsonl") # raw file
-enable_tracing(backend="opik", project_name="proj")   # Opik
+enable_tracing(backend="otlp")   # OTLP
 enable_tracing(backend=["console", "jsonl"])           # multiple
 ```
 

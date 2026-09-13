@@ -1,15 +1,15 @@
 # FinDER tutorial bundle
 
-Four runnable Jupyter notebooks teaching how SEOCHO turns ontology-driven prompts into a knowledge graph, and how to analyze that graph.
+Three runnable Jupyter notebooks teaching how SEOCHO turns ontology-driven prompts into a knowledge graph, and how to analyze that graph.
 
 | # | Notebook | What you'll learn |
 |---|---|---|
 | 1 | [`01_vector_vs_graph_rag.ipynb`](01_vector_vs_graph_rag.ipynb) | Vector RAG (LanceDB) vs Graph RAG (Neo4j), plus a text2Cypher variant where the LLM writes the Cypher itself |
 | 2 | [`02_fibo_module_impact.ipynb`](02_fibo_module_impact.ipynb) | The ontology *is* the prompt — see seocho's live extraction prompt, compare a generic baseline vs FIBO on the same doc, then add your own class and watch the new label appear |
 | 3 | [`03_network_analytics.ipynb`](03_network_analytics.ipynb) | Run Neo4j Graph Data Science (GDS) algorithms — degree, PageRank, betweenness, Louvain — to find impactful entities and relationships |
-| 4 | [`04_private_opik.ipynb`](04_private_opik.ipynb) | Personal template — your USER_ID + metadata threaded through ontology design (TTL +/-), LLM backend, agent tool_use, and pattern design; every span tagged for Opik |
+| Guide | [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) | Project identity, local JSONL traces and optional OTLP export |
 
-The notebooks build on each other: T1 populates a Neo4j workspace that T3 reads. T2 and T4 are self-contained.
+The notebooks build on each other: T1 populates a Neo4j workspace that T3 reads. T2 is self-contained; the project guide covers local tracing.
 
 ## Layout
 
@@ -18,7 +18,7 @@ finder/
 ├── 01_vector_vs_graph_rag.ipynb
 ├── 02_fibo_module_impact.ipynb
 ├── 03_network_analytics.ipynb
-├── 04_private_opik.ipynb
+├── PROJECT_GUIDE.md
 ├── Dockerfile               ← seocho[ci,local] + tutorial deps + JupyterLab
 ├── requirements.txt         ← networkx, matplotlib, rdflib, …
 ├── datasets/
@@ -61,7 +61,7 @@ For a clean pass:
 
 ## Build your own seocho project
 
-Once you've worked through the tutorials and want to start your own project on top, see [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) for the naming convention (`seocho-{{model_provider}}`), the recommended `.env` fields for author / project metadata, and how that metadata flows into Opik traces, entity properties, and workspace separation. The companion [`.env.project.example`](.env.project.example) is the template to copy into your project root.
+Once you've worked through the tutorials and want to start your own project on top, see [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) for the naming convention (`seocho-{{model_provider}}`), the recommended `.env` fields for author / project metadata, and how to use project metadata, workspace separation, and local tracing. The companion [`.env.project.example`](.env.project.example) is the template to copy into your project root.
 
 ## Notes
 

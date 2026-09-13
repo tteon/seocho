@@ -9,19 +9,19 @@ flowchart LR
 
     subgraph OPTIONAL ["Optional Profiles"]
         direction TB
-        OPIK["Opik Stack<br/><small>--profile opik<br/>port 5173</small>"]
+        OTLP["OTel Stack<br/><small>observability profile<br/>port 3000</small>"]
     end
 
     USER["Developer"] --> EVAL
     EVAL --> EXT
     EXT --> NEO
-    USER -.->|"opt-in"| OPIK
-    EXT -.->|"traces"| OPIK
+    USER -.->|"opt-in"| OTLP
+    EXT -.->|"traces"| OTLP
 
     style DOCKER fill:#12121a,stroke:#6c63ff,color:#e8e8f0
     style OPTIONAL fill:#12121a,stroke:#2a2a40,color:#9090a8
     style NEO fill:#1a2a2e,stroke:#00d4aa,color:#e8e8f0
     style EXT fill:#1a1a3e,stroke:#6c63ff,color:#e8e8f0
     style EVAL fill:#2a1a3e,stroke:#ff6b6b,color:#e8e8f0
-    style OPIK fill:#1a1a2e,stroke:#2a2a40,color:#9090a8
+    style OTLP fill:#1a1a2e,stroke:#2a2a40,color:#9090a8
     style USER fill:#2a1a4e,stroke:#6c63ff,color:#e8e8f0

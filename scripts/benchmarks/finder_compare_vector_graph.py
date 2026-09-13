@@ -5,7 +5,7 @@ For each (LLM × case × mode) combination:
   - retrieve context three ways (vector / graph / hybrid)
   - generate answer with the LLM (provider/model from --llms list)
   - evaluate with token_f1 + LLM-judge (judge_spec, response_format=json_object + retry)
-  - emit Opik traces tagged with the 4 core meta dimensions (dataset / model /
+  - record experiment metadata tagged with the 4 core meta dimensions (dataset / model /
     flow / ontology) via ``bench_common.build_core_meta``
 
 Modes of operation:

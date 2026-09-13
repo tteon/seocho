@@ -25,6 +25,7 @@ CHANGEABLE = (
     "execution",
     "graph",
     "environment",
+    "runtime_settings",
     "provider_endpoints",
 )
 REQUIRED = frozenset((*CHANGEABLE, "documents", "questions"))
@@ -174,8 +175,14 @@ def compare_runs(
             issues.append(f"Question/reference changed for ID {identity}")
     for label, report in (("baseline", baseline), ("candidate", candidate)):
         run = report.get("run", {})
-        if run.get("only") != "index" and "question_count" in run and len(report.get("queries", [])) != run["question_count"]:
-            issues.append(f"{label}: recorded questions do not cover the requested question count")
+        if (
+            run.get("only") != "index"
+            and "question_count" in run
+            and len(report.get("queries", [])) != run["question_count"]
+        ):
+            issues.append(
+                f"{label}: recorded questions do not cover the requested question count"
+            )
         if int((report.get("indexing") or {}).get("files_unchanged", 0)):
             issues.append(
                 f"{label}: indexing reused tracked files; use --no-track with isolated targets for a full E2E comparison"

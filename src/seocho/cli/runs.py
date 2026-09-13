@@ -30,8 +30,42 @@ def register(subparsers: Any) -> None:
     )
     compare.add_argument("--json", action="store_true", dest="output_json")
 
+    view = commands.add_parser(
+        "view", help="Export a local interactive HTML view of saved results"
+    )
+    view.add_argument("report", type=Path)
+    view.add_argument("--baseline", type=Path)
+    view.add_argument("--change", action="append", choices=CHANGEABLE, default=[])
+    view.add_argument("--hypothesis", default="")
+    view.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="New HTML file; existing files are refused",
+    )
+
 
 def handle(args: argparse.Namespace) -> int:
+    if args.runs_command == "view":
+        from ..run_visualization import render_run_view
+
+        candidate = load_report(args.report)
+        comparison = None
+        if args.baseline:
+            comparison = compare_runs(
+                load_report(args.baseline),
+                candidate,
+                changes=args.change,
+                hypothesis=args.hypothesis,
+            )
+        elif args.change or args.hypothesis:
+            raise ValueError("--change/--hypothesis require --baseline")
+        rendered = render_run_view(candidate, comparison)
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        with args.output.open("x", encoding="utf-8") as stream:
+            stream.write(rendered)
+        print(f"Local experiment view: {args.output}")
+        return 0
     report = compare_runs(
         load_report(args.baseline),
         load_report(args.candidate),

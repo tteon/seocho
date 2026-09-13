@@ -1460,3 +1460,11 @@ Use this block for new entries:
     so re-export can't clobber approvals); pull → diff → human confirm →
     snapshot save; infra-free review path stays first-class; docs say
     "DataHub integration", never "DataHub-compatible"
+
+## 2026-09-13 (review remediation and local visualization)
+
+- [Accepted] [ADR-0233](ADR-0233-experiment-evidence-and-local-inspection.md):
+  evidence v2 records runtime settings, question checkpoints preserve completed
+  work, and local HTML inspection reuses saved-run comparison. Module maps are
+  architectural references; no module timings or quality verdicts are invented.
+  Complete remaining active Opik removal under ADR-0172 while retaining history.

@@ -1,6 +1,6 @@
 """Shared utilities for FinDER × FIBO benchmark scripts.
 
-Consolidates env loading, hashing, Opik project aliasing, Neo4j user
+Consolidates env loading, hashing, Neo4j user
 normalization, determinism, the single-source PHASE_CASES registry, workspace
 ID building, meta prompt injection, ladybug cleanup, and preflight checks
 that were previously duplicated across `scripts/benchmarks/finder_*.py`.
@@ -97,7 +97,7 @@ def set_global_determinism(seed: int = 42) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Opik project / workspace normalization
+# experiment project / workspace normalization
 # ---------------------------------------------------------------------------
 
 # Cache to avoid repeated REST calls.
@@ -314,7 +314,7 @@ def trace_tags(
     modules: str,
     extra: Mapping[str, str] | None = None,
 ) -> list[str]:
-    """Build the standardized Opik tag set with the 4 mandatory identifiers."""
+    """Build the standardized experiment tag set with the 4 mandatory identifiers."""
     tags = [
         f"model:{llm_spec}",
         f"dataset_index:{dataset_index}",
@@ -364,7 +364,7 @@ def build_core_meta(
     extra_tags: Mapping[str, str] | None = None,
     extra_metadata: Mapping[str, object] | None = None,
 ) -> tuple[list[str], dict]:
-    """Return ``(tags, metadata)`` for an Opik trace covering the 4 core meta.
+    """Return ``(tags, metadata)`` for an experiment trace covering the 4 core meta.
 
     Tag groups:
       1. dataset:    dataset, dataset_index, case, slice, category
@@ -372,8 +372,8 @@ def build_core_meta(
       3. flow:       flow, mode, retrieval_k, reasoning_mode, repair_budget
       4. ontology:   ontology_hash, modules, ontology_id, prompt_hash
     """
-    # Minimal, human-readable, FILTERABLE tag set (CLAUDE.md §19 Opik contract):
-    # keep the Opik project legible at ~7 tags/trace. Everything else lives in
+    # Minimal, human-readable, FILTERABLE tag set (CLAUDE.md §19 experiment contract):
+    # keep the experiment project legible at ~7 tags/trace. Everything else lives in
     # metadata (reproduce/inspect) or feedback_scores (numeric, comparable).
     tags = [
         f"slice:{slice_tag}",
@@ -456,16 +456,8 @@ def stratified_sample(df, *, fraction: float, slice_col: str = "slice", seed: in
 # Tracing seams
 # ---------------------------------------------------------------------------
 #
-# Until `ADR-0172` these forwarded to Opik: `run_traced` wrapped the call in
-# Opik's ``@track``, and the two setters pushed metadata and feedback scores
-# onto the current Opik trace. Opik is gone and nothing replaced it at the
-# benchmark layer, so the arguments are accepted and ignored.
-#
-# They are kept rather than deleted because the call sites are the only place
-# that records WHAT each benchmark run is measuring — the tag set, the four
-# core meta axes, the judge scores. Deleting them would delete that labelling
-# along with the exporter. A future tracer has exactly three places to hook.
-
+# Compatibility helpers preserve call labels without exporting telemetry.
+# Use seocho.tracing explicitly for JSONL/OTLP instrumentation.
 
 def run_traced(name: str, tags: Sequence[str], metadata: Mapping[str, object], work_fn):
     """Execute ``work_fn``. The name/tags/metadata describe the run; nothing exports them."""
@@ -661,9 +653,6 @@ def preflight(
     report = PreflightReport()
     # Required env vars first (cheapest)
     report.append(_check_env("MOONSHOT_API_KEY", fatal=strict and require_moonshot))
-    report.append(_check_env("OPIK_API_KEY", fatal=False))
-    report.append(_check_env("OPIK_WORKSPACE", fatal=False))
-    report.append(_check_env("OPIK_PROJECT_NAME", fatal=False))
     # Connectivity / behavioral
     if require_moonshot:
         report.append(_check_moonshot_ping(strict=strict))
@@ -698,9 +687,8 @@ def bootstrap(
     """Single entrypoint scripts call at startup:
 
     1. Load .env files (upstream first, then repo-local)
-    2. Alias OPIK_PROJECT → OPIK_PROJECT_NAME, swap workspace/project if needed
-    3. Lower-case NEO4J_USER
-    4. Set global determinism (random/numpy)
+    2. Lower-case NEO4J_USER
+    3. Set global determinism (random/numpy)
     """
     report = load_env_files(env_files)
     normalize_neo4j_user()

@@ -73,7 +73,7 @@ def should_stop(curve: list[float], elapsed_ms: int, tokens: int, max_rounds: in
     return False, ""
 ```
 
-각 stop 조건도 Opik trace에 *어느 조건이 트리거됐는지* 기록.
+각 stop 조건도 JSONL trace에 *어느 조건이 트리거됐는지* 기록.
 
 ---
 

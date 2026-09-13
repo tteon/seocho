@@ -41,5 +41,5 @@ Compose by hand.
 
 The former Enterprise TLS overlay was removed (#617). Deployment-specific TLS
 configuration belongs with the deployment; it is not part of this local stack.
-The Opik overlay was removed in ADR-0172; use the vendor-neutral stack under
+Use the vendor-neutral observability stack under
 `examples/observability/` instead.

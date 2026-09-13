@@ -130,3 +130,8 @@ The committed `uv.lock` is checked offline before basic CI runs. The Python
 version matrix sets `UV_PYTHON` explicitly so `.python-version` remains a local
 default. Use [the experiment environment](EXPERIMENT_PLATFORM.md) to reproduce
 these checks in an isolated virtualenv.
+
+Experiment evidence CI covers runtime-setting identity, diagnostic redaction,
+query interruption checkpoints, degraded indexing, and safe local HTML rendering.
+The code-review connector is a separate account-backed service: its usage-limit
+comment is not a successful review, regardless of the CI result.

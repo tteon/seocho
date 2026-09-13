@@ -33,7 +33,7 @@
    └─ Backend 가중치 → RRF 통합 → top-N → answer 생성
 ```
 
-각 분기마다 다음을 측정·로깅한다 (Opik trace에 metadata):
+각 분기마다 다음을 측정·로깅한다 (JSONL trace에 metadata):
 - `decision.intent`, `decision.intent_confidence`
 - `decision.entities_identified` (몇 개?)
 - `decision.community_match` (success/fallback)
@@ -170,7 +170,7 @@ fused_top_N 결과 평가
    └─ otherwise                            → 답변 (인용 강제 + confidence tag)
 ```
 
-거절도 Opik trace에 *거절 사유*를 metadata로 적재 → 거절 분포 분석으로 라우팅 약점 발견.
+거절도 JSONL trace에 *거절 사유*를 metadata로 적재 → 거절 분포 분석으로 라우팅 약점 발견.
 
 ---
 

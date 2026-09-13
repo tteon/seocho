@@ -123,14 +123,14 @@ SECTIONS: list[Slide] = [
         ),
     ),
     slide(
-        title="Opik에서 확인할 것",
+        title="JSONL에서 확인할 것",
         bullets=[
             "프로젝트: teaching-ch01-{본인}",
             "trace: client.add() · 4-provider extraction · GDS Louvain.",
             "metadata에서 provider/model/total_tokens/latency_ms 비교.",
             "workspace 'seocho' 안에서 멤버 간 결과 공유 가능.",
         ],
-        warn="OPIK_API_KEY가 없으면 JSONL만 기록됨 — 강의 후 동기화 권장.",
+        warn="JSONL은 로컬 파일에 기록됩니다. 공유 전 내용을 확인하세요.",
     ),
     slide(
         title="체크포인트",
@@ -145,7 +145,7 @@ SECTIONS: list[Slide] = [
         bullets=[
             "오늘 만든 그래프 위에 GDS 4종 지표를 측정.",
             "각 지표를 @function_tool로 노출해 agent가 자율적으로 호출.",
-            "4-provider agent의 도구 선택 reasoning을 Opik에서 비교.",
+            "4-provider agent의 도구 선택 reasoning을 JSONL에서 비교.",
         ],
         callout="\"그래프 품질 평가해줘\" — 한 줄 prompt로 agent가 도구 4개를 어떻게 조합하는지 보기.",
     ),

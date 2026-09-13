@@ -162,7 +162,7 @@ def main() -> None:
     # nothing" was refutable in one line and went unrefuted for want of a
     # backend. Costs one JSONL file per run.
     parser.add_argument("--trace-backend", default="jsonl",
-                        choices=["jsonl", "console", "otlp", "opik", "none"])
+                        choices=["jsonl", "console", "otlp", "none"])
     args = parser.parse_args()
 
     from seocho.observability import set_llm_call_observer

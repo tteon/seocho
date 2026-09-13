@@ -17,7 +17,7 @@ audit. The wider local experiment implementation remains separately reviewable.
 - [x] Validate setup in a fresh environment; final main-based basic CI:
   1,133 passed, 3 skipped.
 - [x] Check offline lock validity, SDK import path and docs contracts.
-- [ ] Pass required GitHub checks and merge into main.
+- [x] Passed required GitHub checks and merged #674.
 
 ## Decisions
 
@@ -42,5 +42,5 @@ unchanged. Check lock validity offline, root hierarchy, agent docs, and Git diff
 
 ## Outcomes
 
-Pending validation and landing. No datasets, credentials, local tracker state,
+Merged #674 at 61cbbab2 after required validation. No datasets, credentials, local tracker state,
 generated traces, or service containers are part of this PR.

@@ -374,7 +374,7 @@ Suggested mapping:
 - `POST /api/memories` -> wraps `/platform/ingest/raw`
 - `POST /api/memories/search` -> wraps semantic retrieval flow
 - `POST /api/chat` -> wraps `/platform/chat/send`
-- `GET /api/traces/{trace_id}` -> wraps Opik or stored trace metadata
+- `GET /api/traces/{trace_id}` -> reads stored trace metadata or queries an operator-selected trace backend
 
 This allows interface cleanup before deeper backend rewrites.
 

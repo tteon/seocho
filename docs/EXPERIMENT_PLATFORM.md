@@ -47,8 +47,8 @@ installs and validates their prerequisites; it does not advertise commands that
 depend on uncommitted scripts. A completed local run is evidence for its recorded
 source snapshot and service configuration, not for a different checkout or image.
 
-Tracing is vendor-neutral (`none`, `console`, `jsonl`, `otlp`). Opik was removed
-in ADR-0172; select an OTLP backend explicitly. Preserve original receipts when
+Tracing is vendor-neutral (`none`, `console`, `jsonl`, `otlp`), per ADR-0172.
+Select an OTLP backend explicitly. Preserve original receipts when
 exporting saved spans so later verification does not rewrite what the original
 run actually observed.
 
@@ -180,3 +180,40 @@ The CLI registers `runs` through the existing command-group interface. These
 boundaries receive strict incremental typing, Python lint, and deterministic
 failure/compatibility tests in basic CI. Contract tests are not live backend or
 performance evidence.
+
+## Inspect results visually
+
+Export a standalone local HTML view from a saved run:
+
+```bash
+seocho runs view runs/candidate/RUN_ID --output views/candidate.html
+seocho runs view runs/candidate/RUN_ID --baseline runs/baseline/RUN_ID \
+  --change source --hypothesis 'The indexing fix preserves completed work' \
+  --output views/comparison.html
+```
+
+Open the generated HTML file in your browser. It contains run status and failure
+diagnostics, baseline/candidate metric rows, searchable question answers and
+supporting records, and an expandable module map. The map explains module
+responsibilities; it does not claim every module executed. No module-level timing
+is inferred from run totals. Missing cost/tokens stay unavailable.
+
+The view uses no server, remote assets, uploads or model calls. HTML export exits
+0 when rendering succeeds, including diagnostic views of incomparable reports;
+inspect the displayed verdict. Existing output files are refused. The HTML
+contains the selected report's answers and evidence, so share it with the same
+care as the original report. Only the export is new; receipts remain unchanged.
+
+Evidence v2 adds `runtime_settings` to the matched conditions. It fingerprints the
+explicit environment switches listed in `run_evidence.RUNTIME_ENV_KEYS` and the
+contents of configured hint/admission files. Declare intentional changes using
+`--change runtime_settings` and a hypothesis. Older v1 receipts cannot prove this
+condition and remain diagnostic-only. Mutable graph/cache state and unknown
+external library settings are still unverified.
+
+Both query paths checkpoint completed questions individually, with
+`active_question` identifying the question running at the last checkpoint.
+An interrupted run retains earlier answers but is still rejected for aggregate
+comparison. Degraded extraction retains its failure reason and is not cached as
+successful indexing. Failure diagnostics redact endpoint userinfo/query tokens
+and known credential values before saving.

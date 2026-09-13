@@ -116,8 +116,8 @@ stacks live under `docker/`, documented in `docker/README.md`.
 | `docker/compose.memory.yaml` | Optional authoritative PostgreSQL agent memory (`make memory-up`) |
 | `docker/compose.tutorials.yaml` | FinDER tutorial JupyterLab + Neo4j (`make tutorials-up`) |
 
-The Opik compose overlay was removed with the Opik tracing backend
-(ADR-0172); the TLS-enterprise overlay was removed as unreferenced (#617);
+Retired vendor-specific compose and tracing integrations were removed in
+ADR-0172; the TLS-enterprise overlay was removed as unreferenced (#617);
 the observability stack is a root compose profile via ``include:``
 (ADR-0199).
 

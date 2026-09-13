@@ -12,7 +12,7 @@ def _ensure_sdk_tracing_policy() -> None:
 
     The SDK's default trace processor exports to OpenAI's backend and needs an
     OpenAI API key (the 401 seen in ADR-0215); SEOCHO's tracing is vendor-neutral
-    (ADR-0144, Opik/OTLP). Disable the SDK exporter unless a deployment explicitly
+    (ADR-0144, OTLP). Disable the SDK exporter unless a deployment explicitly
     opts in with SEOCHO_AGENTS_SDK_TRACING=1, so building a SEOCHO agent never
     phones home. Idempotent and best-effort.
     """

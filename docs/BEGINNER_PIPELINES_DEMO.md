@@ -13,7 +13,7 @@ These demos split SEOCHO into four staged pipelines:
 1. raw data ingest
 2. semantic artifact lifecycle
 3. graph load and query
-4. graph-backed chat and Opik
+4. graph-backed chat and OTLP
 
 Use it when you need:
 
@@ -33,7 +33,7 @@ make up
 Optional:
 
 ```bash
-make opik-up
+make observability-up
 ```
 
 ## 3. Run All Four Demos
@@ -42,11 +42,7 @@ make opik-up
 scripts/demo/run_beginner_pipelines.sh --workspace default
 ```
 
-If Opik is not running yet:
-
-```bash
-scripts/demo/run_beginner_pipelines.sh --workspace default --allow-no-opik
-```
+The demos also run without the optional observability stack.
 
 Default output directory:
 
@@ -115,11 +111,11 @@ What it verifies:
 - fulltext index bootstrap
 - platform chat via evaluation proxy `POST /api/chat/send`
 - semantic or debate response flow
-- optional Opik visibility
+- optional OTLP visibility
 
 Output file:
 
-- `04_graphrag_with_opik.json`
+- `04_graphrag.json`
 
 ## 5. Makefile Shortcuts
 
@@ -127,7 +123,7 @@ Output file:
 make demo-raw
 make demo-meta
 make demo-neo4j
-make demo-graphrag-opik
+make demo-graphrag
 make demo-all
 ```
 
@@ -136,7 +132,7 @@ make demo-all
 1. raw data
 2. artifact lifecycle
 3. graph load
-4. graph chat and Opik
+4. graph chat and OTLP
 
 That order explains the product from source material to governed graph memory to retrieval.
 

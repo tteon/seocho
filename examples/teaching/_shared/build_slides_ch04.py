@@ -19,7 +19,7 @@ SECTIONS = [
 <tr><td>Rewrite</td><td>sub-question 분해</td><td>multi-hop 처리</td></tr>
 </tbody>
 </table>""",
-        callout="4축을 별 호출로 분리 → Opik에서 라우팅 근거를 따로 추적 가능.",
+        callout="4축을 별 호출로 분리 → JSONL에서 라우팅 근거를 따로 추적 가능.",
     ),
     slide(
         title="4.2 Routing Table",
@@ -77,7 +77,7 @@ SECTIONS = [
         bullets=[
             "Ch 4 답변 = 단일 모델 + 인용 강제.",
             "Ch 5: 4 provider 동시 debate, self-reflect + debate hybrid.",
-            "수렴 곡선 (Opik) 으로 reasoning depth vs 정확도 산점도.",
+            "수렴 곡선 (JSONL) 으로 reasoning depth vs 정확도 산점도.",
         ],
     ),
 ]

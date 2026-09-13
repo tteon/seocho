@@ -408,7 +408,7 @@
         <ol start="5">
           <li><strong>3 Execution Modes</strong><br/><span style="color:var(--text-dim);">Router / Debate / Semantic QA</span></li>
           <li><strong>Ontology Module Design</strong><br/><span style="color:var(--text-dim);">Split architecture & boundary rules</span></li>
-          <li><strong>Observability</strong><br/><span style="color:var(--text-dim);">Vendor-neutral tracing & Opik</span></li>
+          <li><strong>Observability</strong><br/><span style="color:var(--text-dim);">Vendor-neutral tracing & OTLP</span></li>
           <li><strong>Local Runtime & API Endpoints</strong><br/><span style="color:var(--text-dim);">Docker Compose & REST surface</span></li>
         </ol>
       </div>
@@ -445,7 +445,7 @@
       </div>
       <div class="stack-item">
         <span class="stack-label">Trace / Evaluation</span>
-        <span class="stack-value">vendor-neutral (none | console | jsonl | opik)</span>
+        <span class="stack-value">vendor-neutral (none | console | jsonl | otlp)</span>
       </div>
       <div class="stack-item">
         <span class="stack-label">Tenancy Mode</span>
@@ -867,11 +867,11 @@
   </div>
 </div>
 
-<!-- ════════ SLIDE 20: Evaluation with Opik ════════ -->
+<!-- ════════ SLIDE 20: Evaluation with OTLP ════════ -->
 <div class="slide" data-slide="20">
   <div class="slide-content">
     <span class="badge badge-green">TRACING</span>
-    <h2 style="margin-top: 16px;">10. Evaluation with Opik</h2>
+    <h2 style="margin-top: 16px;">10. Evaluation with OTLP</h2>
     <div class="sep"></div>
     <div class="diagram-container">
       <img src="diagrams/observability.svg" alt="Observability Architecture"/>
@@ -883,7 +883,7 @@
       </div>
       <div class="card card-green">
         <h4>Preferred Team Backend</h4>
-        <p>JSONL remains the portable trace artifact. Opik is the preferred team backend when richer dashboards, spans, and experiments are needed.</p>
+        <p>JSONL remains the portable trace artifact. OTLP exports spans to an operator-selected collector and storage backend. Dashboard capabilities depend on that backend.</p>
       </div>
       <div class="card card-yellow">
         <h4>Failure Localization</h4>
@@ -939,8 +939,8 @@
     <div class="code-block" style="font-size:0.88rem;">
       <span class="comment"># Default activation (3 services)</span><br/>
       docker compose up -d<br/><br/>
-      <span class="comment"># Optional: Opik observability</span><br/>
-      docker compose --profile opik up -d<br/><br/>
+      <span class="comment"># Optional: OTLP observability</span><br/>
+      make observability-up<br/><br/>
       <span class="comment"># Optional: Legacy semantic service</span><br/>
       docker compose --profile legacy-semantic up -d semantic-service
     </div>
@@ -1037,7 +1037,7 @@
       </div>
       <div class="card card-green">
         <h4>Trace Vendor Neutrality</h4>
-        <p>JSONL as portable artifact. Opik as optional team exporter. Backend selectable via <code>SEOCHO_TRACE_BACKEND</code> env var.</p>
+        <p>JSONL as portable artifact. OTLP as optional team exporter. Backend selectable via <code>SEOCHO_TRACE_BACKEND</code> env var.</p>
       </div>
     </div>
   </div>

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import List
 
 from .run_spec import RunSpec, parse_model_ref
+from .run_redaction import redact_diagnostic, safe_endpoint
 
 
 @dataclass(slots=True)
@@ -278,7 +279,7 @@ def _check_graph(spec: RunSpec, *, online: bool) -> PreflightCheck:
     if not online:
         return PreflightCheck(
             name="graph", status="ok",
-            detail=f"{kind} {target} (connection not checked in dry-run)",
+            detail=f"{kind} {safe_endpoint(target)} (connection not checked in dry-run)",
         )
     try:
         from .store.graph import Neo4jGraphStore
@@ -298,13 +299,13 @@ def _check_graph(spec: RunSpec, *, online: bool) -> PreflightCheck:
         return PreflightCheck(
             name="graph",
             status="fail",
-            detail=f"{target} — {exc}",
+            detail=redact_diagnostic(spec, f"{target} — {exc}"),
             fix=(
                 "start DozerDB/Neo4j, create the configured target database if needed, "
                 "and verify graph URI, credentials and database; seocho run requires Bolt"
             ),
         )
-    return PreflightCheck(name="graph", status="ok", detail=f"{target} connected (database={database})")
+    return PreflightCheck(name="graph", status="ok", detail=f"{safe_endpoint(target)} connected (database={database})")
 
 
 def _check_vector(spec: RunSpec) -> "PreflightCheck | None":
@@ -469,6 +470,9 @@ def run_preflight(spec: RunSpec, *, online: bool = False) -> PreflightReport:
         report.checks.append(
             PreflightCheck(name="questions", status="ok", detail=f"{len(spec.questions)} questions")
         )
+    for check in report.checks:
+        check.detail = redact_diagnostic(spec, check.detail)
+        check.fix = redact_diagnostic(spec, check.fix)
     return report
 
 

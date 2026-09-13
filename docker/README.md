@@ -10,9 +10,7 @@ rather than a list of environments.
 | `compose.dev.yaml` | Overlay: live bind mounts for `extraction/`, `runtime/`, `src/seocho/` | `make up-live` |
 | `compose.instance.yaml` | Side stack: isolated per-worktree app tier on the shared DozerDB | `seocho serve --instance <id>` / `make up INSTANCE=<id>` |
 | `compose.memory.yaml` | Side stack: authoritative PostgreSQL agent memory | `make memory-up` |
-| `compose.opik.yaml` | Side stack: self-hosted Opik observability | `make opik-up` |
 | `compose.tutorials.yaml` | Side stack: FinDER tutorial JupyterLab + Neo4j | `make tutorials-up` |
-| `compose.tls-enterprise.yaml` | Side stack: Neo4j Enterprise with bolt TLS, for cert-rotation qualification | manual, see below |
 
 Example-scoped stacks stay next to the configs they load and are **not** listed
 here: `examples/observability/docker-compose.observability.yml` and
@@ -41,15 +39,7 @@ in the **project directory**, which defaults to the directory of the *first*
 The `make` targets already do this; the pattern only matters when you invoke
 Compose by hand.
 
-## Neo4j Enterprise TLS stack
-
-`compose.tls-enterprise.yaml` has no `make` target because it needs an Enterprise
-licence and generated certificates. It backs the cert-rotation qualification in
-`scripts/benchmarks/neo4j_tls_rotation_probe.py`.
-
-```bash
-bash scripts/setup/generate-neo4j-tls-cert.sh
-NEO4J_ACCEPT_LICENSE_AGREEMENT=yes NEO4J_TLS_PASSWORD=... \
-  docker compose --project-directory . -f docker/compose.tls-enterprise.yaml \
-  --profile tls-enterprise up -d
-```
+The former Enterprise TLS overlay was removed (#617). Deployment-specific TLS
+configuration belongs with the deployment; it is not part of this local stack.
+The Opik overlay was removed in ADR-0172; use the vendor-neutral stack under
+`examples/observability/` instead.

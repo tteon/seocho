@@ -40,7 +40,7 @@ Do not commit local workflow directories such as:
 
 - `.agents/`
 - `.beads/`
-- `.claude/`
+- `.claude/` except shared, reviewable `.claude/skills/` (see `AGENTS.md`)
 - `.githooks/`
 - `.jules/`
 - `.serena/`

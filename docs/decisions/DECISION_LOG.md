@@ -1,5 +1,13 @@
 # Decision Log
 
+## 2026-09-13
+
+- [Accepted] `ADR-0230-user-data-experiment-evidence.md`
+  - extend run/sweep with failure receipts, content fingerprints and offline
+    matched comparison; preserve unknown observations and original artifacts
+  - use the existing scorecard and internal typed boundaries, without adding a
+    general platform backend or interpreting execution success as quality
+
 ## 2026-08-21
 
 - Accepted `ADR-0219-rust-dozer-projection-daemon.md`

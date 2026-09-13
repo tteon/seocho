@@ -107,9 +107,13 @@ seocho run
 ```
 
 `seocho new` writes a tiny ontology, documents, questions, and a runnable
-`seocho.run.yaml`. `seocho run` indexes the documents into the embedded
-LadybugDB graph, asks the questions, and writes `runs/<name>-<timestamp>/`
+`seocho.run.yaml`. Start a DozerDB/Neo4j Bolt endpoint and configure its
+credentials and target database in that file before running. `seocho run` indexes
+the documents, asks the questions, and writes `runs/<name>-<timestamp>-<id>/`
 with both `report.md` and `report.json`.
+
+For your own data and before/after comparisons, follow
+[Experiment Platform](docs/EXPERIMENT_PLATFORM.md).
 
 From a repo checkout, prefix the CLI with `uv run` — uv resolves the project
 environment and syncs dependencies for you, so there is no venv to activate.
@@ -117,7 +121,7 @@ If you installed SEOCHO into your own environment instead (`uv pip install
 seocho`), drop the prefix and call `seocho …` directly.
 
 Want a domain-shaped example? The finance-compliance example ingests six short
-mock filings into an embedded local graph, then asks cross-document questions
+mock filings into a configured graph, then asks cross-document questions
 such as:
 
 - Which regulations is Acme Financial Services subject to?
@@ -193,7 +197,7 @@ being staged into `runtime/`.
 
 | Mode | Command or constructor | Best for |
 |---|---|---|
-| Local SDK | `Seocho.local(ontology)` | First run, notebooks, local development, embedded LadybugDB. |
+| Local SDK | `Seocho.local(ontology, graph="bolt://localhost:7687")` | Notebooks and local engine execution against DozerDB/Neo4j. |
 | Explicit graph backend | `Seocho(ontology=..., graph_store=..., llm=...)` | Development against Neo4j/DozerDB or custom stores. |
 | HTTP runtime client | `Seocho.remote("http://localhost:8001")` | Consuming a running SEOCHO service. |
 | Local platform stack | `make setup-env && make up` | UI + API + DozerDB on one machine. |
@@ -205,7 +209,7 @@ is a drop-in if you are not on uv.
 | Install (uv) | Use it when |
 |---|---|
 | `uv pip install seocho` | You only need the HTTP client. |
-| `uv pip install "seocho[local]"` | You want the local SDK engine, agents, and embedded graph path. |
+| `uv pip install "seocho[local]"` | You want the local SDK engine, agents, and graph client dependencies. |
 | `uv pip install "seocho[ontology]"` | You need offline ontology governance tools. |
 | `uv sync --extra dev` (from a clone) | You are contributing to this repository. |
 

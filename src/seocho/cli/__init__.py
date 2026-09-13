@@ -471,6 +471,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Re-index files even if unchanged",
     )
     run_parser.add_argument(
+        "--no-track", action="store_true",
+        help="Index every input without reading/writing .seocho_index (use for isolated experiments)",
+    )
+    run_parser.add_argument(
         "--var", action="append", dest="var_flags", default=None, metavar="KEY=VALUE",
         help="Template variable for *.j2 configs (repeatable; dotted keys, YAML values)",
     )
@@ -1496,6 +1500,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         only=args.only,
         output_dir=args.output,
         force=args.force,
+        track=not args.no_track,
         json_output=getattr(args, "output_json", False),
         vars_files=getattr(args, "vars_files", None),
         var_flags=getattr(args, "var_flags", None),
@@ -1782,6 +1787,10 @@ register_group(
         handle=_ontology_group.handle,
     )
 )
+
+from . import runs as _runs_group  # noqa: E402
+
+register_group(CommandGroup(name="runs", register=_runs_group.register, handle=_runs_group.handle))
 
 if __name__ == "__main__":
     raise SystemExit(main())

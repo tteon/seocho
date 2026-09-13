@@ -63,7 +63,7 @@ def score_semantic_utility(
     indexed, failed = int(indexing.get("files_indexed", 0) or 0), int(indexing.get("files_failed", 0) or 0)
     nodes, relationships = int(indexing.get("total_nodes", 0) or 0), int(indexing.get("total_relationships", 0) or 0)
     attempted = max(found, indexed + failed)
-    answered = [r for r in records if not r.get("error") and not r.get("empty")]
+    answered = [r for r in records if not r.get("error") and not r.get("empty") and not r.get("skipped") and _normalise(r.get("answer"))]
     assessed = [r for r in records if str(r.get("support_status", "")).strip()]
     supported = [r for r in assessed if str(r.get("support_status", "")).casefold() == "supported"]
     evidence = [r for r in records if int(r.get("selected_triple_count", 0) or 0) > 0]

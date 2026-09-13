@@ -9,6 +9,7 @@ that, start with `QUICKSTART.md` or `docs/RUNTIME_DEPLOYMENT.md`.
 
 | Area | What it answers | Read when |
 |---|---|---|
+| [Agent Workflow](https://github.com/tteon/seocho/blob/main/docs/AGENT_WORKFLOW.md) | task checkout, handoff and validation entrypoints | starting agent-assisted coding |
 | [Stack Baseline](#stack-baseline) | which runtime, graph, and tracing assumptions are current | starting any repo work |
 | [Operating Planes](#operating-planes) | which module owns control-plane vs data-plane behavior | choosing where to edit |
 | [End-to-End Workflow](#end-to-end-workflow) | how work moves from issue to landing | preparing a PR |

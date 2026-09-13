@@ -110,6 +110,8 @@ neostore*
 
 # Docker volumes and mounts
 workspace/
+!scripts/workspace/
+!scripts/workspace/manage.py
 sharepoint/
 
 # Jupyter checkpoints

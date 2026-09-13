@@ -2,6 +2,14 @@
 
 ## 2026-09-13
 
+- [Accepted] `ADR-0232-public-product-and-experiment-entrypoints.md`
+  - make README, contributor navigation and GitHub intake reflect actual
+    prerequisites, user-data experiment evidence and maintainable agent workflows
+
+- [Accepted] `ADR-0231-agent-coding-workspace-and-records.md`
+  - use explicit isolated task worktrees and linked records; preserve research
+    edits and original receipts while consolidating reviewed local caches
+
 - [Accepted] `ADR-0230-user-data-experiment-evidence.md`
   - extend run/sweep with failure receipts, content fingerprints and offline
     matched comparison; preserve unknown observations and original artifacts

@@ -277,3 +277,15 @@ tutorials-test: ## Headless nbconvert run of every tutorial notebook (reads OPEN
 		echo "✅ Tutorial notebooks executed; outputs under .seocho/test_runs/"'
 
 dev-up: up-live ## Alias for up-live
+
+# Agent coding entrypoints (local state remains ignored).
+.PHONY: agent-doctor agent-start agent-check
+agent-doctor: ## Inspect branch, local changes and available task checkouts
+	python3 scripts/workspace/manage.py doctor
+
+agent-start: ## Create an isolated task checkout; TASK=<issue-id>, optional BASE=<ref>
+	@test -n "$(TASK)" || (echo "Set TASK=<issue-id>" >&2; exit 2)
+	python3 scripts/workspace/manage.py start "$(TASK)" --base "$(or $(BASE),origin/main)"
+
+agent-check: ## Run the canonical checks before handing off or landing
+	bash scripts/ci/run_basic_ci.sh

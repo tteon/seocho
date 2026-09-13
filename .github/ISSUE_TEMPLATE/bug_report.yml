@@ -70,3 +70,16 @@ body:
       description: Commands you ran while debugging, if any.
     validations:
       required: false
+  - type: textarea
+    id: run_evidence
+    attributes:
+      label: E2E failure evidence (if applicable)
+      description: Paste a redacted diagnostic excerpt, not a private corpus or full unreviewed report.
+      placeholder: |
+        report schema / run status:
+        failing stage and diagnostic code:
+        input format and question ID:
+        baseline/candidate revisions and changed conditions:
+        smallest safe reproduction:
+    validations:
+      required: false

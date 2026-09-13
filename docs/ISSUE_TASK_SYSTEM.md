@@ -24,12 +24,11 @@ understand priority without opening private tooling:
 
 Each PR should state:
 
-- Feature: what changed
-- Why: why the change belongs in this public middleware repo
-- Design: the important implementation choice
-- Expected Effect: what improves for users or maintainers
-- Validation: exact commands run
-- Risks: known gaps or follow-up work
+- Problem and resulting behavior: the user trigger, why it belongs here, and the expected effect
+- Design and compatibility: owning modules, linked decisions and contract changes
+- Validation: exact commands, results and skipped/live-service gaps
+- Experiment evidence, when applicable: baseline, hypothesis, fixed inputs and changed condition
+- Risks and documentation: limitations, recovery and updated public contracts
 
 Scheduled automation uses the same review envelope and must remain draft-only
 until a maintainer explicitly promotes it.

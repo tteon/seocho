@@ -15,6 +15,8 @@ read first, and which words matter before you go deeper.
 | Bring files and connectors | [Bring Your Data](APPLY_YOUR_DATA.md) -> [Connectors](https://github.com/tteon/seocho/blob/main/docs/CONNECTORS.md) | you know how records from your tools enter the graph |
 | Run a service | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) | you can start the API, UI, and graph services |
 | Share memory across agents | [Cross-Agent Memory Sharing](MEMORY_SHARING.md) | you know which namespace is private, which is shared, and why user identity stays out of the graph |
+| Evaluate a change on your data | [Experiment Platform](https://github.com/tteon/seocho/blob/main/docs/EXPERIMENT_PLATFORM.md) | failures and matched before/after results are inspectable |
+| Code with an agent | [Agent Workflow](https://github.com/tteon/seocho/blob/main/docs/AGENT_WORKFLOW.md) | task, checkout, decisions and validation are linked |
 | Contribute | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md) | you know how to open a scoped issue or PR |
 
 If you only have ten minutes, read [Why SEOCHO](WHY_SEOCHO.md), then run the
@@ -162,7 +164,7 @@ Current gap list:
 
 | Question | Short answer | Read next |
 |---|---|---|
-| Do I need a graph database for hello world? | No. Start with the embedded local path. | [Quickstart](../QUICKSTART.md) |
+| Do I need a graph database for hello world? | Yes for the first-run CLI: configure a DozerDB/Neo4j Bolt endpoint and an existing database. | [Quickstart](../QUICKSTART.md) |
 | When should I use the runtime? | When another app or agent needs a shared HTTP boundary. | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) |
 | What does the ontology control? | It guides extraction, validation, graph writes, retrieval, and answers. | [Why SEOCHO](WHY_SEOCHO.md) |
 | Where do generated files go? | SEOCHO writes reviewable artifacts such as traces, reports, and profiles. | [Files and Artifacts](FILES_AND_ARTIFACTS.md) |

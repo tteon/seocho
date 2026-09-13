@@ -300,5 +300,5 @@ the runtime shell validation contract in `scripts/ci/check-runtime-shell-contrac
   `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`
 
 For an isolated, locked development environment, use
-[EXPERIMENT_PLATFORM.md](EXPERIMENT_PLATFORM.md): `make platform-setup`,
+[EXPERIMENT_PLATFORM.md](https://github.com/tteon/seocho/blob/main/docs/EXPERIMENT_PLATFORM.md): `make platform-setup`,
 `make platform-check`, then `make platform-ci`.

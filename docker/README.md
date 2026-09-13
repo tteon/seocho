@@ -10,9 +10,7 @@ rather than a list of environments.
 | `compose.dev.yaml` | Overlay: live bind mounts for `extraction/`, `runtime/`, `src/seocho/` | `make up-live` |
 | `compose.instance.yaml` | Side stack: isolated per-worktree app tier on the shared DozerDB | `seocho serve --instance <id>` / `make up INSTANCE=<id>` |
 | `compose.memory.yaml` | Side stack: authoritative PostgreSQL agent memory | `make memory-up` |
-| `compose.opik.yaml` | Side stack: self-hosted Opik observability | `make opik-up` |
 | `compose.tutorials.yaml` | Side stack: FinDER tutorial JupyterLab + Neo4j | `make tutorials-up` |
-| `compose.tls-enterprise.yaml` | Side stack: Neo4j Enterprise with bolt TLS, for cert-rotation qualification | manual, see below |
 
 Example-scoped stacks stay next to the configs they load and are **not** listed
 here: `examples/observability/docker-compose.observability.yml` and
@@ -43,3 +41,5 @@ Compose by hand.
 
 The former Enterprise TLS overlay was removed (#617). Deployment-specific TLS
 configuration belongs with the deployment; it is not part of this local stack.
+The Opik overlay was removed in ADR-0172; use the vendor-neutral stack under
+`examples/observability/` instead.

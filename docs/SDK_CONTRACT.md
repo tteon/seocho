@@ -163,3 +163,13 @@ inspect dict markers.
 - Operating model: `docs/PHILOSOPHY.md`, `docs/ARCHITECTURE.md`
 - Related runtime contract: CLAUDE.md §6 (Runtime/API Guardrails)
 - Public work tracking: GitHub issues and pull requests
+
+## Execution-result pattern snapshot
+
+`ExecutionResult.agent_pattern` is a stored JSON mapping. If it is empty at
+construction, a dictionary in `answer_envelope.agent_pattern` supplies its initial
+value; a non-empty explicit argument takes precedence. Later envelope changes do
+not mutate this snapshot. Default results can be passed through
+`json.dumps(result.to_dict())`. `Seocho`, `AsyncSeocho` and
+`ExecutionPlanBuilder` remain importable from `seocho.client` after internal
+module separation (ADR-0234).

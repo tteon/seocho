@@ -13,7 +13,7 @@ surface→concept grounding (bge) lives in the query layer and scores against
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
 

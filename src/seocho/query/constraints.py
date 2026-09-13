@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 from dataclasses import dataclass
@@ -8,6 +7,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from seocho.models import GraphTarget
+from seocho.semantic_candidates import merge_shacl_candidates as _merge_shacl_candidates
+from .artifact_reader import list_artifacts, get_artifact
 
 
 DEFAULT_SEMANTIC_ARTIFACT_DIR = "outputs/semantic_artifacts"
@@ -166,52 +167,6 @@ def _merge_ontology_candidates(candidates: Sequence[Any]) -> Dict[str, Any]:
         "classes": list(merged_classes.values()),
         "relationships": list(merged_relationships.values()),
     }
-
-
-def _merge_shacl_candidates(candidates: Sequence[Any]) -> Dict[str, Any]:
-    shape_map: Dict[str, Dict[str, Any]] = {}
-    for candidate in candidates:
-        if not isinstance(candidate, dict):
-            continue
-        for shape in candidate.get("shapes", []):
-            if not isinstance(shape, dict):
-                continue
-            target_class = str(shape.get("target_class", "")).strip()
-            if not target_class:
-                continue
-            existing = shape_map.setdefault(target_class, {"target_class": target_class, "properties": []})
-            seen = {
-                (
-                    prop.get("path"),
-                    prop.get("constraint"),
-                    json.dumps(prop.get("params", {}), sort_keys=True),
-                )
-                for prop in existing["properties"]
-                if isinstance(prop, dict)
-            }
-            for prop in shape.get("properties", []):
-                if not isinstance(prop, dict):
-                    continue
-                path = str(prop.get("path", "")).strip()
-                constraint = str(prop.get("constraint", "")).strip()
-                if not path or not constraint:
-                    continue
-                key = (
-                    path,
-                    constraint,
-                    json.dumps(prop.get("params", {}), sort_keys=True),
-                )
-                if key in seen:
-                    continue
-                seen.add(key)
-                existing["properties"].append(
-                    {
-                        "path": path,
-                        "constraint": constraint,
-                        "params": prop.get("params", {}) if isinstance(prop.get("params", {}), dict) else {},
-                    }
-                )
-    return {"shapes": list(shape_map.values())}
 
 
 def _merge_vocabulary_candidates(candidates: Sequence[Any]) -> Dict[str, Any]:
@@ -454,45 +409,12 @@ class SemanticConstraintSliceBuilder:
     def _workspace_dir(self, workspace_id: str) -> Path:
         return Path(self.artifact_base_dir) / workspace_id
 
-    def _list_semantic_artifacts(
-        self,
-        workspace_id: str,
-        *,
-        status: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
-        workspace_path = self._workspace_dir(workspace_id)
-        if not workspace_path.exists():
-            return []
 
-        rows: List[Dict[str, Any]] = []
-        for path in workspace_path.glob("*.json"):
-            with path.open("r", encoding="utf-8") as fp:
-                payload = json.load(fp)
-            row = {
-                "artifact_id": payload.get("artifact_id"),
-                "workspace_id": payload.get("workspace_id"),
-                "name": payload.get("name"),
-                "created_at": payload.get("created_at"),
-                "status": payload.get("status", "draft"),
-                "approved_at": payload.get("approved_at"),
-                "approved_by": payload.get("approved_by"),
-                "deprecated_at": payload.get("deprecated_at"),
-                "deprecated_by": payload.get("deprecated_by"),
-            }
-            if status and row["status"] != status:
-                continue
-            rows.append(row)
-        rows.sort(key=lambda item: item.get("created_at", ""), reverse=True)
-        return rows
+    def _list_semantic_artifacts(self, workspace_id: str, *, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        return list_artifacts(self.artifact_base_dir, workspace_id, status=status)
 
     def _get_semantic_artifact(self, workspace_id: str, artifact_id: str) -> Dict[str, Any]:
-        artifact_path = self._workspace_dir(workspace_id) / f"{artifact_id}.json"
-        if not artifact_path.exists():
-            raise FileNotFoundError(
-                f"semantic artifact not found: workspace={workspace_id}, artifact_id={artifact_id}"
-            )
-        with artifact_path.open("r", encoding="utf-8") as fp:
-            return json.load(fp)
+        return get_artifact(self.artifact_base_dir, workspace_id, artifact_id)
 
     @staticmethod
     def _artifact_matches(

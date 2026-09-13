@@ -45,7 +45,7 @@ def _term_names(entity: Mapping[str, Any]) -> list[str]:
     return names
 
 
-def _tag_names(entity: Mapping[str, Any]) -> list[str]:
+def _dataset_tag_names(entity: Mapping[str, Any]) -> list[str]:
     tags = entity.get("tags") if isinstance(entity.get("tags"), Mapping) else {}
     names: list[str] = []
     for item in _items(tags.get("tags")):
@@ -78,7 +78,7 @@ def dataset_entity_to_record(
     description = str(props.get("description") or "")
     fields = _dataset_fields(entity)
     terms = _term_names(entity)
-    tags = _tag_names(entity)
+    tags = _dataset_tag_names(entity)
     owners = _owner_urns(entity)
 
     lines = [f"# {name}"]
@@ -279,14 +279,14 @@ def fetch_dataset_records(
 DEFAULT_APPROVED_TAG = "seocho:approved"
 
 
-def _tag_names(entity: Mapping[str, Any]) -> list[str]:
+def _glossary_tag_names(entity: Mapping[str, Any]) -> list[str]:
     tags = entity.get("tags") if isinstance(entity.get("tags"), Mapping) else {}
     out: list[str] = []
     for t in _items(tags.get("tags")):
         if not isinstance(t, Mapping):
             continue
         tag = t.get("tag") if isinstance(t.get("tag"), Mapping) else {}
-        name = tag.get("name") or (str(tag.get("urn", "")).rsplit(":", 1)[-1])
+        name = tag.get("name") or (str(tag.get("urn") or "").removeprefix("urn:li:tag:"))
         if name:
             out.append(str(name))
     return out
@@ -324,7 +324,7 @@ def glossary_term_to_record(
     props = entity.get("properties") if isinstance(entity.get("properties"), Mapping) else {}
     name = str(props.get("name") or entity.get("name") or "").strip()
     description = str(props.get("description") or props.get("definition") or "").strip()
-    approved = approved_tag in _tag_names(entity)
+    approved = approved_tag in _glossary_tag_names(entity)
     action = "annotate" if name in known_labels else "new_class"
     rec: dict[str, Any] = {
         "name": name,

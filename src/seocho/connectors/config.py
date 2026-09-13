@@ -11,10 +11,10 @@ and a durable state artifact after each materialization run.
 
 from __future__ import annotations
 
+from ..spec_loader import interpolate_env_string
+
 import hashlib
 import json
-import os
-import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,8 +29,6 @@ DEFAULT_CONNECTORS_OUTPUT_DIR = ".seocho/connectors"
 DEFAULT_CONNECTORS_STATE_PATH = ".seocho/connectors/state.json"
 CONNECTOR_CONFIG_VERSION = 1
 SUPPORTED_CONFIG_PROVIDERS = {"notion", "slack", "datahub", "postgres", "neo4j"}
-
-_ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
 
 SAMPLE_CONNECTORS_YAML = """\
@@ -144,19 +142,7 @@ def write_sample_config(path: "str | Path" = DEFAULT_CONNECTORS_CONFIG_FILENAME,
 
 def _interpolate_env(value: Any, *, errors: list[str], where: str) -> Any:
     if isinstance(value, str):
-        def _resolve(match: "re.Match[str]") -> str:
-            name, default = match.group(1), match.group(2)
-            resolved = os.environ.get(name)
-            if resolved is not None:
-                return resolved
-            if default is not None:
-                return default
-            errors.append(
-                f"at {where}: environment variable {name} is not set. "
-                f"Export it or use ${{{name}:-fallback}}."
-            )
-            return ""
-        return _ENV_PATTERN.sub(_resolve, value)
+        return interpolate_env_string(value, errors=errors, where=where)
     if isinstance(value, Mapping):
         return {
             str(key): _interpolate_env(item, errors=errors, where=f"{where}.{key}" if where else str(key))

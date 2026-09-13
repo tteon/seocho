@@ -183,3 +183,12 @@ Run the narrowest relevant check first:
 Mocks can validate contracts and deterministic failures. They are not evidence
 for throughput, latency, scalability, or production readiness.
 
+
+## Graph discovery tool ownership
+
+`runtime/server_runtime.py` is the implementation owner for `get_databases_impl`,
+`get_graphs_impl` and `get_schema_impl`; `agent_server.py` registers their existing
+tool entrypoints. Graph descriptors are JSON. Schema requests validate the DB
+registry and query the connector instead of reading cached `outputs/schema*.yaml`
+files. Unknown databases return an error before a connector is opened. Query
+workspace scope, authorization and tool-budget checks remain unchanged (ADR-0234).

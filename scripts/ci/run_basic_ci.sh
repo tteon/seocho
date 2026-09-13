@@ -21,6 +21,9 @@ py_compile_files="$(
 # shellcheck disable=SC2086 # tracked repo paths here are whitespace-free.
 python3 -m py_compile $py_compile_files
 
+# Product-wide unused/undefined/redefinition checks; keep public exports explicit.
+uv run ruff check --select E9,F src/seocho runtime extraction --exclude tests --exclude "*.ipynb"
+
 uv run ruff check \
   scripts/ci \
   src/seocho/cli \
@@ -46,6 +49,10 @@ uv run ruff check --select E4,E7,E9,F,B,UP,SIM \
   src/seocho/run_evidence.py src/seocho/run_comparison.py src/seocho/cli/runs.py
 
 uv run pytest \
+  tests/seocho/test_execution_result_contract.py \
+  tests/seocho/test_datahub_glossary_pull.py \
+  extraction/tests/test_semantic_helper_compatibility.py \
+  extraction/tests/test_tools.py \
   tests/seocho/test_coding_workspace.py \
   tests/seocho/test_run_evidence.py tests/seocho/test_run_recovery.py tests/seocho/test_run_visualization.py \
   tests/seocho/test_file_indexer.py \

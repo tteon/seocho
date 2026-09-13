@@ -17,7 +17,7 @@ including MARA). The loop stops as soon as the critic reports no issues, or afte
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Tuple
 
 __all__ = [
     "Critique",

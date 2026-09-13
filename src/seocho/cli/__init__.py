@@ -6,7 +6,7 @@ import sys
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, Optional, Sequence
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
 from ..client import Seocho
 from ..exceptions import SeochoError
@@ -65,506 +65,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    add_parser = subparsers.add_parser("add", help="Store one memory")
-    add_parser.add_argument("content", help="Memory text to store")
-    add_parser.add_argument("--metadata", help="JSON metadata object")
-    add_parser.add_argument("--prompt-context", help="JSON semantic prompt context override")
-    add_parser.add_argument("--approved-artifact-id", help="Approved semantic artifact to apply")
-    add_parser.add_argument("--database", help="Target database override")
-    add_parser.add_argument("--category", default="memory", help="Document category")
-    add_parser.add_argument("--source-type", default="text", help="Source type: text, csv, or pdf")
-    _add_client_options(add_parser, include_scope=True, include_json=True)
+    from .parsers import register_memory_commands, register_local_commands
 
-    get_parser = subparsers.add_parser("get", help="Fetch one memory")
-    get_parser.add_argument("memory_id", help="Memory identifier")
-    get_parser.add_argument("--database", help="Target database override")
-    _add_client_options(get_parser, include_scope=False, include_json=True)
-
-    search_parser = subparsers.add_parser("search", help="Search memories")
-    search_parser.add_argument("query", help="Search query")
-    search_parser.add_argument("--limit", type=int, default=5, help="Max number of results")
-    search_parser.add_argument("--graph-id", action="append", dest="graph_ids", default=[], help="Graph routing hint")
-    search_parser.add_argument("--database", action="append", dest="databases", default=[], help="Database scope")
-    _add_client_options(search_parser, include_scope=True, include_json=True)
-
-    chat_parser = subparsers.add_parser("chat", help="Ask from memories")
-    chat_parser.add_argument("message", help="Question to ask")
-    chat_parser.add_argument("--limit", type=int, default=5, help="Max number of retrieval results")
-    chat_parser.add_argument("--graph-id", action="append", dest="graph_ids", default=[], help="Graph routing hint")
-    chat_parser.add_argument("--database", action="append", dest="databases", default=[], help="Database scope")
-    _add_client_options(chat_parser, include_scope=True, include_json=True)
-
-    ask_parser = subparsers.add_parser("ask", help="Ask a question (auto-detects local or server mode)")
-    ask_parser.add_argument("message", help="Question to ask")
-    ask_parser.add_argument("--limit", type=int, default=5, help="Max number of retrieval results")
-    ask_parser.add_argument("--graph-id", action="append", dest="graph_ids", default=[], help="Graph routing hint")
-    ask_parser.add_argument("--database", action="append", dest="databases", default=[], help="Database scope")
-    ask_parser.add_argument("--local", action="store_true", help="Use local engine (no server needed)")
-    ask_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD, YAML, or TTL)")
-    ask_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI (local mode)")
-    ask_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user (local mode)")
-    ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password (local mode)")
-    ask_parser.add_argument(
-        "--provider",
-        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen", "zai"],
-        default="mara",
-        help="OpenAI-compatible LLM provider preset (local mode)",
-    )
-    ask_parser.add_argument("--model", default=None, help="LLM model (local mode)")
-    ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL (local mode)")
-    ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (local mode)")
-    ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts (local mode)")
-    _add_client_options(ask_parser, include_scope=True, include_json=True)
-
-    delete_parser = subparsers.add_parser("delete", help="Archive one memory")
-    delete_parser.add_argument("memory_id", help="Memory identifier")
-    delete_parser.add_argument("--database", help="Target database override")
-    _add_client_options(delete_parser, include_scope=False, include_json=True)
-
-    graphs_parser = subparsers.add_parser("graphs", help="List graph targets")
-    _add_client_options(graphs_parser, include_scope=False, include_json=True)
-
-    doctor_parser = subparsers.add_parser("doctor", help="Check API health and graph availability")
-    _add_client_options(doctor_parser, include_scope=False, include_json=True)
-
-    serve_parser = subparsers.add_parser("serve", help="Start the local SEOCHO docker stack")
-    serve_parser.add_argument("--project-dir", default=None, help="Repository root containing compose.yaml")
-    serve_parser.add_argument("--build", action="store_true", help="Rebuild images before starting")
-    serve_parser.add_argument("--no-wait", action="store_true", help="Return after docker compose starts")
-    serve_parser.add_argument("--timeout", type=float, default=90.0, help="Readiness wait timeout in seconds")
-    serve_parser.add_argument(
-        "--instance",
-        default=None,
-        help="Boot an isolated per-worktree app tier (offset ports + ephemeral DB) against the shared neo4j",
-    )
-    serve_parser.add_argument(
-        "--fallback-openai-key",
-        default="dummy-key",
-        help="Fallback OPENAI_API_KEY for local verification when no key is set",
-    )
-    serve_parser.add_argument("--dry-run", action="store_true", help="Print the compose command without running it")
-    serve_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON output")
-
-    stop_parser = subparsers.add_parser("stop", help="Stop the local SEOCHO docker stack")
-    stop_parser.add_argument("--project-dir", default=None, help="Repository root containing compose.yaml")
-    stop_parser.add_argument("--volumes", action="store_true", help="Also remove compose volumes")
-    stop_parser.add_argument(
-        "--instance",
-        default=None,
-        help="Tear down a per-worktree app tier and drop only its ephemeral DB",
-    )
-    stop_parser.add_argument("--dry-run", action="store_true", help="Print the compose command without running it")
-    stop_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON output")
-
-    artifacts_parser = subparsers.add_parser("artifacts", help="Manage semantic artifacts")
-    artifact_subparsers = artifacts_parser.add_subparsers(dest="artifact_command", required=True)
-
-    artifacts_list_parser = artifact_subparsers.add_parser("list", help="List semantic artifacts")
-    artifacts_list_parser.add_argument("--status", choices=["draft", "approved", "deprecated"], default=None)
-    _add_client_options(artifacts_list_parser, include_scope=False, include_json=True)
-
-    artifacts_get_parser = artifact_subparsers.add_parser("get", help="Read one semantic artifact")
-    artifacts_get_parser.add_argument("artifact_id", help="Semantic artifact identifier")
-    _add_client_options(artifacts_get_parser, include_scope=False, include_json=True)
-
-    artifacts_create_parser = artifact_subparsers.add_parser("create-draft", help="Create a draft semantic artifact")
-    artifacts_create_parser.add_argument("--artifact-file", required=True, help="Path to artifact JSON payload")
-    artifacts_create_parser.add_argument("--name", default=None, help="Override artifact name")
-    _add_client_options(artifacts_create_parser, include_scope=False, include_json=True)
-
-    artifacts_approve_parser = artifact_subparsers.add_parser("approve", help="Approve a draft semantic artifact")
-    artifacts_approve_parser.add_argument("artifact_id", help="Semantic artifact identifier")
-    artifacts_approve_parser.add_argument("--approved-by", required=True, help="Reviewer identifier")
-    artifacts_approve_parser.add_argument("--approval-note", default=None, help="Approval note")
-    _add_client_options(artifacts_approve_parser, include_scope=False, include_json=True)
-
-    artifacts_deprecate_parser = artifact_subparsers.add_parser("deprecate", help="Deprecate an approved semantic artifact")
-    artifacts_deprecate_parser.add_argument("artifact_id", help="Semantic artifact identifier")
-    artifacts_deprecate_parser.add_argument("--deprecated-by", required=True, help="Reviewer identifier")
-    artifacts_deprecate_parser.add_argument("--deprecation-note", default=None, help="Deprecation note")
-    _add_client_options(artifacts_deprecate_parser, include_scope=False, include_json=True)
-
-    artifacts_validate_parser = artifact_subparsers.add_parser("validate", help="Validate one artifact payload")
-    validate_source_group = artifacts_validate_parser.add_mutually_exclusive_group(required=True)
-    validate_source_group.add_argument("--artifact-id", dest="artifact_id", help="Semantic artifact identifier")
-    validate_source_group.add_argument("--artifact-file", dest="artifact_file", help="Artifact JSON payload path")
-    _add_client_options(artifacts_validate_parser, include_scope=False, include_json=True)
-
-    artifacts_diff_parser = artifact_subparsers.add_parser("diff", help="Diff two artifact payloads")
-    left_group = artifacts_diff_parser.add_mutually_exclusive_group(required=True)
-    left_group.add_argument("--left-artifact-id", dest="left_artifact_id", help="Left artifact identifier")
-    left_group.add_argument("--left-artifact-file", dest="left_artifact_file", help="Left artifact JSON payload path")
-    right_group = artifacts_diff_parser.add_mutually_exclusive_group(required=True)
-    right_group.add_argument("--right-artifact-id", dest="right_artifact_id", help="Right artifact identifier")
-    right_group.add_argument(
-        "--right-artifact-file",
-        dest="right_artifact_file",
-        help="Right artifact JSON payload path",
-    )
-    _add_client_options(artifacts_diff_parser, include_scope=False, include_json=True)
-
-    artifacts_apply_parser = artifact_subparsers.add_parser(
-        "apply",
-        help="Apply one approved artifact to a new memory ingest",
-    )
-    artifacts_apply_parser.add_argument("artifact_id", help="Approved semantic artifact identifier")
-    artifacts_apply_parser.add_argument("content", help="Memory text to store")
-    artifacts_apply_parser.add_argument("--metadata", help="JSON metadata object")
-    artifacts_apply_parser.add_argument("--prompt-context", help="JSON semantic prompt context override")
-    artifacts_apply_parser.add_argument("--database", help="Target database override")
-    artifacts_apply_parser.add_argument("--category", default="memory", help="Document category")
-    artifacts_apply_parser.add_argument("--source-type", default="text", help="Source type: text, csv, or pdf")
-    _add_client_options(artifacts_apply_parser, include_scope=True, include_json=True)
-
-    # --- Local-mode commands (no server needed) ---
-
-    connect_parser = subparsers.add_parser(
-        "connect",
-        aliases=["connectors"],
-        help="Materialize external sources as SEOCHO JSONL records",
-    )
-    connect_subparsers = connect_parser.add_subparsers(dest="connect_command", required=True)
-
-    connect_init_parser = connect_subparsers.add_parser("init", help="Write a starter seocho.connectors.yaml")
-    connect_init_parser.add_argument(
-        "path",
-        nargs="?",
-        default="seocho.connectors.yaml",
-        help="Config path to create",
-    )
-    connect_init_parser.add_argument("--force", action="store_true", help="Overwrite an existing config")
-
-    connect_run_parser = connect_subparsers.add_parser("run", help="Materialize all sources in a connector config")
-    connect_run_parser.add_argument(
-        "config",
-        nargs="?",
-        default="seocho.connectors.yaml",
-        help="Connector config path",
-    )
-    connect_run_parser.add_argument("--output-dir", default=None, help="Override config output_dir")
-    connect_run_parser.add_argument("--dry-run", action="store_true", help="Fetch and summarize without writing JSONL")
-    connect_run_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
-
-    notion_parser = connect_subparsers.add_parser("notion", help="Export Notion pages or data-source rows")
-    notion_parser.add_argument("--data-source-id", action="append", default=[], help="Notion data source id")
-    notion_parser.add_argument("--page-id", action="append", default=[], help="Notion page id")
-    notion_parser.add_argument("--token-env", default="NOTION_TOKEN", help="Env var containing the Notion token")
-    notion_parser.add_argument("--notion-version", default="2026-03-11", help="Notion-Version header")
-    notion_parser.add_argument("--category", default="notion", help="SEOCHO document category")
-    notion_parser.add_argument("--max-pages", type=int, default=None, help="Max Notion API pages per data source")
-    notion_parser.add_argument("--no-blocks", action="store_true", help="Export page properties only")
-    notion_parser.add_argument("--output", default=".seocho/connectors/notion.jsonl", help="Output JSONL path")
-    notion_parser.add_argument("--dry-run", action="store_true", help="Fetch and summarize without writing JSONL")
-    notion_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
-
-    slack_parser = connect_subparsers.add_parser("slack", help="Export Slack channel messages")
-    slack_parser.add_argument("--channel", action="append", dest="channels", default=[], help="Slack channel id")
-    slack_parser.add_argument("--token-env", default="SLACK_BOT_TOKEN", help="Env var containing the Slack token")
-    slack_parser.add_argument("--team-id", default="", help="Slack team/workspace id for stable provenance")
-    slack_parser.add_argument("--channel-name", default="", help="Optional channel display name")
-    slack_parser.add_argument("--category", default="slack", help="SEOCHO document category")
-    slack_parser.add_argument(
-        "--limit",
-        type=int,
-        default=15,
-        help="Messages per Slack page; 15 is safe for new non-Marketplace apps, use 200 for Tier 3 apps",
-    )
-    slack_parser.add_argument("--max-pages", type=int, default=None, help="Max Slack pages per channel")
-    slack_parser.add_argument("--threads", action="store_true", help="Group replied messages as thread records")
-    slack_parser.add_argument("--output", default=".seocho/connectors/slack.jsonl", help="Output JSONL path")
-    slack_parser.add_argument("--dry-run", action="store_true", help="Fetch and summarize without writing JSONL")
-    slack_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
-
-    datahub_parser = connect_subparsers.add_parser("datahub", help="Export DataHub dataset metadata")
-    datahub_parser.add_argument("--server", required=True, help="DataHub frontend/GMS URL")
-    datahub_parser.add_argument("--token-env", default="DATAHUB_TOKEN", help="Env var containing a DataHub token")
-    datahub_parser.add_argument("--query", default="*", help="DataHub search query")
-    datahub_parser.add_argument("--limit", type=int, default=100, help="Max datasets to export")
-    datahub_parser.add_argument("--category", default="datahub", help="SEOCHO document category")
-    datahub_parser.add_argument("--output", default=".seocho/connectors/datahub.jsonl", help="Output JSONL path")
-    datahub_parser.add_argument("--dry-run", action="store_true", help="Fetch and summarize without writing JSONL")
-    datahub_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
-
-    postgres_parser = connect_subparsers.add_parser("postgres", help="Export PostgreSQL schema metadata")
-    postgres_parser.add_argument("--dsn-env", default="DATABASE_URL", help="Env var containing the PostgreSQL DSN")
-    postgres_parser.add_argument("--schema", action="append", dest="schemas", default=[], help="Schema to include")
-    postgres_parser.add_argument("--database-name", default="", help="Logical database name for provenance")
-    postgres_parser.add_argument("--category", default="postgres", help="SEOCHO document category")
-    postgres_parser.add_argument("--output", default=".seocho/connectors/postgres.jsonl", help="Output JSONL path")
-    postgres_parser.add_argument("--dry-run", action="store_true", help="Fetch and summarize without writing JSONL")
-    postgres_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
-
-    neo4j_parser = connect_subparsers.add_parser("neo4j", help="Export Neo4j/DozerDB schema metadata")
-    neo4j_parser.add_argument("--uri-env", default="NEO4J_URI", help="Env var containing the Bolt URI")
-    neo4j_parser.add_argument("--user-env", default="NEO4J_USER", help="Env var containing the graph user")
-    neo4j_parser.add_argument("--password-env", default="NEO4J_PASSWORD", help="Env var containing the graph password")
-    neo4j_parser.add_argument("--database", default="", help="Neo4j/DozerDB database name")
-    neo4j_parser.add_argument("--category", default="neo4j", help="SEOCHO document category")
-    neo4j_parser.add_argument("--output", default=".seocho/connectors/neo4j.jsonl", help="Output JSONL path")
-    neo4j_parser.add_argument("--dry-run", action="store_true", help="Fetch and summarize without writing JSONL")
-    neo4j_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
-
-    new_parser = subparsers.add_parser("new", help="Create a runnable SEOCHO sample project")
-    new_parser.add_argument(
-        "path",
-        nargs="?",
-        default="hello-seocho",
-        help="Target directory (default: ./hello-seocho)",
-    )
-    new_parser.add_argument(
-        "--sample",
-        choices=["company"],
-        default="company",
-        help="Sample project to create",
-    )
-    new_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite scaffold-owned files in the target directory",
-    )
-
-    init_parser = subparsers.add_parser("init", help="Create a new ontology interactively")
-    init_parser.add_argument("--output", default="schema.jsonld", help="Output file (default: schema.jsonld)")
-    init_parser.add_argument("--format", choices=["jsonld", "yaml"], default="jsonld", help="Output format")
-
-    index_parser = subparsers.add_parser("index", help="Index files from a directory into the graph")
-    index_parser.add_argument("path", help="File or directory to index")
-    index_parser.add_argument("--database", default="neo4j", help="Target database")
-    index_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD, YAML, or TTL)")
-    index_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j/DozerDB URI")
-    index_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
-    index_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
-    index_parser.add_argument(
-        "--provider",
-        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen", "zai"],
-        default="mara",
-        help="OpenAI-compatible LLM provider preset",
-    )
-    index_parser.add_argument("--model", default=None, help="LLM model for extraction")
-    index_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
-    index_parser.add_argument("--force", action="store_true", help="Re-index even if unchanged")
-    index_parser.add_argument("--recursive", action="store_true", default=True, help="Scan subdirectories")
-    index_parser.add_argument("--strict", action="store_true", help="Reject data that fails SHACL validation")
-    index_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    local_ask_parser = subparsers.add_parser("local-ask", help="Ask a question against local graph (no server)")
-    local_ask_parser.add_argument("question", help="Question to ask")
-    local_ask_parser.add_argument("--database", default="neo4j", help="Target database")
-    local_ask_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD, YAML, or TTL)")
-    local_ask_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI")
-    local_ask_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
-    local_ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
-    local_ask_parser.add_argument(
-        "--provider",
-        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen", "zai"],
-        default="mara",
-        help="OpenAI-compatible LLM provider preset",
-    )
-    local_ask_parser.add_argument("--model", default=None, help="LLM model")
-    local_ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
-    local_ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (auto-retry)")
-    local_ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts")
-    local_ask_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    status_parser = subparsers.add_parser("status", help="Show graph database status")
-    status_parser.add_argument("--database", default="neo4j", help="Target database")
-    status_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD, YAML, or TTL)")
-    status_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI")
-    status_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
-    status_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
-    status_parser.add_argument(
-        "--provider",
-        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen", "zai"],
-        default="mara",
-        help="OpenAI-compatible LLM provider preset",
-    )
-    status_parser.add_argument("--model", default=None, help="LLM model used for local queries")
-    status_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
-    status_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    compare_parser = subparsers.add_parser("compare", help="Compare two configs/models side by side")
-    compare_parser.add_argument("input_text", help="Text to extract from (or file path with @)")
-    compare_parser.add_argument("--config-a", required=True, help="First ontology file (JSON-LD or YAML)")
-    compare_parser.add_argument("--config-b", required=True, help="Second ontology file")
-    compare_parser.add_argument("--model-a", default="gpt-4o", help="LLM model for config A")
-    compare_parser.add_argument("--model-b", default=None, help="LLM model for config B (default: same as A)")
-    compare_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    experiment_parser = subparsers.add_parser(
-        "experiment",
-        help="Run extraction-only multi-axis exploration (full e2e variants: see seocho sweep)",
-    )
-    experiment_parser.add_argument("--input", required=True, help="Input text, @file, or directory path")
-    experiment_parser.add_argument("--ontology", action="append", default=[], help="Ontology files to vary (repeat for multiple)")
-    experiment_parser.add_argument("--model", action="append", default=[], help="LLM models to vary")
-    experiment_parser.add_argument("--chunk-size", type=int, action="append", default=[], dest="chunk_sizes", help="Chunk sizes to vary")
-    experiment_parser.add_argument("--temperature", type=float, action="append", default=[], dest="temperatures", help="Temperatures to vary")
-    experiment_parser.add_argument("--output", default=None, help="Save results to this directory")
-    experiment_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    bundle_parser = subparsers.add_parser("bundle", help="Export or inspect portable runtime bundles")
-    bundle_subparsers = bundle_parser.add_subparsers(dest="bundle_command", required=True)
-
-    bundle_export_parser = bundle_subparsers.add_parser("export", help="Export a local SDK configuration as a portable bundle")
-    bundle_export_parser.add_argument("--output", required=True, help="Output bundle JSON file")
-    bundle_export_parser.add_argument("--app-name", default=None, help="Portable app name")
-    bundle_export_parser.add_argument("--database", default="neo4j", help="Default database for the portable runtime")
-    bundle_export_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD, YAML, or TTL)")
-    bundle_export_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j/DozerDB URI")
-    bundle_export_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
-    bundle_export_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
-    bundle_export_parser.add_argument(
-        "--provider",
-        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen", "zai"],
-        default="mara",
-        help="OpenAI-compatible LLM provider preset",
-    )
-    bundle_export_parser.add_argument("--model", default=None, help="LLM model")
-    bundle_export_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
-    bundle_export_parser.add_argument(
-        "--prompt-preset",
-        default=None,
-        choices=["general", "finance", "legal", "medical", "research", "rdf_general", "rdf_fibo"],
-        help="Optional extraction prompt preset to serialize into the portable bundle",
-    )
-    bundle_export_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    bundle_show_parser = bundle_subparsers.add_parser("show", help="Show one portable runtime bundle")
-    bundle_show_parser.add_argument("bundle", help="Path to bundle JSON file")
-    bundle_show_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-
-    serve_http_parser = subparsers.add_parser("serve-http", help="Serve a portable bundle behind a small FastAPI runtime")
-    serve_http_parser.add_argument("--bundle", required=True, help="Path to portable bundle JSON file")
-    serve_http_parser.add_argument("--host", default="0.0.0.0", help="Bind host")
-    serve_http_parser.add_argument("--port", type=int, default=8010, help="Bind port")
-    serve_http_parser.add_argument("--reload", action="store_true", help="Enable uvicorn reload mode")
-
-    run_parser = subparsers.add_parser(
-        "run",
-        help="Run a YAML-declared e2e flow: index documents, ask questions, write a report",
-    )
-    run_parser.add_argument(
-        "config",
-        nargs="?",
-        default="seocho.run.yaml",
-        help="Run spec YAML (default: ./seocho.run.yaml)",
-    )
-    run_parser.add_argument(
-        "--init", action="store_true",
-        help="Write a commented run spec template to the config path and exit",
-    )
-    run_parser.add_argument(
-        "--dry-run", action="store_true",
-        help="Validate the config and run offline preflight checks; no LLM calls",
-    )
-    run_parser.add_argument(
-        "--only", choices=["index", "query"],
-        help="Run a single phase (query reuses the existing graph)",
-    )
-    run_parser.add_argument(
-        "-o", "--output", default=None,
-        help="Report directory (default: runs/<name>-<timestamp>/)",
-    )
-    run_parser.add_argument(
-        "--force", action="store_true",
-        help="Re-index files even if unchanged",
-    )
-    run_parser.add_argument(
-        "--no-track", action="store_true",
-        help="Index every input without reading/writing .seocho_index (use for isolated experiments)",
-    )
-    run_parser.add_argument(
-        "--var", action="append", dest="var_flags", default=None, metavar="KEY=VALUE",
-        help="Template variable for *.j2 configs (repeatable; dotted keys, YAML values)",
-    )
-    run_parser.add_argument(
-        "--vars", action="append", dest="vars_files", default=None, metavar="FILE",
-        help="YAML file of template variables (repeatable; --var overrides)",
-    )
-    run_parser.add_argument(
-        "--show-rendered", action="store_true",
-        help="Print rendered template YAML, or the plain YAML spec, and exit",
-    )
-    run_parser.add_argument("--output-json", "--json", action="store_true", help="Emit JSON")
-
-    sweep_parser = subparsers.add_parser(
-        "sweep",
-        help="Run one Jinja2 run-spec template across N variants and compare the outcomes",
-    )
-    sweep_parser.add_argument(
-        "config",
-        nargs="?",
-        default="seocho.sweep.yaml",
-        help="Sweep spec YAML (default: ./seocho.sweep.yaml)",
-    )
-    sweep_parser.add_argument(
-        "--init", action="store_true",
-        help="Write seocho.sweep.yaml + run.yaml.j2 templates and exit",
-    )
-    sweep_parser.add_argument(
-        "--dry-run", action="store_true",
-        help="Render + validate every variant and run offline preflight; no LLM calls",
-    )
-    sweep_parser.add_argument(
-        "--show-rendered", nargs="?", const="", default=None, metavar="VARIANT",
-        help="Print rendered YAML (one variant, or all when no name given) and exit",
-    )
-    sweep_parser.add_argument(
-        "--only-variant", action="append", dest="only_variants", default=None,
-        metavar="NAME", help="Run a subset of variants (repeatable)",
-    )
-    sweep_parser.add_argument(
-        "--var", action="append", dest="var_flags", default=None, metavar="KEY=VALUE",
-        help="Variable override applied to ALL variants (repeatable)",
-    )
-    sweep_parser.add_argument(
-        "--vars", action="append", dest="vars_files", default=None, metavar="FILE",
-        help="Shared variables YAML file (repeatable)",
-    )
-    sweep_parser.add_argument(
-        "--fail-fast", action="store_true",
-        help="Stop at the first failed variant (default: keep going)",
-    )
-    sweep_parser.add_argument(
-        "-o", "--output", default=None,
-        help="Sweep directory root (default: runs/<name>-<timestamp>/)",
-    )
-    sweep_parser.add_argument(
-        "--force", action="store_true",
-        help="Re-index files even if unchanged",
-    )
-    sweep_parser.add_argument("--output-json", "--json", action="store_true", help="Emit JSON")
-
-    traces_parser = subparsers.add_parser(
-        "traces",
-        help="Query trace spans from a JSONL file (read-safe, no server)",
-    )
-    traces_parser.add_argument(
-        "--path",
-        default=None,
-        help="JSONL trace file (default: $SEOCHO_TRACE_JSONL_PATH or ./traces/seocho.jsonl)",
-    )
-    traces_parser.add_argument(
-        "--min-latency-ms", type=float, default=None,
-        help="Keep only spans at/above this latency (ms)",
-    )
-    traces_parser.add_argument("--name", default=None, help="Exact span-name match")
-    traces_parser.add_argument("--name-contains", default=None, help="Substring match on span name")
-    traces_parser.add_argument(
-        "--tag", action="append", dest="tags", default=None,
-        help="Require this tag (repeatable)",
-    )
-    traces_parser.add_argument("--since", default=None, help="ISO timestamp lower bound (UTC)")
-    traces_parser.add_argument(
-        "--limit", type=int, default=50,
-        help="Max spans to print (0 = all)",
-    )
-    traces_parser.add_argument(
-        "--sort-latency", action="store_true",
-        help="Sort by latency descending",
-    )
-    traces_parser.add_argument("--output-json", "--json", action="store_true", help="Emit JSON")
+    register_memory_commands(subparsers)
+    register_local_commands(subparsers)
 
     # Registered command groups build their parser trees last, so a group can
     # never shadow a legacy command (register_group refuses duplicate names).
@@ -575,7 +79,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 LOCAL_COMMANDS = {
-    "new",
     "init",
     "index",
     "local-ask",
@@ -584,11 +87,6 @@ LOCAL_COMMANDS = {
     "experiment",
     "bundle",
     "serve-http",
-    "traces",
-    "run",
-    "sweep",
-    "connect",
-    "connectors",
 }
 
 
@@ -859,21 +357,7 @@ def _dispatch_artifacts(client: Seocho, args: argparse.Namespace) -> int:
     raise SeochoError(f"Unknown artifacts command: {args.artifact_command}")
 
 
-def _add_client_options(
-    parser: argparse.ArgumentParser,
-    *,
-    include_scope: bool,
-    include_json: bool,
-) -> None:
-    parser.add_argument("--base-url", default=None, help="SEOCHO API base URL")
-    parser.add_argument("--workspace-id", default=None, help="Workspace scope")
-    parser.add_argument("--timeout", type=float, default=None, help="HTTP timeout in seconds")
-    if include_scope:
-        parser.add_argument("--user-id", default=None, help="User scope")
-        parser.add_argument("--agent-id", default=None, help="Agent scope")
-        parser.add_argument("--session-id", default=None, help="Session scope")
-    if include_json:
-        parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON output")
+from .options import add_client_options as _add_client_options  # noqa: F401 - compatibility
 
 
 def _parse_json_object(
@@ -1036,8 +520,6 @@ def _serialize(value: Any) -> Any:
 
 
 def _dispatch_local(args: argparse.Namespace) -> int:
-    if args.command == "new":
-        return _cmd_new(args)
     if args.command == "init":
         return _cmd_init(args)
     if args.command == "index":
@@ -1054,262 +536,7 @@ def _dispatch_local(args: argparse.Namespace) -> int:
         return _cmd_bundle(args)
     if args.command == "serve-http":
         return _cmd_serve_http(args)
-    if args.command == "traces":
-        return _cmd_traces(args)
-    if args.command == "run":
-        return _cmd_run(args)
-    if args.command == "sweep":
-        return _cmd_sweep(args)
-    if args.command in {"connect", "connectors"}:
-        return _cmd_connect(args)
     raise SeochoError(f"Unknown local command: {args.command}")
-
-
-def _cmd_new(args: argparse.Namespace) -> int:
-    """Create a runnable first-run project."""
-    from ..scaffold import create_sample_project
-
-    result = create_sample_project(args.path, sample=args.sample, force=args.force)
-    print(f"Created SEOCHO {result.sample!r} sample at {result.path}")
-    print()
-    print("Files:")
-    for path in result.files:
-        print(f"  {path.relative_to(result.path)}")
-    print()
-    print("Next:")
-    print(f"  cd {result.path}")
-    print("  export MARA_API_KEY=...")
-    print("  seocho run --dry-run")
-    print("  seocho run")
-    print()
-    print("From a repository checkout, prefix commands with: uv run")
-    return 0
-
-
-def _cmd_traces(args: argparse.Namespace) -> int:
-    """Query trace spans from a JSONL file (read side of the observe loop)."""
-    from ..tracing import default_jsonl_path, read_jsonl
-
-    path = args.path or default_jsonl_path()
-    try:
-        spans = read_jsonl(
-            path,
-            min_latency_ms=args.min_latency_ms,
-            name=args.name,
-            name_contains=args.name_contains,
-            tags=args.tags,
-            since=args.since,
-        )
-    except FileNotFoundError:
-        print(
-            f"No trace file at {path}. Enable JSONL tracing with "
-            f"SEOCHO_TRACE_BACKEND=jsonl (or pass --path).",
-            file=sys.stderr,
-        )
-        return 1
-
-    if args.sort_latency:
-        spans.sort(key=lambda r: (r.get("latency_ms") if r.get("latency_ms") is not None else -1.0), reverse=True)
-    if args.limit and args.limit > 0:
-        spans = spans[: args.limit]
-
-    if getattr(args, "output_json", False):
-        print(json.dumps(spans, indent=2, default=str))
-        return 0
-
-    if not spans:
-        print("No matching spans.")
-        return 0
-
-    for record in spans:
-        latency = record.get("latency_ms")
-        latency_str = f"{latency:.0f}ms" if latency is not None else "-"
-        tags = ",".join(record.get("tags") or [])
-        print(f"{record.get('timestamp', '')}  {latency_str:>8}  {record.get('name', '')}  [{tags}]")
-    print(f"\n{len(spans)} span(s).")
-    return 0
-
-
-def _print_connect_result(
-    *,
-    provider: str,
-    records: Sequence[Any],
-    output: str,
-    dry_run: bool,
-    output_json: bool,
-) -> None:
-    from ..connectors import summarize_records
-
-    summary = summarize_records(records)
-    payload = {
-        "provider": provider,
-        "output": output,
-        "dry_run": dry_run,
-        **summary,
-    }
-    if output_json:
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
-        return
-    action = "would write" if dry_run else "wrote"
-    print(f"{action} {summary['records']} {provider} record(s) to {output}")
-    if not dry_run:
-        print()
-        print("Next:")
-        print(f"  set documents.path in seocho.run.yaml to: {output}")
-        print("  seocho run --dry-run")
-        print("  seocho run")
-
-
-def _print_connect_plan_result(
-    *,
-    results: Sequence[Any],
-    output_dir: str,
-    state_path: str,
-    dry_run: bool,
-    output_json: bool,
-) -> None:
-    payload = {
-        "dry_run": dry_run,
-        "output_dir": output_dir,
-        "state_path": state_path,
-        "records": sum(int(getattr(result, "records", 0)) for result in results),
-        "sources": [result.to_dict() for result in results],
-    }
-    if output_json:
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
-        return
-    action = "would write" if dry_run else "wrote"
-    print(f"{action} {payload['records']} connector record(s) from {len(results)} source(s)")
-    for result in results:
-        print(f"  - {result.name}: {result.records} {result.provider} record(s) -> {result.output}")
-    if not dry_run:
-        print(f"state: {state_path}")
-        print()
-        print("Next:")
-        print(f"  set documents.path in seocho.run.yaml to: {output_dir}")
-        print("  seocho run --dry-run")
-        print("  seocho run")
-
-
-def _cmd_connect(args: argparse.Namespace) -> int:
-    """Materialize external ecosystem data as SEOCHO JSONL records."""
-
-    provider = args.connect_command
-    if provider == "init":
-        from ..connectors.config import write_sample_config
-
-        path = write_sample_config(args.path, force=args.force)
-        print(f"Created connector config at {path}")
-        print()
-        print("Next:")
-        print(f"  edit {path}")
-        print(f"  seocho connect run {path} --dry-run")
-        print(f"  seocho connect run {path}")
-        return 0
-
-    if provider == "run":
-        from ..connectors.config import load_connector_config, run_connector_plan
-
-        plan = load_connector_config(args.config)
-        if args.output_dir:
-            plan.output_dir = args.output_dir
-        results = run_connector_plan(plan, dry_run=args.dry_run)
-        _print_connect_plan_result(
-            results=results,
-            output_dir=plan.output_dir,
-            state_path=plan.state_path,
-            dry_run=args.dry_run,
-            output_json=args.output_json,
-        )
-        return 0
-
-    from ..connectors import write_records_jsonl
-
-    records: list[Any]
-    if provider == "notion":
-        if not args.data_source_id and not args.page_id:
-            raise SeochoError("connect notion requires --data-source-id or --page-id.")
-        from ..connectors.notion import fetch_data_source_records, fetch_page_records
-
-        records = []
-        if args.page_id:
-            records.extend(
-                fetch_page_records(
-                    args.page_id,
-                    token_env=args.token_env,
-                    notion_version=args.notion_version,
-                    category=args.category,
-                    include_blocks=not args.no_blocks,
-                )
-            )
-        for data_source_id in args.data_source_id:
-            records.extend(
-                fetch_data_source_records(
-                    data_source_id,
-                    token_env=args.token_env,
-                    notion_version=args.notion_version,
-                    category=args.category,
-                    max_pages=args.max_pages,
-                    include_blocks=not args.no_blocks,
-                )
-            )
-    elif provider == "slack":
-        if not args.channels:
-            raise SeochoError("connect slack requires at least one --channel.")
-        from ..connectors.slack import fetch_channel_records
-
-        records = fetch_channel_records(
-            args.channels,
-            token_env=args.token_env,
-            team_id=args.team_id,
-            channel_name=args.channel_name,
-            category=args.category,
-            limit=args.limit,
-            max_pages=args.max_pages,
-            include_threads=args.threads,
-        )
-    elif provider == "datahub":
-        from ..connectors.datahub import fetch_dataset_records
-
-        records = fetch_dataset_records(
-            server=args.server,
-            token_env=args.token_env,
-            query_text=args.query,
-            limit=args.limit,
-            category=args.category,
-        )
-    elif provider == "postgres":
-        from ..connectors.postgres import fetch_schema_records
-
-        records = fetch_schema_records(
-            dsn_env=args.dsn_env,
-            schemas=args.schemas or None,
-            database=args.database_name,
-            category=args.category,
-        )
-    elif provider == "neo4j":
-        from ..connectors.neo4j import fetch_schema_records
-
-        records = fetch_schema_records(
-            uri_env=args.uri_env,
-            user_env=args.user_env,
-            password_env=args.password_env,
-            database=args.database,
-            category=args.category,
-        )
-    else:
-        raise SeochoError(f"Unknown connector provider: {provider}")
-
-    if not args.dry_run:
-        write_records_jsonl(records, args.output)
-    _print_connect_result(
-        provider=provider,
-        records=records,
-        output=args.output,
-        dry_run=args.dry_run,
-        output_json=args.output_json,
-    )
-    return 0
 
 
 def _cmd_init(args: argparse.Namespace) -> int:
@@ -1475,71 +702,6 @@ def _cmd_index(args: argparse.Namespace) -> int:
         client.close()
 
     return 0
-
-
-def _cmd_run(args: argparse.Namespace) -> int:
-    """Run a YAML-declared e2e flow (or write a template with --init)."""
-    if args.init:
-        from ..run_spec import RUN_SPEC_TEMPLATE
-
-        target = Path(args.config)
-        if target.exists():
-            print(f"{target} already exists — refusing to overwrite.", file=sys.stderr)
-            return 1
-        target.write_text(RUN_SPEC_TEMPLATE, encoding="utf-8")
-        print(f"Run spec template written to {target}")
-        print("Edit the ontology/documents/questions, then: seocho run")
-        print("Need a runnable sample instead? Try: seocho new hello-seocho")
-        return 0
-
-    from ..e2e import run_from_config
-
-    return run_from_config(
-        args.config,
-        dry_run=args.dry_run,
-        only=args.only,
-        output_dir=args.output,
-        force=args.force,
-        track=not args.no_track,
-        json_output=getattr(args, "output_json", False),
-        vars_files=getattr(args, "vars_files", None),
-        var_flags=getattr(args, "var_flags", None),
-        show_rendered=getattr(args, "show_rendered", False),
-    )
-
-
-def _cmd_sweep(args: argparse.Namespace) -> int:
-    """Run a sweep (or write the sweep + template pair with --init)."""
-    if args.init:
-        from ..run_template import RUN_J2_TEMPLATE, SWEEP_TEMPLATE
-
-        sweep_target = Path(args.config)
-        template_target = sweep_target.parent / "run.yaml.j2"
-        for target in (sweep_target, template_target):
-            if target.exists():
-                print(f"{target} already exists — refusing to overwrite.", file=sys.stderr)
-                return 1
-        sweep_target.write_text(SWEEP_TEMPLATE, encoding="utf-8")
-        template_target.write_text(RUN_J2_TEMPLATE, encoding="utf-8")
-        print(f"Sweep spec written to {sweep_target}")
-        print(f"Run template written to {template_target}")
-        print("Edit the variants and template, then: seocho sweep")
-        return 0
-
-    from ..e2e import run_sweep_from_config
-
-    return run_sweep_from_config(
-        args.config,
-        vars_files=getattr(args, "vars_files", None),
-        var_flags=getattr(args, "var_flags", None),
-        dry_run=args.dry_run,
-        only_variants=getattr(args, "only_variants", None),
-        fail_fast=args.fail_fast,
-        output_dir=args.output,
-        force=args.force,
-        json_output=getattr(args, "output_json", False),
-        show_rendered=getattr(args, "show_rendered", None),
-    )
 
 
 def _cmd_local_ask(args: argparse.Namespace) -> int:
@@ -1753,8 +915,6 @@ def _cmd_bundle_show(args: argparse.Namespace) -> int:
     return 0
 
 
-
-
 def _cmd_serve_http(args: argparse.Namespace) -> int:
     from ..http_runtime import create_bundle_runtime_app
     from ..runtime_bundle import RuntimeBundle
@@ -1770,7 +930,6 @@ def _cmd_serve_http(args: argparse.Namespace) -> int:
     app = create_bundle_runtime_app(bundle)
     uvicorn.run(app, host=args.host, port=args.port, reload=args.reload)
     return 0
-
 
 
 # ----------------------------------------------------------------------
@@ -1791,6 +950,39 @@ register_group(
 from . import runs as _runs_group  # noqa: E402
 
 register_group(CommandGroup(name="runs", register=_runs_group.register, handle=_runs_group.handle))
+
+from . import run as _run_group  # noqa: E402
+
+register_group(CommandGroup(name="run", register=_run_group.register, handle=_run_group.handle))
+
+_cmd_run = _run_group.handle
+
+from . import sweep as _sweep_group  # noqa: E402
+
+register_group(CommandGroup(name="sweep", register=_sweep_group.register, handle=_sweep_group.handle))
+
+_cmd_sweep = _sweep_group.handle
+
+from . import traces as _traces_group  # noqa: E402
+
+register_group(CommandGroup(name="traces", register=_traces_group.register, handle=_traces_group.handle))
+
+_cmd_traces = _traces_group.handle
+
+from . import new as _new_group  # noqa: E402
+
+register_group(CommandGroup(name="new", register=_new_group.register, handle=_new_group.handle))
+
+_cmd_new = _new_group.handle
+
+from . import connect as _connect_group  # noqa: E402
+
+register_group(CommandGroup(name="connect", register=_connect_group.register, handle=_connect_group.handle))
+register_group(CommandGroup(name="connectors", register=lambda subparsers: None, handle=_connect_group.handle))
+
+_cmd_connect = _connect_group.handle
+
+LOCAL_COMMANDS.update(name for name, group in COMMAND_GROUPS.items() if group.local)
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -118,6 +118,13 @@ graph facts; fresh targets are still required. A query-only experiment can use
 `--only query` with a separately frozen graph, and its lack of indexing evidence
 remains visible.
 
+Directory tracking uses path, modification time and size. It is not byte-level
+change detection: use `--no-track` or force indexing when edits preserve both
+mtime and size. `.seocho_index` v2 names this policy explicitly and reads existing
+v1 state. Legacy hashes are retained but unused; indexing no longer rereads files
+just to compute them. Experiment evidence fingerprints still hash inputs
+independently (ADR-0234).
+
 ## Failure receipts
 
 Every admitted execution writes `report.json` (`seocho.run_report.v2`) and

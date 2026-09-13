@@ -319,9 +319,11 @@ class ExecutionResult(JsonSerializable):
         payload = self.answer_envelope.get("evidence_bundle", {})
         return EvidenceBundle.from_dict(payload if isinstance(payload, dict) else {})
 
-    @property
-    def agent_pattern(self) -> Dict[str, Any]:
-        return dict(self.answer_envelope.get("agent_pattern", {}) or {})
+    def __post_init__(self) -> None:
+        """Keep a serializable snapshot; an explicit non-empty pattern wins."""
+        if not self.agent_pattern:
+            pattern = self.answer_envelope.get("agent_pattern", {})
+            self.agent_pattern = dict(pattern) if isinstance(pattern, dict) else {}
 
     @property
     def graph_cot(self) -> Dict[str, Any]:

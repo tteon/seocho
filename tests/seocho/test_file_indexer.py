@@ -245,3 +245,51 @@ def test_failed_index_is_retried_instead_of_cached_as_unchanged(tmp_path):
     assert indexer.index_directory(tmp_path).files_failed == 1
     assert indexer.index_directory(tmp_path).files_failed == 1
     assert pipeline.calls == 2
+
+
+def test_legacy_tracking_state_remains_readable(tmp_path: Path) -> None:
+    path = tmp_path / 'legacy.txt'
+    path.write_text('legacy content')
+    stat = path.stat()
+    (tmp_path / '.seocho_index').write_text(json.dumps({
+        'version': 1, 'files': [{
+            'path': str(path), 'mtime': stat.st_mtime, 'size': stat.st_size,
+            'source_id': 'legacy-source', 'content_hash': 'legacy-hash',
+        }],
+    }))
+    tracker = FileTracker(tmp_path)
+    assert not tracker.needs_indexing(path)
+    assert tracker.get_source_id(path) == 'legacy-source'
+    tracker.save()
+    saved = json.loads((tmp_path / '.seocho_index').read_text())
+    assert saved['version'] == 2 and saved['change_detection'] == 'mtime_size'
+    assert saved['files'][0]['content_hash'] == 'legacy-hash'
+
+
+def test_tracking_does_not_reread_indexed_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from seocho.index.file_reader import FileIndexer
+    from seocho.index.pipeline import IndexingResult
+
+    class Pipeline:
+        def index(self, content: str, **kwargs: object) -> IndexingResult:
+            assert content == 'One document.'
+            return IndexingResult(source_id='source', total_nodes=1, chunks_processed=1)
+
+    path = tmp_path / 'document.txt'
+    path.write_text('One document.')
+    reads = []
+    original = Path.read_text
+
+    def read_text(self: Path, *args: object, **kwargs: object) -> str:
+        reads.append(self)
+        return original(self, *args, **kwargs)
+
+    tracker = FileTracker(tmp_path)
+    monkeypatch.setattr(Path, 'read_text', read_text)
+    result = FileIndexer(Pipeline()).index_file(path, tracker=tracker)
+    assert result.status == 'indexed'
+    assert reads == [path]  # The document reader runs once; tracking only stats it.
+    assert tracker.get_source_id(path) == 'source'
+    assert not tracker.needs_indexing(path)

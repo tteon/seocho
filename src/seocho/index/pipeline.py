@@ -910,10 +910,7 @@ class IndexingPipeline:
                 "AND NOT type(r) IN $prov RETURN count(r) AS c",
                 params={"ws": self.workspace_id, "sid": source_id,
                         "prov": list(self._PROVENANCE_REL_TYPES)},
-                database=database,
-                workspace_id=self.workspace_id,
-                enforce_workspace_filter=True,
-            )
+                database=database)
             if _rows:
                 domain_persisted = int((_rows[0].get("c") if _rows[0] else 0) or 0)
         except Exception:  # noqa: BLE001 - census must never fail the write

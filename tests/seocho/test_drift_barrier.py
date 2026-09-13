@@ -26,7 +26,7 @@ class _FakeStore:
             self.nodes.append(dict(n.get("properties", {})))
         return {"nodes_created": len(nodes), "relationships_created": len(relationships)}
 
-    def query(self, cypher, params=None, database=None):
+    def query(self, cypher, params=None, database=None, **kwargs):
         ws = (params or {}).get("workspace_id", "default")
         scoped = [n for n in self.nodes
                   if str(n.get("_workspace_id", n.get("workspace_id", ws))) == str(ws)]

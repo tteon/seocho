@@ -23,7 +23,7 @@ _OBSERVATION_LOOKUP = (
     "WHERE o.concept_id = $concept_id\n"
     "  AND o.period_key IN $period_keys\n"
     "  AND o.basis = $basis\n"
-    "  AND ($workspace_id = '' OR o.workspace_id = $workspace_id)\n"
+    "  AND ($workspace_id = '' OR o._workspace_id = $workspace_id)\n"
     "RETURN o.value_num AS value, o.unit AS unit, o.period_key AS period,\n"
     "       o.concept_id AS concept_id, o.obs_id AS obs_id\n"
     "ORDER BY o.period_key\n"

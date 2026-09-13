@@ -2798,6 +2798,7 @@ class Ontology:
         graph_store: Any,
         *,
         database: str = "neo4j",
+        workspace_id: str = "default",
     ) -> Dict[str, Any]:
         """Compute ontology coverage statistics against a live graph.
 
@@ -2829,11 +2830,17 @@ class Ontology:
         for i in range(0, len(nodes_list), chunk_size):
             chunk = nodes_list[i:i + chunk_size]
             query = " UNION ALL ".join([
-                f"MATCH (n:`{label}`) RETURN count(n) AS cnt, '{label}' AS element"
+                f"MATCH (n:`{label}`) WHERE coalesce(n._workspace_id, n.workspace_id, $ws) = $ws RETURN count(n) AS cnt, '{label}' AS element"
                 for label in chunk
             ])
             try:
-                results = graph_store.query(query, database=database)
+                results = graph_store.query(
+                    query,
+                    params={"ws": workspace_id},
+                    database=database,
+                    workspace_id=workspace_id,
+                    enforce_workspace_filter=True,
+                )
                 counts = {r["element"]: int(r["cnt"]) for r in results}
             except Exception:
                 counts = {}
@@ -2844,8 +2851,11 @@ class Ontology:
                 else:
                     try:
                         result = graph_store.query(
-                            f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
+                            f"MATCH (n:`{label}`) WHERE coalesce(n._workspace_id, n.workspace_id, $ws) = $ws RETURN count(n) AS cnt",
+                            params={"ws": workspace_id},
                             database=database,
+                            workspace_id=workspace_id,
+                            enforce_workspace_filter=True,
                         )
                         count = int(result[0]["cnt"]) if result else 0
                     except Exception:
@@ -2863,11 +2873,17 @@ class Ontology:
         for i in range(0, len(rels_list), chunk_size):
             chunk = rels_list[i:i + chunk_size]
             query = " UNION ALL ".join([
-                f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt, '{rtype}' AS element"
+                f"MATCH (a)-[r:`{rtype}`]->() WHERE coalesce(a._workspace_id, a.workspace_id, $ws) = $ws RETURN count(r) AS cnt, '{rtype}' AS element"
                 for rtype in chunk
             ])
             try:
-                results = graph_store.query(query, database=database)
+                results = graph_store.query(
+                    query,
+                    params={"ws": workspace_id},
+                    database=database,
+                    workspace_id=workspace_id,
+                    enforce_workspace_filter=True,
+                )
                 counts = {r["element"]: int(r["cnt"]) for r in results}
             except Exception:
                 counts = {}
@@ -2878,8 +2894,11 @@ class Ontology:
                 else:
                     try:
                         result = graph_store.query(
-                            f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
+                            f"MATCH (a)-[r:`{rtype}`]->() WHERE coalesce(a._workspace_id, a.workspace_id, $ws) = $ws RETURN count(r) AS cnt",
+                            params={"ws": workspace_id},
                             database=database,
+                            workspace_id=workspace_id,
+                            enforce_workspace_filter=True,
                         )
                         count = int(result[0]["cnt"]) if result else 0
                     except Exception:

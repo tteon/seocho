@@ -1,153 +1,123 @@
 # Contributing to SEOCHO
 
-Thanks for considering a contribution. SEOCHO is ontology-aligned middleware for
-agents and graph databases, so the most useful PRs keep SDK behavior, runtime
-policy, examples, and docs aligned around that contract.
+Contributions should make ontology-aligned indexing, graph memory and agent
+answers easier to use, inspect or maintain. Start with a concrete user problem
+and an observable acceptance criterion.
 
-## Start Here
+## Pick a path
 
-1. Read `README.md` and `QUICKSTART.md` to understand the public user path.
-2. Read `docs/REPOSITORY_LAYOUT.md` before adding or moving files.
-3. Read `docs/MODULE_OWNERSHIP_MAP.md` before changing SDK/runtime behavior.
-4. For larger changes, check `docs/WORKFLOW.md` and the relevant ADRs under
-   `docs/decisions/`.
-5. For release or public community work, read
-   `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`.
-
-Coding agents should also follow `AGENTS.md`.
-
-## First PR In 10 Minutes
-
-If you are new, start with a small docs, example, test, or error-message PR.
-The fastest low-risk loop is:
-
-```bash
-uv sync --extra ci
-uv run pytest tests/seocho/test_run_spec.py -q
-bash scripts/ci/run_basic_ci.sh
-```
-
-Good first contributions usually live in:
-
-- `README.md`, `QUICKSTART.md`, or focused `docs/*` wording
-- `examples/run/` run specs and small example datasets
-- narrow tests under `tests/seocho/`
-- clear error messages, validation messages, or onboarding fixes
-
-Avoid starting with broad runtime/query refactors unless there is already an
-issue or maintainer discussion that names the acceptance criteria.
-
-## Local Setup
-
-```bash
-git clone git@github.com:tteon/seocho.git
-cd seocho
-uv sync --extra dev
-uv run pytest tests/seocho/ -q
-```
-
-The canonical CI command is:
-
-```bash
-bash scripts/ci/run_basic_ci.sh
-```
-
-Use focused tests while developing, then run the broader check before opening a
-PR when you changed SDK, runtime, CI, packaging, or shared docs contracts.
-
-## Where To Make Changes
-
-| Goal | Start here |
-|---|---|
-| Public SDK facade or client behavior | `src/seocho/client.py`, `src/seocho/session.py`, `src/seocho/models.py` |
-| Local indexing or graph shaping | `src/seocho/index/`, `src/seocho/rules.py` |
-| Query, retrieval, Cypher, or answer synthesis | `src/seocho/query/`, `src/seocho/prompt_strategy.py` |
-| Ontology model or offline governance | `src/seocho/ontology*.py`, `docs/ontology/` |
-| Runtime API, memory service, or policy checks | `runtime/` |
-| Legacy extraction compatibility | `extraction/` |
-| Examples, tutorials, or sample data | `examples/` |
-| Public docs | `README.md`, `QUICKSTART.md`, `docs/`, `website/` |
-| GitHub Actions or repository automation | `.github/workflows/`, `scripts/ci/` |
-
-New canonical engine logic should usually land under `src/seocho/`. Treat
-`extraction/` as active compatibility and batch-service surface, not the first
-home for new product behavior.
-
-## Repository Hygiene
-
-- Do not add root-level product folders without updating
-  `docs/REPOSITORY_LAYOUT.md`.
-- Do not commit generated data, benchmark results, credentials, or local tool
-  state.
-- Keep local overlays such as `.agents/`, `.beads/`, `.claude/`, `.jules/`,
-  `.serena/`, `.seocho/`, `data/`, `logs/`, and `outputs/` out of Git.
-- Put reusable automation in `scripts/`, not inline workflow-only scripts.
-
-## Pull Requests
-
-1. Open an issue or explain the problem clearly in the PR.
-2. Keep the PR focused on one behavior change, refactor, or docs improvement.
-3. Add or update tests for changed behavior.
-4. Run relevant validation and include exact commands in the PR body.
-5. Update user-facing docs when public behavior changes.
-6. Use a conventional commit prefix such as `feat:`, `fix:`, `docs:`,
-   `refactor:`, `test:`, or `chore:`.
-
-PRs should usually fit one of these review lanes:
-
-| Lane | Best for | Expected validation |
+| Contribution | Start with | Expected evidence |
 |---|---|---|
-| `docs/example` | docs wording, quickstarts, examples, run specs | docs contract or example-specific command |
-| `behavior` | SDK/runtime behavior, public models, query/indexing logic | focused tests plus relevant CI gate |
-| `architecture` | new public surface, package boundary, runtime contract, ADR-backed work | ADR or decision note plus broad validation |
+| Fix a user's failed run | issue reproduction, `docs/EXPERIMENT_PLATFORM.md` | failure regression test and an inspectable receipt |
+| Improve indexing/query | owning module and Graph-RAG handoff contract | matched behavioral tests and appropriate live evaluation |
+| Improve SDK/runtime | public API contract and compatibility tests | preserved response types, policy and workspace propagation |
+| Improve docs/examples | the actual command a new user runs | successful example validation or a stated service gap |
+| Change architecture | issue, ExecPlan and ADR | explicit alternatives, consequences and validation |
 
-Prefer PRs around a few hundred changed lines. Larger work should be split into
-reviewable slices or start with an issue/ADR that explains the rollout plan.
+Use [Repository Layout](docs/REPOSITORY_LAYOUT.md) and
+[Module Ownership](docs/MODULE_OWNERSHIP_MAP.md) to choose the edit surface.
+Canonical engine changes belong under `src/seocho/`; `runtime/` owns the service
+shell and `extraction/` retains compatibility/batch responsibilities.
 
-Maintainers make final merge decisions. Automated checks and coding-agent
-reviews are supporting signals, not a replacement for human review.
+## Set up an isolated task
 
-Release work should use the GitHub `Release checklist` issue template and keep
-`CHANGELOG.md`, release notes, and the `#seocho` Discord announcement aligned.
+```bash
+git clone https://github.com/tteon/seocho.git
+cd seocho
+git fetch origin
+make agent-doctor
+make agent-start TASK=issue-123
+```
 
-## Issues And Labels
+Change into the printed checkout and install the committed environment:
 
-Use the GitHub issue templates for bug reports, feature requests, and
-docs/examples. Maintainers should label public work with the issue metadata
-already used by SEOCHO:
+```bash
+uv sync --locked --extra dev
+uv run pytest tests/seocho/test_run_spec.py -q
+```
 
-- `area-*`: `sdk`, `runtime`, `query`, `indexing`, `ontology`, `docs`, `examples`, `ci`
-- `kind-*`: `bug`, `feature`, `docs`, `refactor`, `test`, `ci`
-- `urgency-*`: `now`, `this_sprint`, `next_sprint`, `later`
-- `impact-*` and `sev-*`: `critical`, `high`, `medium`, `low`
+A normal branch/checkout workflow is also supported. The helper keeps ongoing
+work untouched and writes a local task receipt/handoff. It does not install
+packages, start services, fetch or stash changes. See
+[Agent Workflow](docs/AGENT_WORKFLOW.md) for commands and recovery.
 
-Use `good first issue` only for items that can be solved without understanding
-the runtime migration, semantic query internals, or private benchmark data.
+Coding agents follow [AGENTS.md](AGENTS.md). Maintainers using beads claim their
+local task and update notes at meaningful steps. Public contributors need only
+a GitHub issue or PR; local tracker state never belongs in a contribution.
 
-## Automation And AI-Assisted Work
+## Validate the changed behavior
 
-SEOCHO uses GitHub Actions for CI, docs checks, docs deploy, and narrow
-maintainer automation. The public automation map is
-`docs/GITHUB_AUTOMATION.md`.
+Run the narrow relevant test first, then the canonical gate:
 
-Scheduled Codex workflows may open draft maintenance PRs. They must stay
-bounded, test-backed, and draft-only until a maintainer promotes them. External
-AI-assisted contributions are welcome when the author understands the change,
-keeps scope tight, and provides real validation evidence.
+```bash
+make agent-check
+# Equivalent: bash scripts/ci/run_basic_ci.sh
+```
 
-Comment-based merge is maintainer-only and intentionally narrow: the command is
-exactly `/go`, the PR must be clean and non-draft, and the merge is squash.
+Basic CI checks curated SDK/runtime behavior, module/layout contracts, selected
+lint surfaces and strict incremental typing for experiment evidence modules.
+It supports Python 3.10, 3.11 and 3.12. A passing mock test establishes its tested
+contract, not real service compatibility, throughput or answer correctness.
 
-## Architecture Summary
+For docs-only changes:
 
-SEOCHO has two primary planes sharing one ontology:
+```bash
+bash scripts/ci/check-doc-contracts.sh
+```
 
-- Data plane: `src/seocho/index/` ingests files, shapes graph payloads, and
-  applies rule/validation logic.
-- Control plane: `src/seocho/query/` turns ontology context into Cypher,
-  evidence, and answers.
-- Runtime shell: `runtime/` exposes policy-checked API behavior and preserves
-  `workspace_id`.
+Generate website mirrors from root docs; do not edit generated pages directly.
+For site changes, run the checks documented in [GitHub Automation](docs/GITHUB_AUTOMATION.md).
 
-For deeper context, read `docs/ARCHITECTURE.md`,
-`docs/MODULE_OWNERSHIP_MAP.md`, and `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`.
+For experiment changes, read prior manifests/reports and local experiment memory
+first. State the incremental hypothesis, fixed inputs, changed condition and
+remaining telemetry gaps. Retain failed runs and compare saved reports before
+spending on another live run. See [Benchmarks](docs/BENCHMARKS.md).
+
+## Keep decisions and evidence linked
+
+The public issue/PR owns the user problem and delivery. An ADR records a durable
+architectural choice; an ExecPlan tracks a complex implementation. Local beads
+and handoff notes track progress without duplicating those contracts. Run receipts
+hold measurements. Link them by purpose so the next contributor can resume work.
+
+A PR should describe:
+
+- the trigger and resulting behavior, including failure behavior;
+- the owning modules and compatibility consequences;
+- exact validation commands and any skipped live/service gates;
+- the relevant docs/ADR and a safe evidence summary.
+
+Keep one coherent change per PR. Larger improvements should have reviewable
+slices and a recorded rollout plan. Use conventional commit prefixes such as
+`fix:`, `feat:`, `docs:`, `refactor:` or `test:`. Preserve user changes, inspect the
+staged diff and run `git diff --check` before pushing.
+
+## Repository hygiene
+
+Keep private datasets, credentials, logs, generated results and agent/editor
+state out of Git. Local state lives under `.seocho/` or the existing `data/` and
+`outputs/` paths. Tool discovery directories retain their required names; only
+shared `.claude/skills/` may be tracked. Put supported examples in `examples/`,
+reusable automation in `scripts/`, and public contracts in `docs/`.
+
+Do not delete compatibility modules or prior experiment receipts because they
+look old. Trace imports, callers and evidence references before proposing removal.
+
+## GitHub and review
+
+Use the issue forms for bugs, feature requests and docs/examples. Bug reports
+benefit from Python/SEOCHO versions, backend/provider, the failing stage and a
+redacted run diagnostic. Do not post private corpora or unreviewed full reports.
+
+Maintainers use the existing `area-*`, `kind-*`, `urgency-*`, `impact-*` and
+`sev-*` labels. A good first issue should be solvable without private data or
+knowledge of the runtime migration.
+
+Scheduled agent workflows remain small and draft-only. Maintainers decide
+merges; automatic checks and coding reviews provide evidence. Comment merge
+requires the exact `/go` command, write-or-higher permission, and a clean,
+non-draft PR, using squash merge.
+
+For releases, follow [Release and Community Operations](docs/RELEASE_AND_COMMUNITY_OPERATIONS.md),
+update `CHANGELOG.md`, and use the release issue template. Report vulnerabilities
+through [SECURITY.md](SECURITY.md).

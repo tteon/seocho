@@ -145,6 +145,7 @@ memory-bench = [
 ]
 
 [tool.pytest.ini_options]
+cache_dir = ".seocho/cache/pytest"
 testpaths = ["extraction/tests", "tests"]
 pythonpath = ["src", "extraction"]
 asyncio_mode = "auto"
@@ -170,6 +171,7 @@ exclude = ["__pycache__", "*.pyc", ".git"]
 # When ready to enforce, add a CI step; until then this just makes the metric easy
 # to inspect locally without contradicting the existing flake8/black/isort setup.
 [tool.ruff]
+cache-dir = ".seocho/cache/ruff"
 line-length = 88
 target-version = "py311"
 extend-exclude = [

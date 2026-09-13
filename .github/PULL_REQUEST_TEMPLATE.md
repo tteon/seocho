@@ -1,26 +1,27 @@
-## Feature
+## Problem and resulting behavior
 
-<!-- What changed? Keep this focused on one behavior, refactor, docs update, or example. -->
+<!-- Describe the trigger and what a user can observe after this change. -->
 
-## Why
+## Design and compatibility
 
-<!-- Why does this belong in SEOCHO's public SDK/runtime/docs surface? -->
-
-## Design
-
-<!-- Note the important implementation choice and the owning module surface. -->
+<!-- Name the owning modules. Link the public issue, ADR/ExecPlan when applicable.
+     Explain API/response/failure behavior changes and migration requirements. -->
 
 ## Validation
 
-<!-- List exact commands run. If a relevant gate was skipped, name the gap. -->
+<!-- Exact commands and results. Mark live, fixture/mock, offline and skipped
+     evidence accurately; tests passing alone do not prove quality/performance. -->
 
-- [ ] `bash scripts/ci/run_basic_ci.sh`
+- Command / result:
+- Remaining gap:
 
-## Risks / Gaps
+## Experiment evidence (when applicable)
 
-<!-- Known limitations, deferred follow-ups, migration risk, or live-service gaps. -->
+<!-- Baseline/candidate, hypothesis, fixed inputs and changed condition.
+     Link safe summaries; preserve original failures. Leave unknown telemetry
+     unavailable. Remove this section for non-experiment changes. -->
 
-## Docs
+## Risks and documentation
 
-- [ ] Public behavior changed and docs were updated
-- [ ] No public behavior changed
+<!-- Known limitations, rollback/recovery and docs updated. Do not attach private
+     datasets, credentials, local tracker state or unreviewed content-bearing reports. -->

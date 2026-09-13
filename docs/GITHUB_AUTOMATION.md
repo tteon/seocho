@@ -55,6 +55,10 @@ Astro build succeeds.
 filters. Required GitHub checks must always be created, otherwise unrelated PRs
 can be blocked by a required-but-skipped workflow.
 
+The same gate is available as `make agent-check`. Workspace helper contracts
+are covered by `tests/seocho/test_coding_workspace.py`; local receipts remain
+untracked. See [Agent Workflow](AGENT_WORKFLOW.md).
+
 ## Contributor Intake
 
 GitHub issue templates collect the minimum information maintainers need:

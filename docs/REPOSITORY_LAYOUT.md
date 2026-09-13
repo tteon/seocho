@@ -86,6 +86,10 @@ and must not be tracked as part of the public GitHub surface.
 | `seocho-core/` | Optional accelerator workspace | Rust/Python hybrid support code, not the first stop for normal app changes. |
 | `dataplane/` | Optional native runtime components | Rust sidecars/proxies that sit below the Python control plane; the first component is the Oxigraph ontology read model. |
 
+For isolated coding tasks, see [Agent Workflow](AGENT_WORKFLOW.md). Task
+checkouts live under the common repository’s ignored `.seocho/worktrees/` and
+Python tool caches under `.seocho/cache/`; product ownership stays unchanged.
+
 ## Local Runtime State And Generated Artifacts
 
 These paths are usually not where feature work should land.

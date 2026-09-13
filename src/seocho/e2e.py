@@ -18,6 +18,9 @@ import dataclasses
 import asyncio
 import hashlib
 import json
+import logging
+import re
+import uuid
 import os
 import sys
 import time
@@ -27,7 +30,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .run_spec import RunSpec, RunSpecError, load_run_spec, parse_model_ref
+from .run_evidence import collect_evidence, safe_endpoint
+from .run_outcomes import RunDiagnostic, summarize_outcome
 from .run_preflight import run_preflight
+from .run_reporting import FileReportStore, ReportStore, RunReport, render_report_md
+
+# Compatibility for callers that used the former private renderer.
+_render_report_md = render_report_md
+
+logger = logging.getLogger(__name__)
 
 _BOLT_SCHEMES = ("bolt://", "neo4j://", "neo4j+s://", "bolt+s://")
 
@@ -45,12 +56,40 @@ class RunContext:
     documents_path: Path
     output_dir: Path
 
-    def close(self) -> None:
-        for client in {id(self.index_client): self.index_client, id(self.query_client): self.query_client}.values():
-            try:
-                client.close()
-            except Exception:
-                pass
+    resources: List[Any] = field(default_factory=list, repr=False)
+    _closed: bool = field(default=False, init=False, repr=False)
+
+    def close(self) -> List[Dict[str, str]]:
+        if self._closed:
+            return []
+        self._closed = True
+        return _close_resources(self.resources or [self.graph_store, self.index_client, self.query_client])
+
+    def __enter__(self) -> "RunContext":
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.close()
+
+
+def _close_resources(resources: List[Any]) -> List[Dict[str, str]]:
+    errors: List[Dict[str, str]] = []
+    seen: set[int] = set()
+    for resource in reversed(resources):
+        if id(resource) in seen:
+            continue
+        seen.add(id(resource))
+        close = getattr(resource, "close", None)
+        if not callable(close):
+            continue
+        try:
+            close()
+        except Exception as exc:
+            diagnostic = RunDiagnostic("cleanup", "resource_close_failed", str(exc),
+                                       "Inspect resource shutdown before starting another run.")
+            errors.append(diagnostic.to_dict())
+            logger.warning("E2E cleanup failed for %s: %s", type(resource).__name__, exc)
+    return errors
 
 
 def _resolve(spec: RunSpec, raw_path: str) -> Path:
@@ -221,6 +260,16 @@ def resolve_guardrail(spec: RunSpec) -> RunSpec:
 
 
 def build(spec: RunSpec) -> RunContext:
+    """Build with cleanup even when a later provider/client fails to initialize."""
+    resources: List[Any] = []
+    try:
+        return _build(spec, resources)
+    except BaseException:
+        _close_resources(resources)
+        raise
+
+
+def _build(spec: RunSpec, resources: List[Any]) -> RunContext:
     """Assemble live SDK objects from a validated run spec."""
     from .client import Seocho
     from .ontology import Ontology
@@ -229,10 +278,9 @@ def build(spec: RunSpec) -> RunContext:
     if spec.selected_guardrail:
         rec = spec.selected_guardrail
         where = spec.ontology_path or f"in-memory:{rec['chosen']}"
-        print(f"[guardrail] selected '{rec['chosen']}' ({where}) for "
-              f"{rec['domain_kind']} corpus (numeric_intensity={rec['numeric_intensity']})")
+        logger.info("Selected guardrail %s (%s) for %s corpus", rec["chosen"], where, rec["domain_kind"])
         for advisory in rec.get("advisories", []):
-            print(f"[guardrail] · {advisory}")
+            logger.info("Guardrail advisory: %s", advisory)
 
     # A FIBO-derived guardrail is resolved in-memory (no file); else load the path.
     ontology = spec.resolved_ontology if spec.resolved_ontology is not None else Ontology.load(_resolve(spec, spec.ontology_path))
@@ -249,6 +297,7 @@ def build(spec: RunSpec) -> RunContext:
         ontology = client_kwargs["ontology"]
 
     graph_store = _build_graph_store(spec, ontology)
+    resources.append(graph_store)
     # All indexing paths share this adapter.  Attach the run-scoped projection
     # policy once so file, batch, and agent writes cannot silently disagree.
     setattr(graph_store, "_governance_mode", spec.governance_mode)
@@ -270,15 +319,20 @@ def build(spec: RunSpec) -> RunContext:
     if vector_store is not None:
         client_kwargs["vector_store"] = vector_store
 
-    index_client = Seocho(llm=_build_llm(spec.indexing_model()), **client_kwargs)
+    index_llm = _build_llm(spec.indexing_model())
+    resources.append(index_llm)
+    index_client = Seocho(llm=index_llm, **client_kwargs)
+    resources.append(index_client)
     if spec.uses_split_models():
-        query_client = Seocho(llm=_build_llm(spec.query_model()), **client_kwargs)
+        query_llm = _build_llm(spec.query_model())
+        resources.append(query_llm)
+        query_client = Seocho(llm=query_llm, **client_kwargs)
+        resources.append(query_client)
     else:
         query_client = index_client
 
     database = spec.database or index_client.default_database
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    output_dir = _resolve(spec, spec.output_dir) / f"{spec.name}-{timestamp}"
+    output_dir = _run_directory(spec)
 
     return RunContext(
         spec=spec,
@@ -289,26 +343,9 @@ def build(spec: RunSpec) -> RunContext:
         database=database,
         documents_path=_resolve(spec, spec.documents_path),
         output_dir=output_dir,
+        resources=resources,
     )
 
-
-@dataclass(slots=True)
-class RunReport:
-    """Aggregated outcome of one e2e run."""
-
-    payload: Dict[str, Any] = field(default_factory=dict)
-    report_json: Optional[Path] = None
-    report_md: Optional[Path] = None
-
-    @property
-    def ok(self) -> bool:
-        indexing = self.payload.get("indexing") or {}
-        queries = self.payload.get("queries") or []
-        files_found = int(indexing.get("files_found", 0))
-        files_failed = int(indexing.get("files_failed", 0))
-        all_files_failed = files_found > 0 and files_failed >= files_found
-        any_query_error = any(item.get("error") for item in queries)
-        return not all_files_failed and not any_query_error
 
 
 def _emit(quiet: bool, message: str = "") -> None:
@@ -434,9 +471,9 @@ def _populate_query_record(record: Dict[str, Any], response: Any) -> str:
         record["coverage"] = coverage
     if intent_id:
         record["intent_id"] = intent_id
-    if missing_slots:
+    if "missing_slots" in evidence or "missing_slots" in support:
         record["missing_slots"] = missing_slots
-    if isinstance(selected_triples, list):
+    if "selected_triples" in evidence and isinstance(selected_triples, list):
         record["selected_triple_count"] = len(selected_triples)
 
     return answer
@@ -535,6 +572,7 @@ def _run_query_phase(ctx: RunContext, *, quiet: bool) -> List[Dict[str, Any]]:
         except Exception as exc:
             record["answer"] = ""
             record["error"] = str(exc)
+            record["diagnostic"] = RunDiagnostic("query", "query_failed", str(exc), "Inspect provider, query and evidence details; retry in a fresh run.", record["id"]).to_dict()
             record["latency_s"] = round(time.monotonic() - started, 2)
             records.append(record)
             _emit(quiet, f"        -> ERROR: {exc}")
@@ -590,128 +628,16 @@ def _run_agents_sdk_query_phase(ctx: RunContext, *, quiet: bool, bundle_dir: str
     return records
 
 
-def _md_cell(value: Any) -> str:
-    return str(value if value is not None else "").replace("\n", " ").replace("|", "\\|")
 
-
-def _short(value: Any, *, limit: int = 60) -> str:
-    text = str(value if value is not None else "")
-    return text if len(text) <= limit else text[:limit] + "..."
-
-
-def _join_or_dash(values: Any) -> str:
-    items = _string_list(values)
-    return ", ".join(items) if items else "-"
-
-
-def _format_triple(triple: Dict[str, Any]) -> str:
-    source = str(triple.get("source", "") or "").strip() or "?"
-    relation = str(triple.get("relation", "") or "").strip() or "RELATED_TO"
-    target = str(triple.get("target", "") or "").strip() or "?"
-    return f"`{source}` -[{relation}]-> `{target}`"
-
-
-def _render_report_md(payload: Dict[str, Any]) -> str:
-    run = payload.get("run", {})
-    indexing = payload.get("indexing", {})
-    queries = payload.get("queries", [])
-    lines = [
-        f"# SEOCHO run: {run.get('name', '')}",
-        "",
-        f"- started: {run.get('started_at', '')}",
-        f"- models: indexing={run.get('models', {}).get('indexing', '')}, "
-        f"query={run.get('models', {}).get('query', '')}",
-        f"- enforcement: {run.get('enforcement', '')}",
-        f"- projection governance: {run.get('governance_mode', 'direct')}",
-        f"- graph: {run.get('graph', 'DozerDB/Neo4j Bolt URI required')} (database={run.get('database', '')})",
-        "",
-        "## Indexing",
-        "",
-        f"- files: {indexing.get('files_indexed', 0)} indexed, "
-        f"{indexing.get('files_unchanged', 0)} unchanged, "
-        f"{indexing.get('files_failed', 0)} failed",
-        f"- graph: {indexing.get('total_nodes', 0)} nodes, "
-        f"{indexing.get('total_relationships', 0)} relationships",
-        f"- validation errors: {indexing.get('validation_errors_count', 0)}",
-        "",
-    ]
-    if queries:
-        lines += [
-            "## Queries",
-            "",
-            "| # | question | answered | support | missing | evidence | latency |",
-            "|---|---|---|---|---|---|---|",
-        ]
-        for item in queries:
-            if item.get("error"):
-                answered = "error"
-            elif item.get("empty"):
-                answered = "empty"
-            else:
-                answered = "yes"
-            question_text = _short(item.get("question", ""))
-            support = item.get("support_status", "-")
-            missing = _join_or_dash(item.get("missing_slots", []))
-            evidence = item.get("selected_triple_count", "-")
-            lines.append(
-                f"| {_md_cell(item.get('id', ''))} | {_md_cell(question_text)} | {answered} | "
-                f"{_md_cell(support)} | {_md_cell(missing)} | {_md_cell(evidence)} | "
-                f"{_md_cell(item.get('latency_s', ''))}s |"
-            )
-        lines.append("")
-        for item in queries:
-            lines += [f"### Q{item.get('id', '')}: {item.get('question', '')}", ""]
-            if item.get("expect"):
-                lines += [f"**Expected:** {item['expect']}", ""]
-            if item.get("error"):
-                lines += [f"**Error:** {item['error']}", ""]
-            else:
-                lines += [str(item.get("answer", "")) or "_(empty answer)_", ""]
-                evidence = item.get("evidence_bundle") or {}
-                if evidence or item.get("support_assessment"):
-                    coverage = item.get("coverage", "-")
-                    lines += [
-                        f"**Evidence:** intent={item.get('intent_id', '-')}, "
-                        f"support={item.get('support_status', '-')}, coverage={coverage}",
-                        "",
-                    ]
-                if item.get("missing_slots"):
-                    lines += [f"**Missing slots:** {_join_or_dash(item.get('missing_slots'))}", ""]
-                triples = evidence.get("selected_triples", []) if isinstance(evidence, dict) else []
-                if triples:
-                    lines.append("**Selected triples:**")
-                    lines.append("")
-                    for triple in triples[:5]:
-                        if isinstance(triple, dict):
-                            lines.append(f"- {_format_triple(triple)}")
-                    if len(triples) > 5:
-                        lines.append(f"- ... {len(triples) - 5} more")
-                    lines.append("")
-    else:
-        lines += ["## Queries", "", "Index-only run (no questions declared).", ""]
-    scorecard = payload.get("agent_scorecard", {})
-    if scorecard:
-        agent = scorecard.get("agent", {})
-        lines += [
-            "## Agent semantic scorecard",
-            "",
-            f"- evidence coverage: {agent.get('mean_evidence_coverage')}",
-            f"- supported rate: {agent.get('supported_rate')}",
-            f"- missing slots per question: {agent.get('missing_slots_per_question')}",
-            f"- reference containment: {agent.get('reference_contains_rate')}",
-            "- interpretation: compare matched runs before claiming RDF-governance lift.",
-            "",
-        ]
-    return "\n".join(lines)
-
-
-def run(
+def _execute_run(
     ctx: RunContext,
     *,
     only: Optional[str] = None,
     force: bool = False,
     quiet: bool = False,
     track: bool = True,
+    payload: Dict[str, Any],
+    store: ReportStore,
 ) -> RunReport:
     """Execute the run: index → query → report. ``only`` limits to one phase."""
     spec = ctx.spec
@@ -744,15 +670,17 @@ def run(
         projection_decision, semantic_receipt=semantic_receipt, admission=admission
     )
     started_at = datetime.now().isoformat(timespec="seconds")
-    payload: Dict[str, Any] = {
+    payload.update({
         "run": {
             "name": spec.name,
             "description": spec.description,
             "spec_path": spec.source_path,
             "started_at": started_at,
+            "only": only,
+            "question_count": len(spec.questions),
             "enforcement": spec.enforcement,
             "models": {"indexing": spec.indexing_model(), "query": spec.query_model()},
-            "graph": spec.graph or "",
+            "graph": safe_endpoint(spec.graph),
             "graph_kind": spec.resolved_graph_kind(),
             "vector": spec.vector_kind() if spec.uses_vector_store() else "",
             "database": ctx.database,
@@ -760,7 +688,7 @@ def run(
             "governance_mode": spec.governance_mode,
             "projection_governance": governance_receipt,
         }
-    }
+    })
     from .eval.experiment_observability import agents_sdk_runtime_receipt, direct_runtime_receipt, experiment_run_trace
 
     agents_config = _agents_sdk_config(spec)
@@ -783,18 +711,42 @@ def run(
         if only in (None, "index"):
             _emit(quiet, f"Phase {phase}/{phase_count}: Indexing ({ctx.documents_path})")
             started = time.monotonic()
+            payload["active_stage"] = "index"
+            store.write(payload)
             payload["indexing"] = _run_index_phase(ctx, force=force, quiet=quiet, track=track)
+            for result in payload["indexing"].get("results", []):
+                if result.get("status") in {"failed", "skipped"}:
+                    detail = result.get("error") or "; ".join((result.get("indexing") or {}).get("write_errors", [])) or "Document produced no usable indexed content."
+                    payload["diagnostics"].append(RunDiagnostic(
+                        "index", "document_" + result["status"], detail,
+                        "Inspect this document's reader, extraction and graph-write result.",
+                        str(result.get("path", "")),
+                    ).to_dict())
+            store.write(payload)
             durations["index_s"] = round(time.monotonic() - started, 2)
             phase += 1
             _emit(quiet)
 
-        if only in (None, "query") and not spec.index_only():
+        index = payload.get("indexing")
+        query_allowed = index is None or int(index.get("files_indexed", 0)) + int(index.get("files_unchanged", 0)) > 0
+        if not query_allowed and only != "index":
+            payload["queries"] = [
+                {"id": q.question_id or str(i + 1), "question": q.question,
+                 "expect": q.expect, "answer": "", "skipped": True,
+                 "error": "No usable documents; query was not executed."}
+                for i, q in enumerate(spec.questions)
+            ]
+        if only in (None, "query") and not spec.index_only() and query_allowed:
+            payload["active_stage"] = "query"
+            store.write(payload)
             mode = build_agent_config(spec).execution_mode
             _emit(quiet, f"Phase {phase}/{phase_count}: Querying ({len(spec.questions)} questions, mode={mode})")
             started = time.monotonic()
             payload["queries"] = (_run_agents_sdk_query_phase(ctx, quiet=quiet, bundle_dir=bundle_dir, max_turns=max_turns)
                                   if agents_config else _run_query_phase(ctx, quiet=quiet))
             durations["query_s"] = round(time.monotonic() - started, 2)
+            payload["diagnostics"].extend(record["diagnostic"] for record in payload["queries"] if record.get("diagnostic"))
+            store.write(payload)
             _emit(quiet)
 
         indexing_summary = payload.get("indexing") or {}
@@ -827,18 +779,15 @@ def run(
             payload.get("indexing"), payload.get("queries"), governance=governance,
         ).to_dict()
 
-        ctx.output_dir.mkdir(parents=True, exist_ok=True)
-        report_json = ctx.output_dir / "report.json"
-        report_md = ctx.output_dir / "report.md"
-        report_json.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-        report_md.write_text(_render_report_md(payload), encoding="utf-8")
-
+        payload["active_stage"] = "finished"
+        payload["outcome"] = summarize_outcome(payload)
+        result = store.write(payload)
         if not quiet:
             _print_summary(payload)
-            print(f"Report: {report_md}")
-            print(f"        {report_json}")
-
-        return RunReport(payload=payload, report_json=report_json, report_md=report_md)
+            print(f"Status: {payload['outcome']['status']}")
+            print(f"Report: {result.report_md}")
+            print(f"        {result.report_json}")
+        return result
 
 
 def _print_summary(payload: Dict[str, Any]) -> None:
@@ -864,26 +813,107 @@ def _print_summary(payload: Dict[str, Any]) -> None:
     print()
 
 
+def _run_directory(spec: RunSpec) -> Path:
+    name = re.sub(r"[^A-Za-z0-9_.-]+", "-", spec.name).strip(".-") or "run"
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return _resolve(spec, spec.output_dir) / f"{name}-{timestamp}-{uuid.uuid4().hex[:8]}"
+
+
+def _initial_payload(spec: RunSpec) -> Dict[str, Any]:
+    return {"schema_version": "seocho.run_report.v2",
+            "run": {"name": spec.name, "workspace_id": spec.resolved_workspace_id(),
+                    "started_at": datetime.now().isoformat(timespec="seconds"),
+                    "question_count": len(spec.questions)},
+            "outcome": {"status": "running", "reasons": []},
+            "diagnostics": [], "active_stage": "build"}
+
+
+def _record_failure(payload: Dict[str, Any], exc: BaseException, store: ReportStore) -> RunReport:
+    interrupted = isinstance(exc, (KeyboardInterrupt, SystemExit))
+    stage = payload.get("active_stage", "build")
+    diagnostic = {"stage": stage, "code": "interrupted" if interrupted else f"{stage}_failed",
+                  "message": str(exc) or type(exc).__name__,
+                  "action": "Inspect the failed stage; graph writes may be partial. Retry with a fresh output directory."}
+    payload["fatal_error"] = diagnostic
+    payload["diagnostics"].append(diagnostic)
+    payload["outcome"] = {"status": "interrupted" if interrupted else "failed", "reasons": [diagnostic["code"]]}
+    payload["run"]["finished_at"] = datetime.now().isoformat(timespec="seconds")
+    return store.write(payload)
+
+
+def run(
+    ctx: RunContext, *, only: Optional[str] = None, force: bool = False,
+    quiet: bool = False, track: bool = True, store: Optional[ReportStore] = None,
+    payload: Optional[Dict[str, Any]] = None,
+) -> RunReport:
+    """Execute phases, preserving a checkpoint before every external stage."""
+    store = store if store is not None else FileReportStore(ctx.output_dir)
+    payload = payload if payload is not None else _initial_payload(ctx.spec)
+    try:
+        if "reproducibility" not in payload:
+            payload["reproducibility"] = collect_evidence(ctx.spec, only=only, force=force, track=track)
+        store.write(payload)
+        _execute_run(ctx, only=only, force=force, quiet=quiet, track=track, payload=payload, store=store)
+        return store.write(payload)
+    except (KeyboardInterrupt, SystemExit) as exc:
+        _record_failure(payload, exc, store)
+        raise
+    except Exception as exc:
+        return _record_failure(payload, exc, store)
+
+
 def run_spec_once(
-    spec: RunSpec,
-    *,
-    only: Optional[str] = None,
-    force: bool = False,
-    quiet: bool = False,
-    track: bool = True,
+    spec: RunSpec, *, only: Optional[str] = None, force: bool = False,
+    quiet: bool = False, track: bool = True,
     output_dir_override: "Optional[str | Path]" = None,
 ) -> RunReport:
-    """Build and execute one already-validated spec (preflight is the
-    caller's responsibility). ``output_dir_override`` places the report
-    exactly there instead of the derived ``<output>/<name>-<ts>/`` dir —
-    sweeps use it to land artifacts in their per-variant directory."""
-    ctx = build(spec)
-    if output_dir_override is not None:
-        ctx.output_dir = Path(output_dir_override)
+    """Build and run one spec; preserve failure receipts and release resources."""
+    directory = Path(output_dir_override) if output_dir_override is not None else _run_directory(spec)
+    store = FileReportStore(directory)
+    payload = _initial_payload(spec)
+    ctx: Optional[RunContext] = None
     try:
-        return run(ctx, only=only, force=force, quiet=quiet, track=track)
+        payload["reproducibility"] = collect_evidence(spec, only=only, force=force, track=track)
+        store.write(payload)
+        ctx = build(spec)
+        ctx.output_dir = directory
+        result = run(ctx, only=only, force=force, quiet=quiet, track=track, store=store, payload=payload)
+    except (KeyboardInterrupt, SystemExit) as exc:
+        _record_failure(payload, exc, store)
+        raise
+    except Exception as exc:
+        result = _record_failure(payload, exc, store)
     finally:
-        ctx.close()
+        if ctx is not None:
+            errors = ctx.close()
+            if errors:
+                payload["cleanup_errors"] = errors
+                payload["diagnostics"].extend(errors)
+                if payload["outcome"]["status"] != "interrupted":
+                    payload["outcome"] = summarize_outcome(payload)
+                store.write(payload)
+    if not quiet and not result.ok:
+        print(f"Run {payload['outcome']['status']}. Inspect {result.report_md}", file=sys.stderr)
+    return result
+
+
+def _preflight_failure(
+    spec: RunSpec, preflight: Any, *, persist: bool = True,
+    directory: Optional[Path] = None,
+) -> RunReport:
+    payload = _initial_payload(spec)
+    payload.update(ok=False, active_stage="preflight",
+                   outcome={"status": "failed", "reasons": ["preflight_failed"]},
+                   preflight=[{"name": c.name, "status": c.status, "detail": c.detail, "fix": c.fix}
+                              for c in preflight.checks])
+    payload["diagnostics"] = [RunDiagnostic("preflight", "preflight_failed", c.detail,
+                                            c.fix or "Correct this check before retrying.", c.name).to_dict()
+                              for c in preflight.failures()]
+    if not persist:
+        return RunReport(payload=payload)
+    store = FileReportStore(directory if directory is not None else _run_directory(spec))
+    payload["report_directory"] = str(store.directory)
+    return store.write(payload)
 
 
 def _print_config_errors(config_path: Any, errors: List[str]) -> None:
@@ -900,6 +930,7 @@ def run_from_config(
     only: Optional[str] = None,
     output_dir: Optional[str] = None,
     force: bool = False,
+    track: bool = True,
     json_output: bool = False,
     vars_files: Optional[List[str]] = None,
     var_flags: Optional[List[str]] = None,
@@ -949,12 +980,13 @@ def run_from_config(
     _emit(quiet, report.render())
     _emit(quiet)
     if not report.ok:
+        failure = _preflight_failure(spec, report, persist=not dry_run)
         if json_output:
-            print(json.dumps({"ok": False, "preflight": [
-                {"name": c.name, "status": c.status, "detail": c.detail} for c in report.checks
-            ]}, ensure_ascii=False))
+            print(json.dumps(failure.payload, ensure_ascii=False))
         else:
             print(f"Preflight failed ({len(report.failures())} checks). Nothing was run.", file=sys.stderr)
+            if failure.report_md:
+                print(f"Report: {failure.report_md}", file=sys.stderr)
         return 1
 
     if dry_run:
@@ -977,7 +1009,7 @@ def run_from_config(
             }, ensure_ascii=False))
         return 0
 
-    result = run_spec_once(spec, only=only, force=force, quiet=quiet)
+    result = run_spec_once(spec, only=only, force=force, quiet=quiet, track=track)
 
     if json_output:
         print(json.dumps(result.payload, indent=2, ensure_ascii=False))
@@ -1164,7 +1196,7 @@ def run_sweep_from_config(
     if not output_root.is_absolute():
         output_root = base_dir / output_root
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    sweep_run_dir = output_root / f"{sweep.name}-{timestamp}"
+    sweep_run_dir = output_root / f"{sweep.name}-{timestamp}-{uuid.uuid4().hex[:8]}"
 
     # --- Stage 1: render + validate + derive isolation for EVERY variant.
     prepared: List[Tuple[Any, RunSpec, str]] = []
@@ -1241,6 +1273,7 @@ def run_sweep_from_config(
         _emit(quiet, f"[{position}/{len(prepared)}] {variant.name}")
         preflight = run_preflight(spec, online=True)
         if not preflight.ok:
+            _preflight_failure(spec, preflight, directory=sweep_run_dir / variant.slug)
             _emit(quiet, preflight.render())
             _emit(quiet, f"  variant PREFLIGHT FAILED — "
                          f"{'stopping (--fail-fast)' if fail_fast else 'continuing'}")

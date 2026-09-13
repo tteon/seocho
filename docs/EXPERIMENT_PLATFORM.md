@@ -51,3 +51,132 @@ Tracing is vendor-neutral (`none`, `console`, `jsonl`, `otlp`). Opik was removed
 in ADR-0172; select an OTLP backend explicitly. Preserve original receipts when
 exporting saved spans so later verification does not rewrite what the original
 run actually observed.
+
+## Your data: run, diagnose, compare
+
+The experiment platform is the existing `seocho run` / `seocho sweep` workflow
+plus saved evidence. Its purpose is to show what changed after a SEOCHO update
+and where a user's own E2E run failed. It does not add a hosted UI or a new
+metadata-store plugin. The SDK, runtime and backend contracts remain unchanged.
+
+Start with `seocho new my-experiment`, replace `docs/` with your own supported
+text/Markdown/CSV/JSON/JSONL/PDF files, and edit `schema.yaml` and
+`seocho.run.yaml`. Give each question a stable `id`; optionally supply `expect`
+as a reference. An expected string is a containment proxy, not a gold quality
+judgment. The data and generated reports may contain private content; keep them
+in your local project, outside Git.
+
+Configure an existing DozerDB/Neo4j endpoint and target database. Environment
+interpolation keeps credentials out of the config:
+
+```yaml
+name: my-experiment
+ontology: ./schema.yaml
+documents: ./docs/
+graph:
+  uri: ${NEO4J_URI:-bolt://localhost:7687}
+  user: ${NEO4J_USER:-neo4j}
+  password: ${NEO4J_PASSWORD}
+database: ${EXPERIMENT_DATABASE}
+workspace_id: ${EXPERIMENT_WORKSPACE}
+models:
+  default: mara/MiniMax-M2.7
+questions:
+  - id: company-ceo
+    question: Who is the CEO of Acme Corp?
+    expect: Jane Park
+```
+
+Use your own schema/questions instead of these illustrative names. Provision
+separate empty experiment databases using your graph administrator's normal
+workflow. The runner never clears data, creates databases, or rolls back partial
+graph writes. Workspace labels alone do not prove arbitrary-query isolation.
+
+```bash
+# Set provider key and graph credentials in your environment first.
+export EXPERIMENT_DATABASE=experimentbaseline
+export EXPERIMENT_WORKSPACE=baseline
+seocho run seocho.run.yaml --dry-run
+seocho run seocho.run.yaml --no-track --output runs/baseline
+
+# After the intended SEOCHO change, keep documents/questions/model/settings fixed.
+export EXPERIMENT_DATABASE=experimentcandidate
+export EXPERIMENT_WORKSPACE=candidate
+seocho run seocho.run.yaml --no-track --output runs/candidate
+
+# Replace these paths with the actual unique run directories printed above.
+seocho runs compare runs/baseline/RUN_ID runs/candidate/RUN_ID \
+  --change source \
+  --hypothesis 'The indexing fix reduces failed documents without losing answer support' \
+  --output-dir comparisons/indexing-fix
+```
+
+From a checkout, prefix with `uv run`. `--output` selects a parent directory;
+each execution creates `<name>-<timestamp>-<id>/`. `--no-track` bypasses the
+file-change cache so every experiment indexes its inputs. It does not erase old
+graph facts; fresh targets are still required. A query-only experiment can use
+`--only query` with a separately frozen graph, and its lack of indexing evidence
+remains visible.
+
+## Failure receipts
+
+Every admitted execution writes `report.json` (`seocho.run_report.v2`) and
+`report.md`. Reports retain the existing run/indexing/queries/agent_scorecard
+fields and add `outcome`, `active_stage`, `diagnostics`, and `reproducibility`.
+A checkpoint precedes build/index/query work, so interrupted work remains visible.
+JSON is the authoritative checkpoint; if interrupted during Markdown rendering,
+the Markdown file may represent the previous checkpoint. Existing report targets
+are refused. A hard process kill can leave `running`; it is never interpreted as
+completed evidence. Disk failure cannot guarantee persistence.
+
+Outcomes distinguish `completed`, `partial`, `failed`, and `interrupted`.
+Preflight failures on a real run also save diagnostics. Dry-run remains a local
+check with no saved run or model calls. Invalid YAML exits 2; runtime/preflight
+failure, partial indexing and empty answers exit 1. Successful execution exits 0
+without asserting answer correctness. A nonempty evidence-backed abstention is
+not classified as an empty answer.
+
+Inspect diagnostics in this order: document reader/format, indexing/extraction or
+graph write, then query/provider/evidence. Empty or invalid JSONL files fail local
+preflight, including the first bad line number. Online preflight checks the exact
+target database before extraction. If no documents were indexed or reused, query
+is skipped so old graph content cannot mask a wholly failed ingest. If some
+files fail, remaining query results are retained with an overall partial status.
+Failed indexing is not cached as successfully unchanged on the next attempt.
+
+## Interpreting comparisons
+
+The comparison command is offline. It matches content fingerprints for documents,
+question/reference sets, ontology, model choices, configurations, local package
+versions and installed SEOCHO source. Credentials are excluded from the graph
+endpoint identity. Source hashes include Python implementation content, including
+uncommitted edits, rather than trusting a Git revision alone. Referenced designs
+and bundles are hashed; unresolved adaptive ontology selection is an evidence gap.
+
+Declare intended changes with repeatable `--change` and explain them with
+`--hypothesis`. Documents/questions must remain fixed. Mismatched or missing
+receipts, omitted questions, interrupted stages, or reuse of tracked indexing
+produce `incomparable`, exit 1, and unavailable aggregate deltas. Old reports
+remain useful for diagnostics but cannot establish matched conditions retroactively.
+Question transitions and failures remain visible even when aggregate comparison
+is rejected. Comparison outputs always require a new directory.
+
+Matched reports show descriptive differences in indexing failures, answer/empty
+rates, support/evidence proxies and recorded wall time. Missing evidence or
+usage/cost data stays unavailable. There is no automatic "SEOCHO improved"
+verdict. The receipt cannot prove initial graph identity, provider revision,
+hardware, cache state, warmup, or external service versions. Record these separately
+for live experiments; use held-out references or blinded judging for grounded
+correctness and repetitions/uncertainty before claiming a quality or speed gain.
+Do not pool hosted-provider and self-hosted inference evidence.
+
+## Maintenance boundaries
+
+`e2e.py` owns execution; `run_outcomes.py` owns status rules;
+`run_reporting.py` owns report presentation and file persistence behind an
+internal `ReportStore` protocol; `run_evidence.py` owns input fingerprints;
+`run_comparison.py` owns offline comparison using the existing semantic scorecard.
+The CLI registers `runs` through the existing command-group interface. These
+boundaries receive strict incremental typing, Python lint, and deterministic
+failure/compatibility tests in basic CI. Contract tests are not live backend or
+performance evidence.

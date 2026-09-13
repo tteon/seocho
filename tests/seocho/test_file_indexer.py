@@ -224,3 +224,24 @@ class TestSupportedExtensions:
         assert ".csv" in SUPPORTED_EXTENSIONS
         assert ".json" in SUPPORTED_EXTENSIONS
         assert ".jsonl" in SUPPORTED_EXTENSIONS
+
+
+def test_failed_index_is_retried_instead_of_cached_as_unchanged(tmp_path):
+    from seocho.index.file_reader import FileIndexer
+    from seocho.index.pipeline import IndexingResult
+
+    class Pipeline:
+        default_database = "neo4j"
+        def __init__(self):
+            self.calls = 0
+        def index(self, content, **kwargs):
+            self.calls += 1
+            return IndexingResult(write_errors=["database write failed"])
+
+    source = tmp_path / "doc.txt"
+    source.write_text("A document requiring retry")
+    pipeline = Pipeline()
+    indexer = FileIndexer(pipeline)
+    assert indexer.index_directory(tmp_path).files_failed == 1
+    assert indexer.index_directory(tmp_path).files_failed == 1
+    assert pipeline.calls == 2

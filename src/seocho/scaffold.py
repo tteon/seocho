@@ -128,8 +128,10 @@ seocho run
 
 From a repository checkout, use `uv run seocho ...` instead of `seocho ...`.
 
-The run requires a DozerDB or Neo4j Bolt graph endpoint.
-is required. The generated report lands under `runs/`.
+The run requires a DozerDB or Neo4j Bolt graph endpoint. Configure its URI,
+credentials and an existing target database in `seocho.run.yaml`. The generated
+report lands under `runs/`; inspect its status and diagnostics before interpreting
+answer quality. For isolated experiments, use `seocho run --no-track`.
 
 ## Try Edits
 

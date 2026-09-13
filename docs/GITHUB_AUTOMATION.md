@@ -39,7 +39,11 @@ that the workflow calls before patching workflow YAML.
 `run_basic_ci.sh` compiles tracked Python source files dynamically, runs a
 focused Ruff lint gate on the actively maintained CI/run-spec/onboarding
 surfaces, then runs the curated SDK/runtime pytest set and repository contract
-checks. New tests that cover the curated surface should be added to that script
+checks. Experiment evidence modules additionally run strict mypy with skipped
+legacy imports, plus Ruff E4/E7/E9/F/B/UP/SIM rules. This incremental gate covers
+run outcomes, persistence, fingerprints, comparisons and the saved-run CLI; it
+does not assert that the entire SDK is strictly typed. The locked `ci` and `dev`
+extras include mypy. New tests that cover the curated surface should be added to that script
 in the same PR as the behavior change; legacy/live-service tests stay outside
 Basic CI until their service dependencies and skip contracts are clean.
 

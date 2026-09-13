@@ -14,9 +14,11 @@ You will:
 uv pip install "seocho[local]"
 ```
 
-`seocho[local]` includes the local SDK engine, agent dependencies, and the
-embedded LadybugDB graph path. You do not need to run a server for this first
-example.
+`seocho[local]` includes the local SDK engine, agent dependencies, and graph
+clients. This run requires a DozerDB/Neo4j Bolt endpoint; use the
+[deployment guide](docs/RUNTIME_DEPLOYMENT.md) to start one. Configure `graph`
+URI/credentials and an existing target `database` in the generated run spec.
+Offline `--dry-run` does not verify that database connectivity.
 
 Set your provider key. SEOCHO recommends MARA:
 
@@ -59,6 +61,9 @@ What happened:
 - `seocho.run.yaml` declared the questions
 - `report.md` and `report.json` captured answers, support status, missing
   slots, and selected graph evidence
+
+For private datasets, failure diagnostics, and saved-run comparisons, see
+[Experiment Platform](https://github.com/tteon/seocho/blob/main/docs/EXPERIMENT_PLATFORM.md).
 
 ## 3. The Smallest SDK Example
 

@@ -491,8 +491,8 @@ class FileIndexer:
             if strict_validation is not None:
                 self.pipeline.strict_validation = original_strict
 
-        # Track
-        if tracker:
+        # Failed indexing must be retried; never cache failure as unchanged.
+        if tracker and total_result.ok:
             from .pipeline import content_hash as _hash
             full_text = path.read_text(encoding="utf-8", errors="replace")
             tracker.mark_indexed(path, total_result.source_id, _hash(full_text))

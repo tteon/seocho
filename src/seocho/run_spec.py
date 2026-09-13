@@ -246,6 +246,8 @@ def _parse_questions(value: Any, *, errors: List[str]) -> List[QuestionSpec]:
         if isinstance(item, str):
             if item.strip():
                 questions.append(QuestionSpec(question=item.strip()))
+            else:
+                errors.append(f"at {where}: question must not be blank.")
             continue
         if isinstance(item, Mapping):
             _check_unknown_keys(
@@ -264,6 +266,12 @@ def _parse_questions(value: Any, *, errors: List[str]) -> List[QuestionSpec]:
             )
             continue
         errors.append(f"at {where}: must be a string or a mapping with 'question'.")
+    seen: set[str] = set()
+    for index, question in enumerate(questions):
+        identity = question.question_id or str(index + 1)
+        if identity in seen:
+            errors.append(f"at questions[{index}].id: duplicate resolved question id {identity!r}.")
+        seen.add(identity)
     return questions
 
 

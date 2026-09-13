@@ -20,7 +20,7 @@ EXPECTED_COMMANDS = {
     "add", "get", "search", "chat", "ask", "delete", "graphs", "doctor",
     "serve", "stop", "artifacts", "connect", "connectors", "new", "init",
     "index", "local-ask", "status", "compare", "experiment", "bundle",
-    "ontology", "serve-http", "run", "sweep", "traces",
+    "ontology", "serve-http", "run", "sweep", "runs", "traces",
 }
 
 EXPECTED_ONTOLOGY_SUBCOMMANDS = {

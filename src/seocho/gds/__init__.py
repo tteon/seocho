@@ -182,7 +182,7 @@ class GDSSession:
 
         # Idempotent cleanup: drop any leftover with the same name first.
         try:
-            self._run(f"CALL gds.graph.drop($name, false)", name=self.name)
+            self._run("CALL gds.graph.drop($name, false)", name=self.name)
         except Exception:
             pass
 

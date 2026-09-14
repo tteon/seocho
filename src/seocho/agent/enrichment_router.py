@@ -25,7 +25,7 @@ import asyncio
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional
 
 from seocho.routing import RoutingDecision, RoutingPolicy
 

@@ -27,8 +27,9 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
+from .run_clients import IndexClient, QueryClient
 from .run_spec import RunSpec, RunSpecError, load_run_spec, parse_model_ref
 from .run_evidence import collect_evidence, safe_endpoint
 from .run_outcomes import RunDiagnostic, summarize_outcome
@@ -38,6 +39,10 @@ from .run_reporting import FileReportStore, ReportStore, RunReport, render_repor
 
 # Compatibility for callers that used the former private renderer.
 _render_report_md = render_report_md
+
+if TYPE_CHECKING:
+    from .ontology import Ontology
+    from .store.graph import GraphStore
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +54,10 @@ class RunContext:
     """Live objects assembled from a run spec, ready to execute."""
 
     spec: RunSpec
-    ontology: Any
-    graph_store: Any
-    index_client: Any
-    query_client: Any
+    ontology: Ontology
+    graph_store: GraphStore
+    index_client: IndexClient
+    query_client: QueryClient
     database: str
     documents_path: Path
     output_dir: Path
@@ -348,7 +353,6 @@ def _build(spec: RunSpec, resources: List[Any]) -> RunContext:
     )
 
 
-
 def _emit(quiet: bool, message: str = "") -> None:
     if not quiet:
         print(message)
@@ -529,9 +533,9 @@ def _run_index_phase(
         indexing = file_result.get("indexing") or {}
         if indexing.get("fallback_reason"):
             indexing["fallback_reason"] = redact_diagnostic(spec, indexing["fallback_reason"])
-        for field in ("write_errors", "validation_errors"):
-            if indexing.get(field):
-                indexing[field] = [redact_diagnostic(spec, error) for error in indexing[field]]
+        for error_field in ("write_errors", "validation_errors"):
+            if indexing.get(error_field):
+                indexing[error_field] = [redact_diagnostic(spec, error) for error in indexing[error_field]]
         total_nodes += int(indexing.get("total_nodes", 0))
         total_relationships += int(indexing.get("total_relationships", 0))
         validation_errors.extend(indexing.get("validation_errors", []) or [])
@@ -649,7 +653,6 @@ def _run_agents_sdk_query_phase(ctx: RunContext, *, quiet: bool, bundle_dir: str
             checkpoint(records, None)
         _emit(quiet, f"  [{index + 1}/{len(ctx.spec.questions)}] agents_sdk -> {'ERROR' if record.get('error') else 'ok'}")
     return records
-
 
 
 def _execute_run(

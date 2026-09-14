@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from .row_scoring import row_match_score
+
 import json
 import os
 import re
 from typing import Any, Dict, List, Optional, Sequence
 
 from ..store.llm import complete_with_task_hints
-from .intent import build_evidence_bundle, infer_question_intent
+from .intent import build_evidence_bundle as build_evidence_bundle, infer_question_intent as infer_question_intent
 
 
 def _deterministic_financial_enabled() -> bool:
@@ -636,13 +638,10 @@ class QueryAnswerSynthesizer:
         metric_aliases: Sequence[str],
         scope_tokens: Sequence[str],
     ) -> int:
-        score = self._company_match_score(str(row.get("company", "")), anchor)
-        metric_text = str(row.get("metric_name", "")).lower()
-        score += sum(3 for token in scope_tokens if token in metric_text)
-        score += sum(1 for alias in metric_aliases if alias in metric_text)
-        if str(row.get("relationship", "")) in {"REPORTED", "reported"}:
-            score += 2
-        return score
+        return row_match_score(
+            row, metric_aliases, scope_tokens,
+            company_score=self._company_match_score(str(row.get("company", "")), anchor),
+        )
 
     def _company_match_score(self, company: str, anchor: str) -> int:
         if not anchor:

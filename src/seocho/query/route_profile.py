@@ -19,7 +19,7 @@ planner to the lane's execution levers (reasoning_mode / repair_budget).
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Tuple
 

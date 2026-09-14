@@ -35,7 +35,7 @@ from dataclasses import replace
 import asyncio
 import logging
 import os
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any, Dict, Mapping, Optional
 
 from .contracts import QueryPlan
 from .planner import DeterministicQueryPlanner

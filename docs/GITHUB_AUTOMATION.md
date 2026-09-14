@@ -135,3 +135,12 @@ Experiment evidence CI covers runtime-setting identity, diagnostic redaction,
 query interruption checkpoints, degraded indexing, and safe local HTML rendering.
 The code-review connector is a separate account-backed service: its usage-limit
 comment is not a successful review, regardless of the CI result.
+
+### Python implementation checks
+
+Basic CI runs product-wide Ruff `E9,F` checks over `src/seocho`, `runtime` and
+`extraction`, excluding test directories and notebooks from this additional gate.
+Public re-exports must be explicit. The gate includes execution-result JSON,
+DataHub approval-tag, registered runtime-tool and semantic-helper compatibility
+regressions. Existing focused test/lint and documentation gates remain in place
+(ADR-0234).

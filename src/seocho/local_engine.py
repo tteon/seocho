@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .query.row_scoring import row_match_score
+
 import json
 import logging
 import os
@@ -71,7 +73,7 @@ class _LocalEngine:
         from .index.ingestion_facade import IngestRequest, IngestionFacade
         from .indexing import IndexingPipeline
         from .ontology import Ontology
-        from .prompt_strategy import ExtractionStrategy, LinkingStrategy, QueryStrategy
+        from .prompt_strategy import ExtractionStrategy, QueryStrategy
 
         self.ontology: Ontology = ontology
         self.graph_store = graph_store
@@ -141,7 +143,6 @@ class _LocalEngine:
 
         # Pre-build strategies (for extract-only and query).
         self._extraction = ExtractionStrategy(ontology, extraction_prompt=extraction_prompt)
-        self._linking = LinkingStrategy(ontology)
         self._query = QueryStrategy(ontology)
 
     def _resolve_qualification_store(
@@ -1563,13 +1564,10 @@ class _LocalEngine:
         metric_aliases: Sequence[str],
         scope_tokens: Sequence[str],
     ) -> int:
-        score = self._company_match_score(str(row.get("company", "")), anchor)
-        metric_text = str(row.get("metric_name", "")).lower()
-        score += sum(3 for token in scope_tokens if token in metric_text)
-        score += sum(1 for alias in metric_aliases if alias in metric_text)
-        if str(row.get("relationship", "")) in {"REPORTED", "reported"}:
-            score += 2
-        return score
+        return row_match_score(
+            row, metric_aliases, scope_tokens,
+            company_score=self._company_match_score(str(row.get("company", "")), anchor),
+        )
 
     def _company_match_score(self, company: str, anchor: str) -> int:
         if not anchor:
@@ -1667,30 +1665,3 @@ class _LocalEngine:
 
     def _format_financial_number(self, value: float) -> str:
         return f"{value:,.1f}".rstrip("0").rstrip(".")
-
-    def _link(
-        self,
-        nodes: List[Dict[str, Any]],
-        relationships: List[Dict[str, Any]],
-        *,
-        category: str = "general",
-    ) -> Dict[str, Any]:
-        """Run entity linking/dedup."""
-        self._linking.category = category
-        entities_json = json.dumps({"nodes": nodes, "relationships": relationships}, default=str)
-        system, user = self._linking.render(entities_json)
-
-        response = complete_with_task_hints(
-            self.llm,
-            system=system,
-            user=user,
-            temperature=0.0,
-            response_format={"type": "json_object"},
-            reasoning_mode=False,
-            task_hint="entity_linking",
-        )
-
-        try:
-            return response.json()
-        except (json.JSONDecodeError, ValueError):
-            return {"nodes": nodes, "relationships": relationships}

@@ -33,22 +33,27 @@ class SpecError(ValueError):
         super().__init__("\n".join(self.errors))
 
 
+def interpolate_env_string(value: str, *, errors: List[str], where: str) -> str:
+    """Resolve environment references in one string, collecting missing keys."""
+    def _resolve(match: "re.Match[str]") -> str:
+        name, default = match.group(1), match.group(2)
+        resolved = os.environ.get(name)
+        if resolved is not None:
+            return resolved
+        if default is not None:
+            return default
+        errors.append(
+            f"at {where}: environment variable {name} is not set. "
+            f"Export it or use ${{{name}:-fallback}}."
+        )
+        return ""
+    return _ENV_PATTERN.sub(_resolve, value)
+
+
 def interpolate_env(value: Any, *, errors: List[str], where: str) -> Any:
     """Resolve ``${VAR}`` / ``${VAR:-default}`` in string values, recursively."""
     if isinstance(value, str):
-        def _resolve(match: "re.Match[str]") -> str:
-            name, default = match.group(1), match.group(2)
-            resolved = os.environ.get(name)
-            if resolved is not None:
-                return resolved
-            if default is not None:
-                return default
-            errors.append(
-                f"at {where}: environment variable {name} is not set. "
-                f"Export it or use ${{{name}:-fallback}}."
-            )
-            return ""
-        return _ENV_PATTERN.sub(_resolve, value)
+        return interpolate_env_string(value, errors=errors, where=where)
     if isinstance(value, dict):
         return {
             key: interpolate_env(item, errors=errors, where=f"{where}.{key}" if where else str(key))

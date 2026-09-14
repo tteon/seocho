@@ -107,13 +107,15 @@ class _FileState:
     mtime: float
     size: int
     source_id: str
-    content_hash: str
+    content_hash: str = ""
 
 
 class FileTracker:
-    """Tracks which files have been indexed (path + mtime + hash).
+    """Tracks indexed files by path, modification time and size.
 
     Persists to a ``.seocho_index`` JSON file in the indexed directory.
+    Legacy content hashes are retained for compatibility but are not compared.
+    Use force/no-track for edits that preserve both modification time and size.
     """
 
     def __init__(self, directory: Union[str, Path]) -> None:
@@ -136,7 +138,8 @@ class FileTracker:
 
     def save(self) -> None:
         data = {
-            "version": 1,
+            "version": 2,
+            "change_detection": "mtime_size",
             "files": [
                 {
                     "path": s.path,
@@ -159,7 +162,7 @@ class FileTracker:
         stat = path.stat()
         return stat.st_mtime != state.mtime or stat.st_size != state.size
 
-    def mark_indexed(self, path: Path, source_id: str, content_hash: str) -> None:
+    def mark_indexed(self, path: Path, source_id: str, content_hash: str = "") -> None:
         stat = path.stat()
         self._states[str(path)] = _FileState(
             path=str(path),
@@ -498,9 +501,7 @@ class FileIndexer:
 
         # Failed indexing must be retried; never cache failure as unchanged.
         if tracker and total_result.ok:
-            from .pipeline import content_hash as _hash
-            full_text = path.read_text(encoding="utf-8", errors="replace")
-            tracker.mark_indexed(path, total_result.source_id, _hash(full_text))
+            tracker.mark_indexed(path, total_result.source_id)
 
         return FileIndexResult(
             path=str(path),

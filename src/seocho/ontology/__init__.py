@@ -69,7 +69,6 @@ _EXPORTS = {
     "ontology_context_graph_properties": "context",
     "query_ontology_context_mismatch": "context",
     "same_ontology_context_hash": "context",
-    "FreshnessSignals": "freshness",
     "FreshnessDecision": "freshness",
     "FreshnessSignals": "freshness",
     "evaluate_freshness": "freshness",

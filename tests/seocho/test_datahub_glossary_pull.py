@@ -153,3 +153,31 @@ def test_pull_scopes_to_the_package_urn_prefix(monkeypatch):
 
     unscoped = dh.fetch_glossary_term_records(server="http://gms:8080")
     assert [r["name"] for r in unscoped] == ["Animal", "Revenue"]
+
+
+def test_urn_fallback_preserves_namespaced_approval() -> None:
+    entity = _term('Company', approved=True)
+    del entity['tags']['tags'][0]['tag']['name']
+    assert glossary_term_to_record(entity)['review_status'] == 'APPROVED'
+    assert glossary_term_to_record(entity, approved_tag='approved')['review_status'] == 'PROPOSED'
+
+
+def test_tag_name_takes_precedence_over_urn() -> None:
+    entity = _term('Company', approved=True)
+    entity['tags']['tags'][0]['tag']['name'] = 'pending'
+    assert glossary_term_to_record(entity)['review_status'] == 'PROPOSED'
+
+
+def test_dataset_tag_fallback_keeps_source_urn() -> None:
+    from seocho.connectors.datahub import dataset_entity_to_record
+
+    entity = _term('Company', approved=True)
+    del entity['tags']['tags'][0]['tag']['name']
+    record = dataset_entity_to_record(entity)
+    assert record.metadata['tags'] == ['urn:li:tag:seocho:approved']
+
+
+def test_malformed_glossary_tags_do_not_approve() -> None:
+    entity = _term('Company')
+    entity['tags'] = {'tags': [None, {}, {'tag': None}, {'tag': {'urn': None}}]}
+    assert glossary_term_to_record(entity)['review_status'] == 'PROPOSED'

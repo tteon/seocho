@@ -2,6 +2,10 @@
 
 ## 2026-09-13
 
+- [Accepted] `ADR-0234-python-implementation-ownership.md`
+  - establish canonical helper ownership, stable SDK/CLI boundaries and explicit
+    stat-based file tracking; preserve imports, evidence and public contracts
+
 - [Accepted] `ADR-0232-public-product-and-experiment-entrypoints.md`
   - make README, contributor navigation and GitHub intake reflect actual
     prerequisites, user-data experiment evidence and maintainable agent workflows

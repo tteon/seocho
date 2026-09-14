@@ -53,7 +53,7 @@ class _FakeLLM:
 
 
 class _FakeGraphStore:
-    def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
+    def query(self, cypher: str, *, params=None, database: str = "neo4j", **kwargs):  # noqa: ANN001
         return [{"company": "CBOE", "metric_name": "Revenue 2023", "year": "2023", "value": "10.0"}]
 
 

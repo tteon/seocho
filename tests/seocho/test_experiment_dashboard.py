@@ -15,7 +15,7 @@ import pytest
 from seocho.cli import build_parser
 from seocho.dashboard import catalog
 from seocho.dashboard.server import DashboardServer
-from seocho.run_comparison import REQUIRED, compare_runs
+from seocho.run_comparison import REQUIRED, compare_runs, load_report
 from seocho.run_evidence import SCHEMA
 
 
@@ -206,3 +206,31 @@ def test_dashboard_cli_dispatch(
     assert calls.pop() == ((tmp_path,), 0)
     with pytest.raises(ValueError, match="Port"):
         server.DashboardServer((tmp_path,), -1)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("diagnostics", [None]),
+        ("diagnostics", ["bad"]),
+        ("diagnostics", None),
+        ("diagnostics", {}),
+        ("active_question", "bad"),
+        ("active_question", ["q1"]),
+    ],
+)
+def test_malformed_display_metadata_isolated_before_serving(
+    tmp_path: Path, field: str, value: Any
+) -> None:
+    data = receipt()
+    data[field] = value
+    path = save(tmp_path / "corrupt", data)
+    original = path.read_bytes()
+    save(tmp_path / "valid", receipt("Valid neighbor"))
+    snapshot = catalog.scan((tmp_path,))
+    assert [row["name"] for row in snapshot.rows] == ["Valid neighbor"]
+    assert len(snapshot.warnings) == 1
+    assert snapshot.warnings[0]["path"] == "corrupt/report.json"
+    assert path.read_bytes() == original
+    with pytest.raises(ValueError, match=field):
+        load_report(path)

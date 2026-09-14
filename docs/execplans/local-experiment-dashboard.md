@@ -16,7 +16,10 @@ comparison; a candidate is the run being evaluated against it.
 - [x] Record the local application boundary in ADR-0235.
 - [x] Implement bounded catalog, read-only HTTP API and packaged dashboard UI.
 - [x] Validate real local HTTP/browser behavior and malformed receipt boundaries.
-- [ ] Run basic CI, packaging and docs checks; publish and land the scoped PR.
+- [x] Run basic CI, packaging and docs checks; publish [PR #682](https://github.com/tteon/seocho/pull/682).
+- [x] Address the automatic Codex review: reject malformed diagnostics/checkpoint metadata.
+
+GitHub PR #682 records the final required checks and landing status.
 
 ## Surprises & Discoveries
 
@@ -39,17 +42,21 @@ HTTP tests can falsify navigation, filtering and reading-boundary assumptions.
 
 
 The local dashboard is implemented with no new runtime dependencies. Full basic
-CI passed: 1,222 tests passed, 5 skipped. Real loopback HTTP and Chrome checks
+CI passed: 1,228 tests passed, 5 skipped. Real loopback HTTP and Chrome checks
 covered search, outcomes, diagnostics, conditions, safe text rendering, matched
 and rejected comparison, result invalidation, sources and explicit refresh.
 Desktop (1440px) and mobile (390px) screenshots were inspected. A browser check
 found an absolutely positioned screen-reader label escaping the scrollable
-table; positioning its container fixed mobile viewport expansion.
+table; positioning its container fixed mobile viewport expansion. Automatic
+Codex review also found that diagnostics containing null entries could pass the
+catalog but crash detail rendering. Shared report validation now rejects invalid
+diagnostic entries and checkpoint metadata; six cases verify isolation and
+source preservation alongside a valid neighboring report.
 
 Docs contracts and the ADR index passed. The wheel contains all three browser
 assets and their bytes match the source. No model, graph or paid calls were
 made; synthetic browser fixtures only establish local UI behavior. Publishing
-and landing remain in progress.
+and landing are recorded in [PR #682](https://github.com/tteon/seocho/pull/682).
 
 ## Context and Orientation
 

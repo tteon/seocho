@@ -61,6 +61,15 @@ def validate_report(value: Any, label: str = "report") -> dict[str, Any]:
         raise ValueError(f"{label}: queries must be a list")
     if not all(isinstance(q, dict) for q in value.get("queries", [])):
         raise ValueError(f"{label}: each query must be an object")
+    diagnostics = value.get("diagnostics", [])
+    if not isinstance(diagnostics, list) or not all(
+        isinstance(entry, dict) for entry in diagnostics
+    ):
+        raise ValueError(f"{label}: diagnostics must be a list of objects")
+    if value.get("active_question") is not None and not isinstance(
+        value["active_question"], dict
+    ):
+        raise ValueError(f"{label}: active_question must be an object or null")
     for key in ("indexing", "reproducibility", "outcome"):
         if key in value and not isinstance(value[key], dict):
             raise ValueError(f"{label}: {key} must be an object")

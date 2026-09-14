@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SEOCHO · Experiments</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#content">Skip to experiments</a>
+    <aside class="sidebar">
+      <a class="brand" href="#runs"
+        ><span class="mark" aria-hidden="true">S<span>·</span></span
+        >SEOCHO</a
+      >
+      <div class="space-label">EXPERIMENT WORKSPACE</div>
+      <nav aria-label="Main navigation">
+        <a href="#runs" id="nav-runs"
+          ><span aria-hidden="true">▦</span> Experiments
+          <span id="nav-count" class="nav-count">0</span></a
+        >
+        <a href="#compare" id="nav-compare"
+          ><span aria-hidden="true">⇄</span> Compare runs</a
+        >
+        <a href="#guide" id="nav-guide"
+          ><span aria-hidden="true">◎</span> Getting started</a
+        >
+      </nav>
+      <div class="sidebar-note">
+        <span class="live-dot"></span> Local workspace
+        <p>Your runs. Your evidence.<br />No uploads or model calls.</p>
+        <button id="show-sources" class="text-button">
+          View data sources ↗
+        </button>
+      </div>
+    </aside>
+    <div class="shell">
+      <header class="topbar">
+        <span
+          >Workspace <span class="crumb">/</span>
+          <strong id="breadcrumb">Experiments</strong></span
+        ><span class="local-pill"><span class="live-dot"></span> LOCAL</span>
+      </header>
+      <main id="content" tabindex="-1">
+        <div id="global-error" class="notice danger" role="alert" hidden></div>
+        <section id="runs-page">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">OBSERVE. UNDERSTAND. IMPROVE.</p>
+              <h1>Experiments<span class="heading-dot">.</span></h1>
+              <p class="subtitle">
+                Every run has a story. Find what changed, and why.
+              </p>
+            </div>
+            <button class="button secondary" id="refresh">
+              ↻ Refresh runs
+            </button>
+          </div>
+          <div class="stats" id="stats"></div>
+          <div class="section-heading">
+            <h2>Run explorer <span class="count" id="result-count">0</span></h2>
+            <span id="refreshed" class="subtle" aria-live="polite"></span>
+          </div>
+          <div class="filters">
+            <label class="search-label"
+              ><span class="sr-only">Search experiments</span
+              ><input
+                type="search"
+                id="search"
+                placeholder="Search name, model, workspace…" /></label
+            ><label
+              ><span class="sr-only">Status</span
+              ><select id="status-filter">
+                <option value="">All statuses</option>
+              </select></label
+            ><label
+              ><span class="sr-only">Workspace</span
+              ><select id="workspace-filter">
+                <option value="">All workspaces</option>
+              </select></label
+            ><label
+              ><span class="sr-only">Model</span
+              ><select id="model-filter">
+                <option value="">All models</option>
+              </select></label
+            ><button class="text-button" id="clear-filters">Reset</button>
+          </div>
+          <div class="table-wrap">
+            <table class="run-table">
+              <thead>
+                <tr>
+                  <th scope="col">Experiment / run</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Model</th>
+                  <th scope="col">Answers</th>
+                  <th scope="col">Query phase</th>
+                  <th scope="col">Started</th>
+                  <th scope="col"><span class="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody id="run-rows"></tbody>
+            </table>
+            <div id="empty" class="empty" hidden>
+              <span class="empty-icon">▦</span>
+              <h3>No runs here yet</h3>
+              <p id="empty-copy">
+                Point the dashboard at the directory containing your saved runs.
+              </p>
+              <a href="#guide" class="button secondary"
+                >See how to add a run →</a
+              >
+            </div>
+          </div>
+          <p class="footnote">
+            Answers indicate nonempty responses, not correctness. Timings are
+            recorded observations; unmatched runs are not a performance
+            comparison.
+          </p>
+          <details class="scan-panel" id="scan-panel">
+            <summary id="scan-summary">Data sources & scan details</summary>
+            <div id="sources"></div>
+            <ul id="scan-warnings"></ul>
+          </details>
+        </section>
+        <section id="detail-page" hidden>
+          <a class="back" href="#runs">← All experiments</a>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow" id="detail-workspace"></p>
+              <h1 id="detail-name">Run detail</h1>
+              <div id="detail-meta" class="detail-meta"></div>
+            </div>
+            <div class="actions">
+              <button class="button" id="use-baseline">Use as baseline</button
+              ><a
+                class="button secondary"
+                id="export-view"
+                target="_blank"
+                rel="noopener"
+                >Open report ↗</a
+              >
+            </div>
+          </div>
+          <div class="stats" id="detail-stats"></div>
+          <div id="active-question" class="notice" hidden></div>
+          <div class="phase-strip" id="phases"></div>
+          <div class="tabs" role="tablist" aria-label="Run details">
+            <button
+              role="tab"
+              id="tab-questions"
+              aria-controls="questions-tab"
+              aria-selected="true"
+              data-tab="questions"
+            >
+              Questions</button
+            ><button
+              role="tab"
+              id="tab-diagnostics"
+              aria-controls="diagnostics-tab"
+              aria-selected="false"
+              data-tab="diagnostics"
+            >
+              Diagnostics</button
+            ><button
+              role="tab"
+              id="tab-conditions"
+              aria-controls="conditions-tab"
+              aria-selected="false"
+              data-tab="conditions"
+            >
+              Conditions
+            </button>
+          </div>
+          <div
+            id="questions-tab"
+            role="tabpanel"
+            aria-labelledby="tab-questions"
+          >
+            <div class="filters">
+              <label class="search-label"
+                ><span class="sr-only">Search questions and answers</span
+                ><input
+                  id="question-search"
+                  type="search"
+                  placeholder="Search questions and answers…" /></label
+              ><label
+                ><span class="sr-only">Question status</span
+                ><select id="question-filter">
+                  <option value="">All outcomes</option>
+                  <option>answered</option>
+                  <option>error</option>
+                  <option>empty</option>
+                  <option>skipped</option>
+                </select></label
+              ><span
+                class="subtle"
+                id="question-count"
+                aria-live="polite"
+              ></span>
+            </div>
+            <div id="question-list"></div>
+          </div>
+          <div
+            id="diagnostics-tab"
+            role="tabpanel"
+            aria-labelledby="tab-diagnostics"
+            hidden
+          ></div>
+          <div
+            id="conditions-tab"
+            role="tabpanel"
+            aria-labelledby="tab-conditions"
+            hidden
+          ></div>
+        </section>
+        <section id="compare-page" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">FROM A CHANGE TO EVIDENCE</p>
+              <h1>Compare runs<span class="heading-dot">.</span></h1>
+              <p class="subtitle">
+                Keep the questions fixed. Make the changed conditions explicit.
+              </p>
+            </div>
+          </div>
+          <div class="comparison-setup">
+            <div class="arm-selectors">
+              <label
+                ><span class="eyebrow">01 / BASELINE</span
+                ><select
+                  id="baseline-select"
+                  aria-label="Baseline run"
+                ></select></label
+              ><span class="versus">→</span
+              ><label
+                ><span class="eyebrow">02 / CANDIDATE</span
+                ><select
+                  id="candidate-select"
+                  aria-label="Candidate run"
+                ></select
+              ></label>
+            </div>
+            <fieldset>
+              <legend>What did you intentionally change?</legend>
+              <div id="change-options" class="change-options"></div>
+            </fieldset>
+            <label class="hypothesis-label"
+              >Hypothesis
+              <span class="subtle">Required when declaring changes</span
+              ><textarea
+                id="hypothesis"
+                rows="2"
+                placeholder="e.g. The indexing fix reduces failures without losing answer support. Keywords alone are not evidence."
+              ></textarea></label
+            ><button class="button" id="compare-button">
+              Compare evidence →
+            </button>
+          </div>
+          <div id="comparison-result" aria-live="polite"></div>
+        </section>
+        <section id="guide-page" hidden>
+          <p class="eyebrow">YOUR DATA, END TO END</p>
+          <h1>A clearer experiment loop<span class="heading-dot">.</span></h1>
+          <p class="subtitle">
+            Start small. Preserve the result. Change one thing.
+          </p>
+          <div class="guide-grid">
+            <article class="guide-card">
+              <span class="step">01</span>
+              <h2>Capture a baseline</h2>
+              <p>
+                Use your documents, ontology and stable question IDs. Prepare a
+                separate empty graph target for each full E2E run.
+              </p>
+              <pre>
+seocho run seocho.run.yaml --dry-run
+seocho run seocho.run.yaml --no-track</pre
+              >
+              <p>
+                Running these CLI commands may call your configured model and
+                database. This dashboard only reads saved results.
+              </p>
+            </article>
+            <article class="guide-card">
+              <span class="step">02</span>
+              <h2>Find the failure</h2>
+              <p>
+                Open an experiment and inspect its questions, graph evidence,
+                missing slots and diagnostics. A completed run is not a quality
+                grade.
+              </p>
+              <pre>seocho runs dashboard ./runs</pre>
+              <p>
+                After a run finishes or saves a checkpoint, use Refresh runs to
+                load it here.
+              </p>
+            </article>
+            <article class="guide-card">
+              <span class="step">03</span>
+              <h2>Compare the change</h2>
+              <p>
+                Select a baseline and candidate. Declare changed conditions and
+                a hypothesis. The comparison checks the recorded input
+                fingerprints.
+              </p>
+              <p>
+                Missing or incompatible evidence prevents aggregate deltas. You
+                can still inspect individual answers and failures.
+              </p>
+            </article>
+          </div>
+          <div class="notice">
+            <strong>Recorded evidence comes first.</strong>
+            <p>
+              This workspace displays run receipts and recorded phase durations.
+              It does not infer trace spans, token costs, backend compatibility
+              or causal quality improvements. Request-level costs remain in the
+              separate inference cost workbench.
+            </p>
+          </div>
+        </section>
+      </main>
+      <footer>
+        SEOCHO <span>Ontology-aligned experiments</span
+        ><span class="footer-right">Read-only · JSONL / OTLP ecosystem</span>
+      </footer>
+    </div>
+  </body>
+</html>

@@ -224,3 +224,11 @@ An interrupted run retains earlier answers but is still rejected for aggregate
 comparison. Degraded extraction retains its failure reason and is not cached as
 successful indexing. Failure diagnostics redact endpoint userinfo/query tokens
 and known credential values before saving.
+
+## Local experiment dashboard
+
+Run `seocho runs dashboard ./runs` to browse saved receipts across runs, filter
+by workspace/model/outcome, inspect question evidence and compare a baseline
+with a candidate. The browser uses the same comparison contract as the CLI.
+It reads local files and makes no model or database calls. See the
+[dashboard guide](EXPERIMENT_DASHBOARD.md) for scope, limits and troubleshooting.

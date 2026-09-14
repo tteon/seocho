@@ -44,8 +44,29 @@ def register(subparsers: Any) -> None:
         help="New HTML file; existing files are refused",
     )
 
+    dashboard = commands.add_parser(
+        "dashboard", help="Browse saved experiments in a local read-only dashboard"
+    )
+    dashboard.add_argument(
+        "directories",
+        type=Path,
+        nargs="*",
+        help="Directories containing report.json files (default: ./runs)",
+    )
+    dashboard.add_argument(
+        "--port",
+        type=int,
+        default=8765,
+        help="Loopback HTTP port (0 selects an available port)",
+    )
+
 
 def handle(args: argparse.Namespace) -> int:
+    if args.runs_command == "dashboard":
+        from ..dashboard.server import serve
+
+        serve(tuple(args.directories or [Path("runs")]), args.port)
+        return 0
     if args.runs_command == "view":
         from ..run_visualization import render_run_view
 

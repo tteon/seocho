@@ -1,5 +1,11 @@
 # Decision Log
 
+## 2026-09-14
+
+- [Accepted] [ADR-0235](ADR-0235-local-experiment-dashboard.md):
+  add a local, read-only experiment dashboard over bounded saved-run snapshots;
+  reuse evidence comparison and retain JSONL/OTLP observability.
+
 ## 2026-09-13
 
 - [Accepted] `ADR-0234-python-implementation-ownership.md`

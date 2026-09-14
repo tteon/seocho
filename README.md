@@ -121,6 +121,14 @@ corpora, missing questions or undeclared conditions prevent aggregate deltas;
 individual failures remain visible. Missing cost or evidence data is marked
 unavailable. For a model change, declare `--change models` instead.
 
+Browse saved runs, inspect question evidence and compare experiments in the
+[local dashboard](docs/EXPERIMENT_DASHBOARD.md):
+
+```bash
+seocho runs dashboard ./runs
+# Open http://127.0.0.1:8765
+```
+
 Export a local, searchable visual report and SEOCHO module map with
 `seocho runs view runs/candidate/RUN_ID --output views/candidate.html`.
 Add `--baseline` to inspect the saved-run comparison. Module responsibilities

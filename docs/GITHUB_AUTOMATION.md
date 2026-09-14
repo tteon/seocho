@@ -144,3 +144,7 @@ Public re-exports must be explicit. The gate includes execution-result JSON,
 DataHub approval-tag, registered runtime-tool and semantic-helper compatibility
 regressions. Existing focused test/lint and documentation gates remain in place
 (ADR-0234).
+
+The basic CI gate also covers the local experiment dashboard catalog, real
+loopback HTTP read boundaries, CLI dispatch, and comparison parity. Browser
+interaction checks are recorded separately in the dashboard ExecPlan.

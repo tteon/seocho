@@ -48,17 +48,31 @@ def _number(value: object) -> float | None:
 def load_report(path: Path) -> dict[str, Any]:
     target = path / "report.json" if path.is_dir() else path
     value = json.loads(target.read_text(encoding="utf-8"))
+    return validate_report(value, str(target))
+
+
+def validate_report(value: Any, label: str = "report") -> dict[str, Any]:
+    """Validate the shared saved-run envelope without performing file I/O."""
     if not isinstance(value, dict) or not isinstance(value.get("run"), dict):
         raise ValueError(
-            f"{target}: expected a SEOCHO run report object with run metadata"
+            f"{label}: expected a SEOCHO run report object with run metadata"
         )
     if not isinstance(value.get("queries", []), list):
-        raise ValueError(f"{target}: queries must be a list")
+        raise ValueError(f"{label}: queries must be a list")
     if not all(isinstance(q, dict) for q in value.get("queries", [])):
-        raise ValueError(f"{target}: each query must be an object")
+        raise ValueError(f"{label}: each query must be an object")
+    diagnostics = value.get("diagnostics", [])
+    if not isinstance(diagnostics, list) or not all(
+        isinstance(entry, dict) for entry in diagnostics
+    ):
+        raise ValueError(f"{label}: diagnostics must be a list of objects")
+    if value.get("active_question") is not None and not isinstance(
+        value["active_question"], dict
+    ):
+        raise ValueError(f"{label}: active_question must be an object or null")
     for key in ("indexing", "reproducibility", "outcome"):
         if key in value and not isinstance(value[key], dict):
-            raise ValueError(f"{target}: {key} must be an object")
+            raise ValueError(f"{label}: {key} must be an object")
     return value
 
 

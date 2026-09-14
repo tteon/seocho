@@ -206,5 +206,6 @@ namespaces = false
 
 [tool.setuptools.package-data]
 seocho = ["py.typed"]
+"seocho.dashboard" = ["*.html", "*.css", "*.js"]
 "seocho.semantic_layer" = ["cik_table.json"]
 "seocho.ontology_templates" = ["*.yaml"]

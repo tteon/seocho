@@ -3,6 +3,13 @@
 A local OpenTelemetry stack for SEOCHO traces and metrics. JSONL files remain
 the portable evidence format; configure this collector explicitly for dashboards.
 
+For self-hosted inference, the optional [inference workbench](../../docs/INFERENCE_WORKBENCH.md)
+adds a private model/tenant/route cost dashboard, engine-span joins, bounded
+draft-target probes and read-only DozerDB schema audits. The separate
+`prometheus.inference.yml` supplies vLLM/DCGM scrape targets; configure those
+endpoints in the serving deployment before using it. GPU data remains
+device-scoped and is not attributed to tenants from utilization alone.
+
 Four containers:
 
 | Service | Image | Host port | Role |

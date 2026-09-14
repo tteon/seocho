@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from itertools import combinations
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from .curation_design import CurationDesignSpec
 from .qualification import (
@@ -119,11 +119,6 @@ class QualificationStore:
         cursor.execute(sql, tuple(params))
         return cursor
 
-    def _executemany(self, sql: str, rows: Sequence[Sequence[Any]]) -> None:
-        if not rows:
-            return
-        cursor = self._conn.cursor()
-        cursor.executemany(sql, [tuple(row) for row in rows])
 
     def _commit(self) -> None:
         try:

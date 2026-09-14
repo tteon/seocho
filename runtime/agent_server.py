@@ -6,7 +6,7 @@ import os
 from typing import List, Dict, Any, Optional, Literal
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Request, Depends, Query
+from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -314,35 +314,6 @@ async def _startup():
 # ------------------------------------------------------------------
 
 # --- Tools ---
-
-def get_databases_impl() -> str:
-    """Returns a list of available graph databases."""
-    dbs = db_registry.list_databases()
-    graphs = graph_registry.list_graph_ids()
-    return f"Available Graphs: {graphs}; Databases: {dbs}"
-
-
-def get_graphs_impl() -> str:
-    """Returns registered graph targets with ontology/vocabulary metadata."""
-    graphs = [target.to_public_dict() for target in graph_registry.list_graphs()]
-    return json.dumps(graphs)
-
-@functools.lru_cache(maxsize=8)
-def get_schema_impl(database: str = "neo4j") -> str:
-    """Returns the schema for the specified database (cached)."""
-    schema_map = {
-        "kgnormal": "outputs/schema_baseline.yaml",
-        "kgfibo": "outputs/schema_fibo.yaml",
-        "neo4j": "outputs/schema.yaml"
-    }
-
-    path = schema_map.get(database, "outputs/schema.yaml")
-
-    if os.path.exists(path):
-        with open(path, "r") as f:
-            return f.read()
-
-    return f"Schema file for '{database}' not found. Please assume standard labels for this ontology."
 
 @function_tool
 def get_databases_tool() -> str:

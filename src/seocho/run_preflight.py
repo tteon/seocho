@@ -11,12 +11,14 @@ connection attempt before a real run spends LLM tokens.
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
 from .run_spec import RunSpec, parse_model_ref
+from .run_redaction import redact_diagnostic, safe_endpoint
 
 
 @dataclass(slots=True)
@@ -144,6 +146,50 @@ def _check_documents(spec: RunSpec) -> PreflightCheck:
     )
 
 
+def _check_document_content(spec: RunSpec) -> PreflightCheck:
+    """Reject broken structured inputs before extraction can spend tokens."""
+    from .index.file_reader import SUPPORTED_EXTENSIONS
+
+    root = _resolve(spec, spec.documents_path)
+    paths = [root] if root.is_file() else sorted(root.glob("**/*" if spec.documents_recursive else "*"))
+    failures: list[str] = []
+    checked = 0
+    for path in paths:
+        if not path.is_file() or path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            continue
+        checked += 1
+        try:
+            if path.stat().st_size == 0:
+                raise ValueError("empty file")
+            suffix = path.suffix.lower()
+            if suffix == ".jsonl":
+                records = 0
+                with path.open(encoding="utf-8") as stream:
+                    for line_number, line in enumerate(stream, 1):
+                        if not line.strip():
+                            continue
+                        try:
+                            item = json.loads(line)
+                        except json.JSONDecodeError as exc:
+                            raise ValueError(f"line {line_number}: invalid JSON ({exc.msg})") from exc
+                        if not isinstance(item, dict):
+                            raise ValueError(f"line {line_number}: expected a JSON object")
+                        records += 1
+                if not records:
+                    raise ValueError("no JSONL records")
+            elif suffix == ".json":
+                with path.open(encoding="utf-8") as stream:
+                    json.load(stream)
+        except (OSError, UnicodeError, ValueError) as exc:
+            if len(failures) < 20:
+                failures.append(f"{path}: {exc}")
+    return PreflightCheck(
+        name="document content", status="fail" if failures else "ok",
+        detail="; ".join(failures) if failures else f"{checked} files checked for empty/invalid structured content",
+        fix="Correct the named files/JSONL lines, then repeat seocho run --dry-run." if failures else "",
+    )
+
+
 def _check_design(spec: RunSpec, *, section: str) -> "PreflightCheck | None":
     design = getattr(spec, section).get("design")
     if not design:
@@ -233,27 +279,33 @@ def _check_graph(spec: RunSpec, *, online: bool) -> PreflightCheck:
     if not online:
         return PreflightCheck(
             name="graph", status="ok",
-            detail=f"{kind} {target} (connection not checked in dry-run)",
+            detail=f"{kind} {safe_endpoint(target)} (connection not checked in dry-run)",
         )
     try:
         from .store.graph import Neo4jGraphStore
 
         store = Neo4jGraphStore(target, spec.graph_user, spec.graph_password)
         try:
-            store.query("RETURN 1 AS ok")
+            from .client import Seocho
+            from .ontology import Ontology
+            ontology = spec.resolved_ontology
+            if ontology is None:
+                ontology = Ontology.load(_resolve(spec, spec.ontology_path))
+            database = spec.database or Seocho._resolve_default_database(ontology)
+            store.query("RETURN 1 AS ok", database=database, workspace_id=spec.resolved_workspace_id())
         finally:
             store.close()
     except Exception as exc:
         return PreflightCheck(
             name="graph",
             status="fail",
-            detail=f"{target} — {exc}",
+            detail=redact_diagnostic(spec, f"{target} — {exc}"),
             fix=(
-                "start the stack with 'seocho serve', or remove the 'graph:' key "
-                "to use the embedded engine (no server needed)"
+                "start DozerDB/Neo4j, create the configured target database if needed, "
+                "and verify graph URI, credentials and database; seocho run requires Bolt"
             ),
         )
-    return PreflightCheck(name="graph", status="ok", detail=f"{target} connected")
+    return PreflightCheck(name="graph", status="ok", detail=f"{safe_endpoint(target)} connected (database={database})")
 
 
 def _check_vector(spec: RunSpec) -> "PreflightCheck | None":
@@ -399,6 +451,7 @@ def run_preflight(spec: RunSpec, *, online: bool = False) -> PreflightReport:
     report = PreflightReport()
     report.checks.append(_check_ontology(spec))
     report.checks.append(_check_documents(spec))
+    report.checks.append(_check_document_content(spec))
     for section in ("indexing", "agent"):
         check = _check_design(spec, section=section)
         if check is not None:
@@ -417,6 +470,9 @@ def run_preflight(spec: RunSpec, *, online: bool = False) -> PreflightReport:
         report.checks.append(
             PreflightCheck(name="questions", status="ok", detail=f"{len(spec.questions)} questions")
         )
+    for check in report.checks:
+        check.detail = redact_diagnostic(spec, check.detail)
+        check.fix = redact_diagnostic(spec, check.fix)
     return report
 
 

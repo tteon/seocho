@@ -141,7 +141,7 @@ system = (
   <tbody>
     <tr><td><strong>Tool use</strong></td><td>One LLM call → text.</td><td>LLM picks among 8 typed tools (extract, validate, score, link, write, text2cypher, execute, search).</td></tr>
     <tr><td><strong>Multi-turn cache</strong></td><td>Re-ship every prior fact.</td><td>Session entity + query cache; same question = cache hit, no LLM call.</td></tr>
-    <tr><td><strong>Observability</strong></td><td>Black-box answer.</td><td>JSONL + Opik spans for every <code>add() / ask() / run()</code>.</td></tr>
+    <tr><td><strong>Observability</strong></td><td>Black-box answer.</td><td>JSONL + OTLP spans for every <code>add() / ask() / run()</code>.</td></tr>
   </tbody>
   </table>
   <pre style="margin-top:18px;"><code class="language-python">from seocho import Seocho, AGENT_PRESETS
@@ -173,7 +173,7 @@ cfg = AgentConfig(execution_mode='supervisor',
                   handoff=True,
                   routing_policy=RoutingPolicy.thorough())
 </code></pre>
-  <p class="small" style="margin-top:18px;">In Tutorial 2, run the supervisor under <code>fast()</code> and <code>thorough()</code> — same call, two distinct traces. Compare span counts in <code>traces/tutorial_02.jsonl</code> or in Opik (project <code>seocho-openai</code>).</p>
+  <p class="small" style="margin-top:18px;">In Tutorial 2, run the supervisor under <code>fast()</code> and <code>thorough()</code> — same call, two distinct traces. Compare span counts in <code>traces/tutorial_02.jsonl</code> or in OTLP (project <code>seocho-openai</code>).</p>
 </section>
 
 <!-- =================================================================== -->
@@ -334,7 +334,7 @@ with s.session('demo') as sess:
 #   workspace_id = 'acme'
 #   context_hash = 'c3f0...'
 </code></pre>
-  <p class="small" style="margin-top:14px;">Filter Opik for <code>metadata.user_id = 'openai-yitae'</code> and you see exactly that user's runs across the whole project.</p>
+  <p class="small" style="margin-top:14px;">Filter OTLP for <code>metadata.user_id = 'openai-yitae'</code> and you see exactly that user's runs across the whole project.</p>
 </section>
 
 <!-- =================================================================== -->
@@ -361,7 +361,7 @@ with s.session('demo') as sess:
     <li><strong>10 min</strong> — Tutorial 1 setup + provider keys + first <code>complete()</code> call.</li>
     <li><strong>15 min</strong> — Tutorial 2 agent mode + multi-turn + <code>fast/thorough</code> traces.</li>
     <li><strong>20 min</strong> — Tutorial 3 FIBO load → extend → migrate → re-index.</li>
-    <li><strong>10 min</strong> — Inspect traces in Opik / JSONL; query <code>metadata.user_id</code>.</li>
+    <li><strong>10 min</strong> — Inspect traces in OTLP / JSONL; query <code>metadata.user_id</code>.</li>
     <li><strong>5 min</strong> — Q&A.</li>
   </ol>
   <div class="callout" style="margin-top:32px;">

@@ -133,19 +133,19 @@ SEOCHO supports a vendor-neutral trace contract:
 | `none` | disable trace export |
 | `console` | local debugging |
 | `jsonl` | durable local evidence |
-| `opik` | team evaluation and span inspection |
+| `otlp` | operator-selected OpenTelemetry collector |
 
-Opik is optional. The runtime should still be explainable through JSONL traces
-and response metadata when Opik is disabled.
+An OTLP collector is operator-selected. JSONL traces and response metadata
+remain the portable inspection surface.
 
-## Frontend Trace Vs Opik
+## Frontend and exported traces
 
 | Surface | Role |
 |---|---|
 | local platform UI | interactive chat, candidate override loop, raw ingest controls |
 | runtime response payload | request result, trace steps, readiness metadata |
 | JSONL trace | portable evidence for local runs and CI artifacts |
-| Opik | optional team-grade evaluation, span trees, cost and latency inspection |
+| OTLP collector | exported spans; available telemetry depends on instrumentation |
 
 Do not make a feature depend on the frontend trace view alone. The runtime
 payload or trace artifact should carry the same operational evidence.
@@ -163,11 +163,6 @@ NEO4J_PASSWORD=password
 
 SEOCHO_TRACE_BACKEND=none
 SEOCHO_TRACE_JSONL_PATH=./traces/seocho-runtime.jsonl
-SEOCHO_TRACE_OPIK_MODE=self_host
-OPIK_URL=http://opik-backend:8080
-OPIK_WORKSPACE=default
-OPIK_PROJECT_NAME=seocho
-OPIK_API_KEY=
 ```
 
 The runtime should stay environment-first. Reference YAML under
@@ -188,3 +183,12 @@ Run the narrowest relevant check first:
 Mocks can validate contracts and deterministic failures. They are not evidence
 for throughput, latency, scalability, or production readiness.
 
+
+## Graph discovery tool ownership
+
+`runtime/server_runtime.py` is the implementation owner for `get_databases_impl`,
+`get_graphs_impl` and `get_schema_impl`; `agent_server.py` registers their existing
+tool entrypoints. Graph descriptors are JSON. Schema requests validate the DB
+registry and query the connector instead of reading cached `outputs/schema*.yaml`
+files. Unknown databases return an error before a connector is opened. Query
+workspace scope, authorization and tool-budget checks remain unchanged (ADR-0234).

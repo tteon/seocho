@@ -3,12 +3,12 @@
 ## Learning Objectives
 - 4가지 답변 생성 전략(single / self-reflect / multi-LLM debate / hybrid)을 정확도-비용 트레이드오프로 비교한다.
 - Self-reflection의 2-pass 구조와, multi-LLM debate의 round / consensus / 종료 조건을 설계한다.
-- Opik trace에서 reasoning step 수와 답변 품질의 상관을 측정한다.
+- JSONL trace에서 reasoning step 수와 답변 품질의 상관을 측정한다.
 
 ## Prerequisites
 - Chapter 1~4 완료 (특히 §4.4 인용 강제 답변)
 - 다중 모델 액세스 (OpenAI / Anthropic / 로컬 중 최소 2종)
-- Opik 워크스페이스
+- 로컬 JSONL trace 파일
 
 ## 5.1 Single-LLM, Single Model (Baseline)
 
@@ -116,7 +116,7 @@
 
 ---
 
-## Opik Trace 분석
+## JSONL Trace 분석
 
 ### 측정 항목
 - Reasoning step 수 vs 정확도
@@ -124,7 +124,7 @@
 - Debate round별 답변 유사도 변화 (수렴 곡선)
 
 ### Hands-on
-> TODO: Opik에서 4개 전략 trace 비교 → reasoning depth와 정확도의 상관계수.
+> TODO: JSONL에서 4개 전략 trace 비교 → reasoning depth와 정확도의 상관계수.
 
 ---
 
@@ -132,4 +132,4 @@
 - [ ] 평가셋 20개 (질문 + gold answer + 인용 가능 chunk)
 - [ ] 4개 전략 결과 비교 표 (정확도/환각률/비용/latency)
 - [ ] 5개 논쟁성 질문의 debate transcript
-- [ ] Opik trace 캡처 (수렴 곡선)
+- [ ] JSONL trace 캡처 (수렴 곡선)

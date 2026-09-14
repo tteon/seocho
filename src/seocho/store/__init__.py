@@ -42,6 +42,8 @@ from .vector import (
 )
 
 __all__ = [
+    "EnsureConstraintsError",
+    "WorkspaceFilterMissingError",
     "GraphStore",
     "Neo4jGraphStore",
     "ProviderSpec",

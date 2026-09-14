@@ -26,7 +26,7 @@ driver, or a test double alike.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Mapping, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Set, Tuple
 
 RunQuery = Callable[[str], List[Dict[str, Any]]]
 

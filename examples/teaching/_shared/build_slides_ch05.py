@@ -57,7 +57,7 @@ SECTIONS = [
 </table>""",
     ),
     slide(
-        title="Opik에서 본다",
+        title="JSONL에서 본다",
         bullets=[
             "reasoning step 수 vs 정확도 산점도.",
             "모델별 token 비용 분포.",
@@ -69,7 +69,7 @@ SECTIONS = [
         title="시리즈 마무리",
         bullets=[
             "Ch 1 indexing → Ch 2 quality → Ch 3 text2cypher → Ch 4 routing → Ch 5 debate.",
-            "동일한 4-provider 인터페이스, Opik per-user 프로젝트.",
+            "동일한 4-provider 인터페이스, workspace별 JSONL 기록.",
             "FinDER 8 카테고리를 임의의 샘플링 패턴으로 활용.",
         ],
         warn="후속: BenchmarkRunner 통합, 카테고리별 win-rate, 비용 dashboard.",

@@ -1,5 +1,31 @@
 # Decision Log
 
+## 2026-09-14
+
+- [Accepted] [ADR-0235](ADR-0235-local-experiment-dashboard.md):
+  add a local, read-only experiment dashboard over bounded saved-run snapshots;
+  reuse evidence comparison and retain JSONL/OTLP observability.
+
+## 2026-09-13
+
+- [Accepted] `ADR-0234-python-implementation-ownership.md`
+  - establish canonical helper ownership, stable SDK/CLI boundaries and explicit
+    stat-based file tracking; preserve imports, evidence and public contracts
+
+- [Accepted] `ADR-0232-public-product-and-experiment-entrypoints.md`
+  - make README, contributor navigation and GitHub intake reflect actual
+    prerequisites, user-data experiment evidence and maintainable agent workflows
+
+- [Accepted] `ADR-0231-agent-coding-workspace-and-records.md`
+  - use explicit isolated task worktrees and linked records; preserve research
+    edits and original receipts while consolidating reviewed local caches
+
+- [Accepted] `ADR-0230-user-data-experiment-evidence.md`
+  - extend run/sweep with failure receipts, content fingerprints and offline
+    matched comparison; preserve unknown observations and original artifacts
+  - use the existing scorecard and internal typed boundaries, without adding a
+    general platform backend or interpreting execution success as quality
+
 ## 2026-08-21
 
 - Accepted `ADR-0219-rust-dozer-projection-daemon.md`
@@ -1444,3 +1470,11 @@ Use this block for new entries:
     so re-export can't clobber approvals); pull → diff → human confirm →
     snapshot save; infra-free review path stays first-class; docs say
     "DataHub integration", never "DataHub-compatible"
+
+## 2026-09-13 (review remediation and local visualization)
+
+- [Accepted] [ADR-0233](ADR-0233-experiment-evidence-and-local-inspection.md):
+  evidence v2 records runtime settings, question checkpoints preserve completed
+  work, and local HTML inspection reuses saved-run comparison. Module maps are
+  architectural references; no module timings or quality verdicts are invented.
+  Complete remaining active Opik removal under ADR-0172 while retaining history.

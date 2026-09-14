@@ -239,3 +239,7 @@ Offline tests validate record conversion and JSONL ingestion. Live connector
 claims require real runs against the named services with versions, dataset
 scope, limits, and skipped components reported. Do not use mocked connector
 tests as evidence for throughput, latency, or external compatibility.
+
+DataHub dataset tag metadata preserves the tag name or full source URN. Glossary
+approval strips only the `urn:li:tag:` prefix when no name is provided, so
+`seocho:approved` remains intact and controls the approval signal (ADR-0234).

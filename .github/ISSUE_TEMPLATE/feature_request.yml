@@ -61,3 +61,10 @@ body:
       description: Links to docs, files, ADRs, or examples that should be kept aligned.
     validations:
       required: false
+  - type: textarea
+    id: evaluation
+    attributes:
+      label: How will we know this improved the workflow?
+      description: Name the observable outcome, a baseline if relevant, and any required dataset/service. Proposed evidence can remain unmeasured.
+    validations:
+      required: false

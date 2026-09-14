@@ -12,7 +12,6 @@ Canonical repo path: `examples/teaching/`.
 | Secret name | 필수? | 값 |
 |---|---|---|
 | `OPENAI_API_KEY` | 필수 | OpenAI 키 |
-| `OPIK_API_KEY` | 권장 | Opik 키 (없으면 JSONL 만) |
 | `NEO4J_URI` | Ch 1·2 필수 | `bolt://...` |
 | `NEO4J_PASSWORD` | Ch 1·2 필수 | DB 비밀번호 |
 | `MOONSHOT_API_KEY` | 선택 | Kimi K2.5 |
@@ -22,7 +21,7 @@ Canonical repo path: `examples/teaching/`.
 그 다음 노트북 첫 셀에서:
 
 ```python
-!pip install --upgrade seocho==0.4.0 datasets opik openai-agents neo4j python-dotenv
+!pip install --upgrade seocho==0.4.0 datasets openai-agents neo4j python-dotenv
 ```
 
 Drive 마운트 + 폴더 이동은 `chapter-00-setup.ipynb` 의 첫 두 셀이 자동 처리.
@@ -33,7 +32,7 @@ Drive 마운트 + 폴더 이동은 `chapter-00-setup.ipynb` 의 첫 두 셀이 �
 cd examples/teaching
 cp .env.example .env          # .env 편집하여 키 채우기
 pip install -e ../..          # 로컬 seocho dev 버전 (또는 pip install seocho)
-pip install datasets opik openai-agents neo4j
+pip install datasets openai-agents neo4j
 
 # 환경 자가 진단 (선택)
 python -m _shared.preflight
@@ -66,7 +65,7 @@ examples/teaching/
 ├── chapter-05-debate-convergence-analysis.md   ← 수렴 + early-stop + anti-pattern
 │
 ├── _shared/                        ← 강의 공통 헬퍼
-│   ├── trace_setup.py               ← Opik + JSONL 트레이싱
+│   ├── trace_setup.py               ← JSONL 트레이싱
 │   ├── providers.py                ← 4-provider 인터페이스
 │   ├── finder_loader.py            ← SDK 우선, fallback inline
 │   ├── slide_template.py           ← Reveal.js 빌더
@@ -85,7 +84,7 @@ The teaching arc loads the canonical FIBO TTL from
 
 | # | 챕터 | 핵심 내용 | 시간 (예상) |
 |---|---|---|---|
-| 0 | Setup | provider/Opik/FinDER/Neo4j 검증 | 5분 |
+| 0 | Setup | provider/JSONL/FinDER/Neo4j 검증 | 5분 |
 | 1 | Indexing | 3-layer LPG · ontology slice · Louvain · property design · temporal sanity | 60분 |
 | 2 | Qualification | GDS 4지표 · `@function_tool` · agent reasoning | 50분 |
 | 3 | Text2Cypher | 3-블록 prompt · 12-패턴 validator · TTL Korean labels | 50분 |
@@ -107,13 +106,13 @@ for i in 01 02 03 04 05; do python -m _shared.build_slides_ch$i; done
 
 브라우저에서 `chapter-0X-...-slides.html` 열면 Reveal.js 데크.
 
-## Opik 멤버별 프로젝트
+## 로컬 트레이스
 
-- 워크스페이스: `seocho` (모두 공유)
-- 프로젝트: `teaching-ch{N}-{OPIK_USER}` 자동 생성
-- `OPIK_USER=hardy` 면 ch01 trace 는 `teaching-ch01-hardy` 프로젝트에 적재
-
-다른 멤버 결과를 보려면 Opik UI 의 워크스페이스 안에서 프로젝트 전환.
+각 챕터는 `traces/chapter_NN.jsonl`에 기록합니다. `SEOCHO_USER_ID`와
+workspace metadata로 실행 주체를 구분합니다. 별도 계정은 필요하지 않습니다.
+SEOCHO가 계측한 span만 기록되며, Agents SDK의 모든 이벤트·reasoning·비용이
+자동 수집된다는 의미는 아닙니다. 강의의 분석 항목은 기록된 필드가 있을 때만
+계산하며, 누락된 telemetry는 별도 계측 과제로 남깁니다.
 
 ## 4-Provider 비교
 
@@ -149,7 +148,6 @@ for i in 01 02 03 04 05; do python -m _shared.build_slides_ch$i; done
 
 ## 자주 묻는 것
 
-- **노트북 셀이 `OPIK_API_KEY` 없이도 작동?** 네 — JSONL 백엔드 fallback. 다만 Opik UI 에서 trace 못 봄.
 - **provider 키 1개만 있어도?** OpenAI 만 있으면 모두 동작 (4-provider 비교 셀이 1개 행만 출력).
 - **FinDER 다운로드 너무 오래?** 첫 실행만 ~30초. 이후 parquet 캐시 (`./data/finder_corpus.parquet`).
 - **`ImportError: cannot import name 'is_observability_degraded'`** → `pip install --upgrade seocho>=0.4.0`.

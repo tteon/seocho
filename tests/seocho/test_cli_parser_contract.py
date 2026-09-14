@@ -9,6 +9,7 @@ snapshot fails loudly when a command appears, disappears, or moves.
 from __future__ import annotations
 
 import argparse
+import json
 
 import pytest
 
@@ -19,7 +20,7 @@ EXPECTED_COMMANDS = {
     "add", "get", "search", "chat", "ask", "delete", "graphs", "doctor",
     "serve", "stop", "artifacts", "connect", "connectors", "new", "init",
     "index", "local-ask", "status", "compare", "experiment", "bundle",
-    "ontology", "serve-http", "run", "sweep", "traces",
+    "ontology", "serve-http", "run", "sweep", "runs", "traces",
 }
 
 EXPECTED_ONTOLOGY_SUBCOMMANDS = {
@@ -53,6 +54,42 @@ def test_local_commands_are_real_commands() -> None:
     assert LOCAL_COMMANDS <= set(top.choices)
 
 
+@pytest.mark.parametrize("argv", [
+    ["ask", "question", "--local"], ["local-ask", "question"],
+    ["index", "fixture.jsonl"], ["status"],
+    ["bundle", "export", "--output", "fixture.bundle.json"],
+])
+def test_local_cli_accepts_zai_and_explicit_model(argv: list[str]) -> None:
+    args = build_parser().parse_args([*argv, "--provider", "zai"])
+    assert args.provider == "zai"
+    assert args.model is None  # Let the provider preset/config supply the model.
+    args = build_parser().parse_args([*argv, "--provider", "zai", "--model", "glm-4.7"])
+    assert args.model == "glm-4.7"
+
+
+@pytest.mark.parametrize("provider,model", [("zai", "glm-5.1"), ("mara", "MiniMax-M2.7")])
+def test_local_client_uses_provider_model_default(
+    monkeypatch: pytest.MonkeyPatch, provider: str, model: str,
+) -> None:
+    from seocho import config_file
+    from seocho.store import graph, llm
+
+    captured = {}
+
+    def create_backend(**kwargs: object) -> object:
+        captured.update(kwargs)
+        captured["effective_model"] = kwargs["model"] or llm.get_provider_spec(kwargs["provider"]).default_model
+        return object()
+
+    monkeypatch.setattr(config_file, "load_config", lambda: {})
+    monkeypatch.setattr(cli, "_load_local_ontology", lambda path: object())
+    monkeypatch.setattr(graph, "Neo4jGraphStore", lambda *args: object())
+    monkeypatch.setattr(llm, "create_llm_backend", create_backend)
+    monkeypatch.setattr(cli, "Seocho", lambda **kwargs: object())
+    cli._build_local_client(build_parser().parse_args(["local-ask", "q", "--provider", provider]))
+    assert captured["effective_model"] == model
+
+
 def test_unknown_command_exits_2() -> None:
     with pytest.raises(SystemExit) as excinfo:
         build_parser().parse_args(["no-such-command"])
@@ -79,6 +116,33 @@ def test_json_flag_convention() -> None:
             if action.dest == "output_json" and "--json" not in action.option_strings:
                 offenders.append(name)
     assert not offenders, f"commands whose JSON switch rejects --json: {offenders}"
+
+
+@pytest.mark.parametrize("json_output", [False, True])
+def test_local_ask_output_and_cleanup(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    json_output: bool,
+) -> None:
+    answer = '서울: "quoted"\nsecond line'
+    calls = []
+
+    class Client:
+        def ask(self, question: str, **kwargs: object) -> str:
+            calls.append((question, kwargs))
+            return answer
+
+        def close(self) -> None:
+            calls.append("closed")
+
+    monkeypatch.setattr(cli, "_build_local_client", lambda args: Client())
+    argv = ["local-ask", "Question?", "--database", "fixture"]
+    if json_output:
+        argv.append("--json")
+    assert cli.main(argv) == 0
+    output = capsys.readouterr().out
+    assert (json.loads(output) == {"answer": answer}) if json_output else output == answer + "\n"
+    assert calls[0] == ("Question?", {"database": "fixture", "reasoning_mode": False, "repair_budget": 2})
+    assert calls[-1] == "closed"
 
 
 @pytest.fixture

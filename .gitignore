@@ -104,11 +104,14 @@ neo4j/logs/
 *.db
 neostore*
 *.lock
+!uv.lock
 !scripts/profiling/agent_memory_rust/Cargo.lock
 !dataplane/oxigraph_read_model/Cargo.lock
 
 # Docker volumes and mounts
 workspace/
+!scripts/workspace/
+!scripts/workspace/manage.py
 sharepoint/
 
 # Jupyter checkpoints
@@ -144,6 +147,9 @@ runs/
 .githooks/
 .jules/
 .serena/
+
+# Embedded store session scratch; never a source or experiment receipt.
+/:memory:.ses
 
 # Empty placeholders
 examples/untitled.txt

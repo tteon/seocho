@@ -39,7 +39,11 @@ that the workflow calls before patching workflow YAML.
 `run_basic_ci.sh` compiles tracked Python source files dynamically, runs a
 focused Ruff lint gate on the actively maintained CI/run-spec/onboarding
 surfaces, then runs the curated SDK/runtime pytest set and repository contract
-checks. New tests that cover the curated surface should be added to that script
+checks. Experiment evidence modules additionally run strict mypy with skipped
+legacy imports, plus Ruff E4/E7/E9/F/B/UP/SIM rules. This incremental gate covers
+run outcomes, persistence, fingerprints, comparisons and the saved-run CLI; it
+does not assert that the entire SDK is strictly typed. The locked `ci` and `dev`
+extras include mypy. New tests that cover the curated surface should be added to that script
 in the same PR as the behavior change; legacy/live-service tests stay outside
 Basic CI until their service dependencies and skip contracts are clean.
 
@@ -51,6 +55,10 @@ Astro build succeeds.
 filters. Required GitHub checks must always be created, otherwise unrelated PRs
 can be blocked by a required-but-skipped workflow.
 
+The same gate is available as `make agent-check`. Workspace helper contracts
+are covered by `tests/seocho/test_coding_workspace.py`; local receipts remain
+untracked. See [Agent Workflow](AGENT_WORKFLOW.md).
+
 ## Contributor Intake
 
 GitHub issue templates collect the minimum information maintainers need:
@@ -61,8 +69,9 @@ GitHub issue templates collect the minimum information maintainers need:
 - release checklists: version, release type, validation gates, release notes,
   and `#seocho-updates` Discord announcement draft
 
-The pull request template mirrors the repository PR contract: `Feature`, `Why`,
-`Design`, `Validation`, `Risks / Gaps`, and `Docs`. Maintainers should ask for
+The pull request template mirrors the repository PR contract: problem/resulting
+behavior, design/compatibility, validation, optional experiment evidence, and
+risks/documentation. Maintainers should ask for
 exact validation commands before reviewing behavior-changing PRs.
 
 The triage workflow checks out only the trusted base branch, even for fork PRs.
@@ -113,3 +122,29 @@ are documented in `docs/WORKFLOW.md`.
   root `README.md`.
 - Keep root hierarchy changes covered by
   `scripts/ci/check-root-hierarchy-contract.sh`.
+
+### Locked experiment environment
+
+Basic CI and scheduled Codex workflows install with `uv sync --locked --extra ci`.
+The committed `uv.lock` is checked offline before basic CI runs. The Python
+version matrix sets `UV_PYTHON` explicitly so `.python-version` remains a local
+default. Use [the experiment environment](EXPERIMENT_PLATFORM.md) to reproduce
+these checks in an isolated virtualenv.
+
+Experiment evidence CI covers runtime-setting identity, diagnostic redaction,
+query interruption checkpoints, degraded indexing, and safe local HTML rendering.
+The code-review connector is a separate account-backed service: its usage-limit
+comment is not a successful review, regardless of the CI result.
+
+### Python implementation checks
+
+Basic CI runs product-wide Ruff `E9,F` checks over `src/seocho`, `runtime` and
+`extraction`, excluding test directories and notebooks from this additional gate.
+Public re-exports must be explicit. The gate includes execution-result JSON,
+DataHub approval-tag, registered runtime-tool and semantic-helper compatibility
+regressions. Existing focused test/lint and documentation gates remain in place
+(ADR-0234).
+
+The basic CI gate also covers the local experiment dashboard catalog, real
+loopback HTTP read boundaries, CLI dispatch, and comparison parity. Browser
+interaction checks are recorded separately in the dashboard ExecPlan.

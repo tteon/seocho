@@ -722,6 +722,8 @@ class IndexingPipeline:
                 pass
         census[stage] = count
         try:
+            from seocho.metrics import get_metrics
+
             get_metrics().add(
                 "seocho.index.relationship_survival.count", count,
                 {"ontology": getattr(self.ontology, "name", "?"), "stage": stage})
@@ -957,6 +959,339 @@ class IndexingPipeline:
 
         return all_nodes, all_rels
 
+    def _prepare_chunk(
+        self, chunk: str, *, i: int, category: str,
+        metadata: Optional[Dict[str, Any]], source_id: str,
+        result: IndexingResult,
+        _prefetched: Optional[List[Any]] = None,
+    ) -> Optional[Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]]:
+        """Extract, validate and link one chunk; record rejection before returning."""
+        # Extract (use the concurrent pre-fetch when enabled)
+        try:
+            if _prefetched is not None:
+                response = _prefetched[i]
+                if isinstance(response, Exception):
+                    raise response
+            else:
+                response = self._graph_extraction.extract(
+                    chunk,
+                    category=category,
+                    metadata=metadata,
+                )
+            extracted = response
+        except Exception as exc:
+            # A hosted reasoning model spends its budget thinking and, on a
+            # large chunk, emits reasoning prose with no JSON at all --
+            # measured live on MARA MiniMax-M2.7, "no JSON object found
+            # (head: 'Let me analyze this text carefully...')". The same
+            # model emits clean JSON on a smaller input. So before falling to
+            # the capitalized-token heuristic (which manufactures
+            # Entity/MENTIONS structure and loses every real relationship),
+            # try halving the chunk and extracting each part. This recovers
+            # real structure the heuristic cannot, and then falls through the
+            # normal downstream path exactly as a clean extraction would.
+            split = self._extract_by_splitting(
+                chunk, category=category, metadata=metadata)
+            if split is not None:
+                extracted = split
+                try:
+                    from seocho.metrics import get_metrics
+
+                    get_metrics().add(
+                        "seocho.index.extraction.split_retry.count", 1,
+                        {"ontology": self.ontology.name})
+                except Exception:  # noqa: BLE001 - telemetry never fails indexing
+                    pass
+            elif not self.enforcement_policy.allow_heuristic_fallback:
+                # seocho-snt strict: an LLM transport failure becomes a
+                # recorded error, not fabricated out-of-vocabulary graph
+                # structure.
+                logger.warning("LLM extraction failed for chunk %d (strict, no fallback): %s", i, exc)
+                result.write_errors.append(
+                    f"Chunk {i}: extraction failed under strict enforcement: "
+                    f"{type(exc).__name__}: {str(exc)[:200]}"
+                )
+                result.skipped_chunks += 1
+                return None
+            else:
+                logger.warning(
+                    "LLM extraction failed for chunk %d, using heuristic fallback: %s",
+                    i, exc,
+                )
+                # Heuristic fallback — capture capitalized tokens as Entity
+                # nodes so the chunk produces *some* graph structure even
+                # without LLM access.  Marks the result as fallback_used for
+                # parity with server-side fallback_records tracking.
+                extracted = self._fallback_extract(chunk, source_id=source_id)
+                result.fallback_used = True
+                result.fallback_reason = f"{type(exc).__name__}: {str(exc)[:200]}"
+
+        nodes = extracted.get("nodes", [])
+        rels = extracted.get("relationships", [])
+
+        if not nodes and not rels:
+            if not self.enforcement_policy.allow_heuristic_fallback:
+                # Strict: an empty extraction is a legitimate outcome for
+                # out-of-vocabulary text — the Entity/MENTIONS heuristic
+                # would manufacture exactly the structure strict forbids.
+                result.skipped_chunks += 1
+                return None
+            logger.warning(
+                "LLM extraction returned an empty graph for chunk %d, using heuristic fallback.",
+                i,
+            )
+            extracted = self._fallback_extract(chunk, source_id=source_id)
+            nodes = extracted.get("nodes", [])
+            rels = extracted.get("relationships", [])
+            result.fallback_used = True
+            result.fallback_reason = (
+                result.fallback_reason
+                or "EmptyExtraction: entity extraction returned no nodes or relationships"
+            )
+            if not nodes and not rels:
+                result.skipped_chunks += 1
+                return None
+
+        # Coerce over-specified labels and relationship types onto declared
+        # generic ones, so the model's natural over-specification lands as
+        # graph structure instead of being dropped.
+        nodes = self._coerce_generic_labels(nodes)
+        rels = self._coerce_generic_relationship_types(rels)
+
+        # --- Callback: on_after_extract ---
+        if self.on_after_extract:
+            nodes, rels = self.on_after_extract(nodes, rels)
+
+        # --- Indexing Reasoning: re-extract if quality is low ---
+        score_data = self.ontology.score_extraction(extracted)
+        extraction_score = score_data.get("overall", 0.0)
+        quality_threshold = getattr(self, "_quality_threshold", 0.0)
+        max_retries = getattr(self, "_max_retries", 0)
+
+        if quality_threshold > 0 and extraction_score < quality_threshold and max_retries > 0:
+            # Build guidance from low-scoring details
+            low_nodes = [n for n in score_data.get("nodes", []) if n.get("score", 0) < 0.5]
+            missing_info = []
+            for n in low_nodes:
+                details = n.get("details", {})
+                if details.get("label_match", 1) == 0:
+                    missing_info.append(f"Node '{n.get('id')}' has unknown label '{n.get('label')}'")
+                if details.get("property_completeness", 1) < 0.5:
+                    missing_info.append(f"Node '{n.get('id')}' ({n.get('label')}) is missing required properties")
+
+            for retry in range(max_retries):
+                guidance = (
+                    f"Previous extraction scored {extraction_score:.0%}. Issues:\n"
+                    + "\n".join(f"- {m}" for m in missing_info[:5])
+                    + f"\n\nPlease re-extract with these corrections. "
+                    f"Available types: {', '.join(self.ontology.nodes.keys())}. "
+                    f"Available relationships: {', '.join(self.ontology.relationships.keys())}."
+                )
+                try:
+                    retry_system, retry_user = self._extraction.render(chunk, metadata=metadata, category=category)
+                    retry_system += f"\n\n{guidance}"
+                    retry_response = complete_with_task_hints(
+                        self.llm,
+                        system=retry_system,
+                        user=retry_user,
+                        temperature=0.1 * (retry + 1),
+                        response_format={"type": "json_object"},
+                        reasoning_mode=False,
+                        task_hint="json_extraction_retry",
+                    )
+                    retry_extracted = self._normalize_extraction_payload(retry_response.json())
+                    retry_score = self.ontology.score_extraction(retry_extracted).get("overall", 0)
+
+                    if retry_score > extraction_score:
+                        nodes = retry_extracted.get("nodes", [])
+                        rels = retry_extracted.get("relationships", [])
+                        extracted = retry_extracted
+                        extraction_score = retry_score
+                        logger.info("Indexing reasoning: retry %d improved score %.0f%% → %.0f%%",
+                                   retry + 1, extraction_score * 100, retry_score * 100)
+                        if retry_score >= quality_threshold:
+                            break
+                except Exception:
+                    break
+
+        # Validate with SHACL
+        errors = self.ontology.validate_with_shacl(
+            extracted, closed=self.enforcement_policy.closed_validation
+        )
+
+        # --- Callback: on_after_validate ---
+        if self.on_after_validate:
+            nodes, rels, errors = self.on_after_validate(nodes, rels, errors)
+
+        if errors:
+            result.validation_errors.extend(errors)
+            if self.strict_validation:
+                logger.warning("Chunk %d rejected by SHACL: %s", i, errors)
+                result.skipped_chunks += 1
+                return None
+
+        # seocho-snt open mode: admit everything, but stamp
+        # out-of-vocabulary elements so sanctioned and unsanctioned
+        # assertions stay distinguishable (governance triage signal).
+        if self.enforcement_policy.annotate_out_of_ontology:
+            from seocho.index.enforcement import annotate_out_of_ontology
+
+            annotate_out_of_ontology(self.ontology, nodes, rels)
+
+        # Link (deduplicate entities within chunk)
+        if nodes:
+            pre_link_nodes, pre_link_rels = nodes, rels
+            try:
+                linked = self._graph_extraction.link(
+                    {"nodes": nodes, "relationships": rels},
+                    category=category,
+                )
+                linked_nodes = linked.get("nodes", [])
+                linked_rels = linked.get("relationships", [])
+                if linked_nodes:
+                    nodes = linked_nodes
+                if linked_rels:
+                    rels = linked_rels
+            except Exception as exc:
+                logger.warning("Linking failed for chunk %d, using raw extraction: %s", i, exc)
+
+            # seocho-snt strict: linking runs after validation and can
+            # reintroduce out-of-vocabulary labels/types; re-run the
+            # cheap closed check and fall back to the validated
+            # pre-link payload on regression.
+            if self.enforcement_policy.closed_validation and nodes is not pre_link_nodes:
+                post_link_errors = self.ontology.validate_extraction(
+                    {"nodes": nodes, "relationships": rels}, closed=True
+                )
+                if post_link_errors:
+                    logger.warning(
+                        "Chunk %d: linking regressed closed validation, reverting: %s",
+                        i, post_link_errors,
+                    )
+                    nodes, rels = pre_link_nodes, pre_link_rels
+
+        return nodes, rels
+
+    def _record_indexing(
+        self, result: IndexingResult, *, content: str,
+        metadata: Optional[Dict[str, Any]], all_nodes: List[Dict[str, Any]],
+        all_rels: List[Dict[str, Any]], _pipeline_elapsed: float,
+    ) -> None:
+        """Record optional diagnostics after writing; telemetry cannot fail ingestion."""
+        # --- Compute extraction score ---
+        _score = 0.0
+        if all_nodes or all_rels:
+            try:
+                _scores = self.ontology.score_extraction({"nodes": all_nodes, "relationships": all_rels})
+                _score = _scores.get("overall", 0.0)
+            except Exception:
+                pass
+
+        # --- Tracing (ADR-0144 §6: governance observability) ---
+        try:
+            from seocho.metrics import get_metrics
+            from seocho.tracing import (
+                capture_text,
+                is_tracing_enabled,
+                log_extraction,
+            )
+            if is_tracing_enabled():
+                _mode = self.enforcement_policy.mode
+                _meta: Dict[str, Any] = {"enforcement_mode": _mode}
+                # Per-error validation detail (content-gated): the actual
+                # failures, not just the count, when capture is enabled.
+                if result.validation_errors:
+                    _detail = capture_text(
+                        "; ".join(str(e) for e in result.validation_errors[:20])
+                    )
+                    if _detail:
+                        _meta["validation_errors_detail"] = _detail
+                log_extraction(
+                    text_preview=content[:200] if content else "",
+                    ontology_name=self.ontology.name,
+                    model=getattr(self.llm, "model", "unknown"),
+                    nodes_count=result.total_nodes,
+                    relationships_count=result.total_relationships,
+                    score=_score,
+                    validation_errors=len(result.validation_errors),
+                    elapsed_seconds=_pipeline_elapsed,
+                    metadata=_meta,
+                    # Without these the span shows that an extraction happened
+                    # and nothing about which tenant it belonged to or which
+                    # stage produced it, so a shared deployment cannot filter
+                    # its own traces. The capability was added and never
+                    # passed; the arguments are the whole point of it.
+                    workspace_id=self.workspace_id,
+                    provider=getattr(self.llm, "provider", None),
+                    stage="indexing",
+                )
+                # Indexing-stage quality. These emitters existed and had no
+                # production caller: six declared instruments that never fired,
+                # so the indexing stage of a four-stage breakdown emitted
+                # nothing at all. The observability contract test could not see
+                # it, because it defines "emitted" as the metric name appearing
+                # as a string somewhere under src/.
+                try:
+                    from .quality_metrics import record_extraction, record_off_vocabulary
+
+                    # Only the EXTRACTED graph is checked against the ontology.
+                    # result.nodes also carries the provenance layer this
+                    # pipeline writes itself -- Document, DocumentVersion,
+                    # Section, Chunk -- which the ontology does not and should
+                    # not declare. Counting those as violations reported a
+                    # constant 4 on every document forever, which would have
+                    # made the signal useless in exactly the way that is hard to
+                    # notice: a metric that is always wrong by the same amount
+                    # still moves correctly, so nobody questions the baseline.
+                    _extracted = [
+                        n for n in result.nodes
+                        if not self._system_layer_label(n.get("label"))
+                    ]
+                    _allowed = set(self.ontology.nodes) if self.ontology else None
+                    record_extraction(
+                        ontology=self.ontology.name,
+                        source_type=str((metadata or {}).get("source_type") or "unknown"),
+                        nodes=_extracted,
+                        relationships=result.relationships,
+                        allowed_labels=_allowed,
+                    )
+                    # Vocabularies come from BOTH declaration sites. `P(enum=)`
+                    # is the SDK-native one; the OS-contract sidecar writes
+                    # `annotations["vocabularies"]`. Reading only the sidecar
+                    # meant an ontology declaring `P(str, enum=[...])` had its
+                    # vocabulary enforced by SHACL and never counted here -- so
+                    # the metric reported zero deviations for a property that
+                    # was deviating. Verified e2e: a declared
+                    # [proposed|applied|superseded|reverted] came back as
+                    # "active" on every node, silently.
+                    _vocab = dict(
+                        (getattr(self.ontology, "annotations", None) or {}).get(
+                            "vocabularies"
+                        ) or {}
+                    )
+                    for _label, _nd in (self.ontology.nodes or {}).items():
+                        for _pname, _prop in (_nd.properties or {}).items():
+                            if getattr(_prop, "enum", None):
+                                _vocab.setdefault(f"{_label}.{_pname}",
+                                                  list(_prop.enum))
+                    if _vocab:
+                        record_off_vocabulary(
+                            ontology=self.ontology.name,
+                            nodes=_extracted,
+                            vocabularies=_vocab,
+                        )
+                except Exception:  # noqa: BLE001 - telemetry never fails indexing
+                    logger.debug("indexing quality metrics skipped", exc_info=True)
+
+                get_metrics().add(
+                    "seocho.index.validation_errors.count",
+                    len(result.validation_errors),
+                    attributes={"mode": _mode, "ontology": self.ontology.name},
+                )
+        except Exception:
+            pass
+
+
     def index(
         self,
         content: str,
@@ -1026,7 +1361,6 @@ class IndexingPipeline:
         all_nodes: List[Dict[str, Any]] = []
         all_rels: List[Dict[str, Any]] = []
         chunk_records: List[Dict[str, Any]] = []
-        _total_usage: Dict[str, int] = {}
 
         # Concurrent extraction pre-fetch (seocho-ia4 step 1): the LLM extract call
         # per chunk is I/O-bound and independent, so overlap the round-trips while
@@ -1048,207 +1382,13 @@ class IndexingPipeline:
             if on_chunk:
                 on_chunk(i, len(chunks))
 
-            # Extract (use the concurrent pre-fetch when enabled)
-            try:
-                if _prefetched is not None:
-                    response = _prefetched[i]
-                    if isinstance(response, Exception):
-                        raise response
-                else:
-                    response = self._graph_extraction.extract(
-                        chunk,
-                        category=category,
-                        metadata=metadata,
-                    )
-                extracted = response
-            except Exception as exc:
-                # A hosted reasoning model spends its budget thinking and, on a
-                # large chunk, emits reasoning prose with no JSON at all --
-                # measured live on MARA MiniMax-M2.7, "no JSON object found
-                # (head: 'Let me analyze this text carefully...')". The same
-                # model emits clean JSON on a smaller input. So before falling to
-                # the capitalized-token heuristic (which manufactures
-                # Entity/MENTIONS structure and loses every real relationship),
-                # try halving the chunk and extracting each part. This recovers
-                # real structure the heuristic cannot, and then falls through the
-                # normal downstream path exactly as a clean extraction would.
-                split = self._extract_by_splitting(
-                    chunk, category=category, metadata=metadata)
-                if split is not None:
-                    extracted = split
-                    try:
-                        get_metrics().add(
-                            "seocho.index.extraction.split_retry.count", 1,
-                            {"ontology": self.ontology.name})
-                    except Exception:  # noqa: BLE001 - telemetry never fails indexing
-                        pass
-                elif not self.enforcement_policy.allow_heuristic_fallback:
-                    # seocho-snt strict: an LLM transport failure becomes a
-                    # recorded error, not fabricated out-of-vocabulary graph
-                    # structure.
-                    logger.warning("LLM extraction failed for chunk %d (strict, no fallback): %s", i, exc)
-                    result.write_errors.append(
-                        f"Chunk {i}: extraction failed under strict enforcement: "
-                        f"{type(exc).__name__}: {str(exc)[:200]}"
-                    )
-                    result.skipped_chunks += 1
-                    continue
-                else:
-                    logger.warning(
-                        "LLM extraction failed for chunk %d, using heuristic fallback: %s",
-                        i, exc,
-                    )
-                    # Heuristic fallback — capture capitalized tokens as Entity
-                    # nodes so the chunk produces *some* graph structure even
-                    # without LLM access.  Marks the result as fallback_used for
-                    # parity with server-side fallback_records tracking.
-                    extracted = self._fallback_extract(chunk, source_id=source_id)
-                    result.fallback_used = True
-                    result.fallback_reason = f"{type(exc).__name__}: {str(exc)[:200]}"
-
-            nodes = extracted.get("nodes", [])
-            rels = extracted.get("relationships", [])
-
-            if not nodes and not rels:
-                if not self.enforcement_policy.allow_heuristic_fallback:
-                    # Strict: an empty extraction is a legitimate outcome for
-                    # out-of-vocabulary text — the Entity/MENTIONS heuristic
-                    # would manufacture exactly the structure strict forbids.
-                    result.skipped_chunks += 1
-                    continue
-                logger.warning(
-                    "LLM extraction returned an empty graph for chunk %d, using heuristic fallback.",
-                    i,
-                )
-                extracted = self._fallback_extract(chunk, source_id=source_id)
-                nodes = extracted.get("nodes", [])
-                rels = extracted.get("relationships", [])
-                result.fallback_used = True
-                result.fallback_reason = (
-                    result.fallback_reason
-                    or "EmptyExtraction: entity extraction returned no nodes or relationships"
-                )
-                if not nodes and not rels:
-                    result.skipped_chunks += 1
-                    continue
-
-            # Coerce over-specified labels and relationship types onto declared
-            # generic ones, so the model's natural over-specification lands as
-            # graph structure instead of being dropped.
-            nodes = self._coerce_generic_labels(nodes)
-            rels = self._coerce_generic_relationship_types(rels)
-
-            # --- Callback: on_after_extract ---
-            if self.on_after_extract:
-                nodes, rels = self.on_after_extract(nodes, rels)
-
-            # --- Indexing Reasoning: re-extract if quality is low ---
-            score_data = self.ontology.score_extraction(extracted)
-            extraction_score = score_data.get("overall", 0.0)
-            quality_threshold = getattr(self, "_quality_threshold", 0.0)
-            max_retries = getattr(self, "_max_retries", 0)
-
-            if quality_threshold > 0 and extraction_score < quality_threshold and max_retries > 0:
-                # Build guidance from low-scoring details
-                low_nodes = [n for n in score_data.get("nodes", []) if n.get("score", 0) < 0.5]
-                missing_info = []
-                for n in low_nodes:
-                    details = n.get("details", {})
-                    if details.get("label_match", 1) == 0:
-                        missing_info.append(f"Node '{n.get('id')}' has unknown label '{n.get('label')}'")
-                    if details.get("property_completeness", 1) < 0.5:
-                        missing_info.append(f"Node '{n.get('id')}' ({n.get('label')}) is missing required properties")
-
-                for retry in range(max_retries):
-                    guidance = (
-                        f"Previous extraction scored {extraction_score:.0%}. Issues:\n"
-                        + "\n".join(f"- {m}" for m in missing_info[:5])
-                        + f"\n\nPlease re-extract with these corrections. "
-                        f"Available types: {', '.join(self.ontology.nodes.keys())}. "
-                        f"Available relationships: {', '.join(self.ontology.relationships.keys())}."
-                    )
-                    try:
-                        retry_system, retry_user = self._extraction.render(chunk, metadata=metadata, category=category)
-                        retry_system += f"\n\n{guidance}"
-                        retry_response = complete_with_task_hints(
-                            self.llm,
-                            system=retry_system,
-                            user=retry_user,
-                            temperature=0.1 * (retry + 1),
-                            response_format={"type": "json_object"},
-                            reasoning_mode=False,
-                            task_hint="json_extraction_retry",
-                        )
-                        retry_extracted = self._normalize_extraction_payload(retry_response.json())
-                        retry_score = self.ontology.score_extraction(retry_extracted).get("overall", 0)
-
-                        if retry_score > extraction_score:
-                            nodes = retry_extracted.get("nodes", [])
-                            rels = retry_extracted.get("relationships", [])
-                            extracted = retry_extracted
-                            extraction_score = retry_score
-                            logger.info("Indexing reasoning: retry %d improved score %.0f%% → %.0f%%",
-                                       retry + 1, extraction_score * 100, retry_score * 100)
-                            if retry_score >= quality_threshold:
-                                break
-                    except Exception:
-                        break
-
-            # Validate with SHACL
-            errors = self.ontology.validate_with_shacl(
-                extracted, closed=self.enforcement_policy.closed_validation
+            graph = self._prepare_chunk(
+                chunk, i=i, category=category, metadata=metadata,
+                source_id=source_id, result=result, _prefetched=_prefetched,
             )
-
-            # --- Callback: on_after_validate ---
-            if self.on_after_validate:
-                nodes, rels, errors = self.on_after_validate(nodes, rels, errors)
-
-            if errors:
-                result.validation_errors.extend(errors)
-                if self.strict_validation:
-                    logger.warning("Chunk %d rejected by SHACL: %s", i, errors)
-                    result.skipped_chunks += 1
-                    continue
-
-            # seocho-snt open mode: admit everything, but stamp
-            # out-of-vocabulary elements so sanctioned and unsanctioned
-            # assertions stay distinguishable (governance triage signal).
-            if self.enforcement_policy.annotate_out_of_ontology:
-                from seocho.index.enforcement import annotate_out_of_ontology
-
-                annotate_out_of_ontology(self.ontology, nodes, rels)
-
-            # Link (deduplicate entities within chunk)
-            if nodes:
-                pre_link_nodes, pre_link_rels = nodes, rels
-                try:
-                    linked = self._graph_extraction.link(
-                        {"nodes": nodes, "relationships": rels},
-                        category=category,
-                    )
-                    linked_nodes = linked.get("nodes", [])
-                    linked_rels = linked.get("relationships", [])
-                    if linked_nodes:
-                        nodes = linked_nodes
-                    if linked_rels:
-                        rels = linked_rels
-                except Exception as exc:
-                    logger.warning("Linking failed for chunk %d, using raw extraction: %s", i, exc)
-
-                # seocho-snt strict: linking runs after validation and can
-                # reintroduce out-of-vocabulary labels/types; re-run the
-                # cheap closed check and fall back to the validated
-                # pre-link payload on regression.
-                if self.enforcement_policy.closed_validation and nodes is not pre_link_nodes:
-                    post_link_errors = self.ontology.validate_extraction(
-                        {"nodes": nodes, "relationships": rels}, closed=True
-                    )
-                    if post_link_errors:
-                        logger.warning(
-                            "Chunk %d: linking regressed closed validation, reverting: %s",
-                            i, post_link_errors,
-                        )
-                        nodes, rels = pre_link_nodes, pre_link_rels
+            if graph is None:
+                continue
+            nodes, rels = graph
 
             chunk_records.append(
                 {
@@ -1359,121 +1499,10 @@ class IndexingPipeline:
             except Exception as exc:
                 result.write_errors.append(str(exc))
 
-        # --- Compute extraction score ---
-        _pipeline_elapsed = _time.time() - _pipeline_start
-        _score = 0.0
-        if all_nodes or all_rels:
-            try:
-                _scores = self.ontology.score_extraction({"nodes": all_nodes, "relationships": all_rels})
-                _score = _scores.get("overall", 0.0)
-            except Exception:
-                pass
-
-        # --- Tracing (ADR-0144 §6: governance observability) ---
-        try:
-            from seocho.metrics import get_metrics
-            from seocho.tracing import (
-                capture_text,
-                is_tracing_enabled,
-                log_extraction,
-            )
-            if is_tracing_enabled():
-                _mode = self.enforcement_policy.mode
-                _meta: Dict[str, Any] = {"enforcement_mode": _mode}
-                if _total_usage:
-                    _meta["usage"] = _total_usage
-                # Per-error validation detail (content-gated): the actual
-                # failures, not just the count, when capture is enabled.
-                if result.validation_errors:
-                    _detail = capture_text(
-                        "; ".join(str(e) for e in result.validation_errors[:20])
-                    )
-                    if _detail:
-                        _meta["validation_errors_detail"] = _detail
-                log_extraction(
-                    text_preview=content[:200] if content else "",
-                    ontology_name=self.ontology.name,
-                    model=getattr(self.llm, "model", "unknown"),
-                    nodes_count=result.total_nodes,
-                    relationships_count=result.total_relationships,
-                    score=_score,
-                    validation_errors=len(result.validation_errors),
-                    elapsed_seconds=_pipeline_elapsed,
-                    metadata=_meta,
-                    # Without these the span shows that an extraction happened
-                    # and nothing about which tenant it belonged to or which
-                    # stage produced it, so a shared deployment cannot filter
-                    # its own traces. The capability was added and never
-                    # passed; the arguments are the whole point of it.
-                    workspace_id=self.workspace_id,
-                    provider=getattr(self.llm, "provider", None),
-                    stage="indexing",
-                )
-                # Indexing-stage quality. These emitters existed and had no
-                # production caller: six declared instruments that never fired,
-                # so the indexing stage of a four-stage breakdown emitted
-                # nothing at all. The observability contract test could not see
-                # it, because it defines "emitted" as the metric name appearing
-                # as a string somewhere under src/.
-                try:
-                    from .quality_metrics import record_extraction, record_off_vocabulary
-
-                    # Only the EXTRACTED graph is checked against the ontology.
-                    # result.nodes also carries the provenance layer this
-                    # pipeline writes itself -- Document, DocumentVersion,
-                    # Section, Chunk -- which the ontology does not and should
-                    # not declare. Counting those as violations reported a
-                    # constant 4 on every document forever, which would have
-                    # made the signal useless in exactly the way that is hard to
-                    # notice: a metric that is always wrong by the same amount
-                    # still moves correctly, so nobody questions the baseline.
-                    _extracted = [
-                        n for n in result.nodes
-                        if not self._system_layer_label(n.get("label"))
-                    ]
-                    _allowed = set(self.ontology.nodes) if self.ontology else None
-                    record_extraction(
-                        ontology=self.ontology.name,
-                        source_type=str((metadata or {}).get("source_type") or "unknown"),
-                        nodes=_extracted,
-                        relationships=result.relationships,
-                        allowed_labels=_allowed,
-                    )
-                    # Vocabularies come from BOTH declaration sites. `P(enum=)`
-                    # is the SDK-native one; the OS-contract sidecar writes
-                    # `annotations["vocabularies"]`. Reading only the sidecar
-                    # meant an ontology declaring `P(str, enum=[...])` had its
-                    # vocabulary enforced by SHACL and never counted here -- so
-                    # the metric reported zero deviations for a property that
-                    # was deviating. Verified e2e: a declared
-                    # [proposed|applied|superseded|reverted] came back as
-                    # "active" on every node, silently.
-                    _vocab = dict(
-                        (getattr(self.ontology, "annotations", None) or {}).get(
-                            "vocabularies"
-                        ) or {}
-                    )
-                    for _label, _nd in (self.ontology.nodes or {}).items():
-                        for _pname, _prop in (_nd.properties or {}).items():
-                            if getattr(_prop, "enum", None):
-                                _vocab.setdefault(f"{_label}.{_pname}",
-                                                  list(_prop.enum))
-                    if _vocab:
-                        record_off_vocabulary(
-                            ontology=self.ontology.name,
-                            nodes=_extracted,
-                            vocabularies=_vocab,
-                        )
-                except Exception:  # noqa: BLE001 - telemetry never fails indexing
-                    logger.debug("indexing quality metrics skipped", exc_info=True)
-
-                get_metrics().add(
-                    "seocho.index.validation_errors.count",
-                    len(result.validation_errors),
-                    attributes={"mode": _mode, "ontology": self.ontology.name},
-                )
-        except Exception:
-            pass
+        self._record_indexing(
+            result, content=content, metadata=metadata, all_nodes=all_nodes,
+            all_rels=all_rels, _pipeline_elapsed=_time.time() - _pipeline_start,
+        )
 
         return result
 

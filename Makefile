@@ -20,6 +20,12 @@ DOCKER_COMPOSE_MEMORY = $(DOCKER_COMPOSE_SIDE) -f docker/compose.memory.yaml
 SHARED_PROJECT = seocho
 SEOCHO_CLI = python3 -m seocho.cli
 
+# Hosted experiment environment; the developer's existing .venv is preserved.
+PLATFORM_ENV ?= .seocho/venvs/platform
+PLATFORM_UV = UV_PROJECT_ENVIRONMENT="$(PLATFORM_ENV)" uv
+PLATFORM_RUN = $(PLATFORM_UV) run --locked --extra dev --extra otel
+.PHONY: platform-setup platform-check platform-ci
+
 .PHONY: up up-build up-live down restart logs clean bootstrap shell test test-integration e2e-smoke okx-release-gate lint format help apoc-extended memory-up memory-migrate memory-status memory-smoke memory-logs memory-down observability-up observability-down observability-logs demo-raw demo-meta demo-neo4j demo-graphrag demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
 
 ##@ Development
@@ -40,6 +46,20 @@ bootstrap: ## Bootstrap the development environment
 
 setup-env: ## Interactive .env setup (OpenAI key, ports)
 	@bash scripts/setup/init-env.sh
+
+##@ Experiment environment (docs/EXPERIMENT_PLATFORM.md)
+
+platform-setup: ## Install the locked Python 3.11 dev/OTel environment separately
+	@$(PLATFORM_UV) sync --locked --python 3.11 --extra dev --extra otel
+
+platform-check: ## Check locked SDK/graph/agent imports; save the installed environment
+	@uv lock --check --offline
+	@$(PLATFORM_RUN) python -c 'import seocho, agents, neo4j, pyoxigraph; from importlib.metadata import version; print("SEOCHO:", seocho.__file__); print({p: version(p) for p in ("seocho", "openai-agents", "neo4j", "pyoxigraph")})'
+	@mkdir -p .seocho/platform
+	@uv pip freeze --python "$(PLATFORM_ENV)/bin/python" > .seocho/platform/environment.txt
+
+platform-ci: platform-check ## Run basic CI in the locked experiment environment
+	@UV_PROJECT_ENVIRONMENT="$(PLATFORM_ENV)" UV_NO_SYNC=1 bash scripts/ci/run_basic_ci.sh
 
 apoc-extended: ## Install pinned APOC Extended + Arrow/Parquet dependencies
 	@bash scripts/setup/install-apoc-extended.sh
@@ -257,3 +277,15 @@ tutorials-test: ## Headless nbconvert run of every tutorial notebook (reads OPEN
 		echo "✅ Tutorial notebooks executed; outputs under .seocho/test_runs/"'
 
 dev-up: up-live ## Alias for up-live
+
+# Agent coding entrypoints (local state remains ignored).
+.PHONY: agent-doctor agent-start agent-check
+agent-doctor: ## Inspect branch, local changes and available task checkouts
+	python3 scripts/workspace/manage.py doctor
+
+agent-start: ## Create an isolated task checkout; TASK=<issue-id>, optional BASE=<ref>
+	@test -n "$(TASK)" || (echo "Set TASK=<issue-id>" >&2; exit 2)
+	python3 scripts/workspace/manage.py start "$(TASK)" --base "$(or $(BASE),origin/main)"
+
+agent-check: ## Run the canonical checks before handing off or landing
+	bash scripts/ci/run_basic_ci.sh

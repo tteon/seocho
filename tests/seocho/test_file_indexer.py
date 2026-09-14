@@ -109,6 +109,24 @@ class TestJSONReader:
         assert len(records) == 1
         assert records[0]["content"] == "Only doc"
 
+    def test_json_array_of_non_objects_skipped_with_warning(self, tmp_dir, caplog):
+        # read_json_file expects objects; non-object items (strings, numbers,
+        # null) are not documents here, but must not vanish silently.
+        f = tmp_dir / "strings.json"
+        f.write_text(json.dumps(["First doc", "Second doc", 42, None]))
+        with caplog.at_level("WARNING"):
+            records = read_json_file(f)
+        assert records == []
+        assert sum("Skipping non-object item" in r.message for r in caplog.records) == 4
+
+    def test_json_array_mixed_keeps_objects(self, tmp_dir):
+        f = tmp_dir / "mixed.json"
+        f.write_text(json.dumps([{"content": "obj doc"}, "string doc", 42]))
+        records = read_json_file(f)
+        assert len(records) == 1
+        assert records[0]["content"] == "obj doc"
+        assert records[0]["metadata"]["item_index"] == 0
+
 
 class TestJSONLReader:
     def test_jsonl_lines(self, tmp_dir):
@@ -128,6 +146,15 @@ class TestJSONLReader:
         f.write_text('{"content": "good"}\nnot json\n{"content": "also good"}\n')
         records = read_jsonl_file(f)
         assert len(records) == 2  # bad line skipped
+
+    def test_jsonl_non_object_lines_skipped_with_warning(self, tmp_dir, caplog):
+        f = tmp_dir / "strings.jsonl"
+        f.write_text('{"content": "obj"}\n"bare string"\n42\n')
+        with caplog.at_level("WARNING"):
+            records = read_jsonl_file(f)
+        assert len(records) == 1
+        assert records[0]["content"] == "obj"
+        assert sum("Skipping non-object JSON" in r.message for r in caplog.records) == 2
 
 
 class TestFileTracker:
@@ -197,3 +224,72 @@ class TestSupportedExtensions:
         assert ".csv" in SUPPORTED_EXTENSIONS
         assert ".json" in SUPPORTED_EXTENSIONS
         assert ".jsonl" in SUPPORTED_EXTENSIONS
+
+
+def test_failed_index_is_retried_instead_of_cached_as_unchanged(tmp_path):
+    from seocho.index.file_reader import FileIndexer
+    from seocho.index.pipeline import IndexingResult
+
+    class Pipeline:
+        default_database = "neo4j"
+        def __init__(self):
+            self.calls = 0
+        def index(self, content, **kwargs):
+            self.calls += 1
+            return IndexingResult(write_errors=["database write failed"])
+
+    source = tmp_path / "doc.txt"
+    source.write_text("A document requiring retry")
+    pipeline = Pipeline()
+    indexer = FileIndexer(pipeline)
+    assert indexer.index_directory(tmp_path).files_failed == 1
+    assert indexer.index_directory(tmp_path).files_failed == 1
+    assert pipeline.calls == 2
+
+
+def test_legacy_tracking_state_remains_readable(tmp_path: Path) -> None:
+    path = tmp_path / 'legacy.txt'
+    path.write_text('legacy content')
+    stat = path.stat()
+    (tmp_path / '.seocho_index').write_text(json.dumps({
+        'version': 1, 'files': [{
+            'path': str(path), 'mtime': stat.st_mtime, 'size': stat.st_size,
+            'source_id': 'legacy-source', 'content_hash': 'legacy-hash',
+        }],
+    }))
+    tracker = FileTracker(tmp_path)
+    assert not tracker.needs_indexing(path)
+    assert tracker.get_source_id(path) == 'legacy-source'
+    tracker.save()
+    saved = json.loads((tmp_path / '.seocho_index').read_text())
+    assert saved['version'] == 2 and saved['change_detection'] == 'mtime_size'
+    assert saved['files'][0]['content_hash'] == 'legacy-hash'
+
+
+def test_tracking_does_not_reread_indexed_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from seocho.index.file_reader import FileIndexer
+    from seocho.index.pipeline import IndexingResult
+
+    class Pipeline:
+        def index(self, content: str, **kwargs: object) -> IndexingResult:
+            assert content == 'One document.'
+            return IndexingResult(source_id='source', total_nodes=1, chunks_processed=1)
+
+    path = tmp_path / 'document.txt'
+    path.write_text('One document.')
+    reads = []
+    original = Path.read_text
+
+    def read_text(self: Path, *args: object, **kwargs: object) -> str:
+        reads.append(self)
+        return original(self, *args, **kwargs)
+
+    tracker = FileTracker(tmp_path)
+    monkeypatch.setattr(Path, 'read_text', read_text)
+    result = FileIndexer(Pipeline()).index_file(path, tracker=tracker)
+    assert result.status == 'indexed'
+    assert reads == [path]  # The document reader runs once; tracking only stats it.
+    assert tracker.get_source_id(path) == 'source'
+    assert not tracker.needs_indexing(path)

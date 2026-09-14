@@ -36,6 +36,7 @@ seocho = "seocho.cli:main"
 
 [project.optional-dependencies]
 local = [
+    "fastembed",
     "fastapi",
     "httpx>=0.25.0",
     "neo4j-rust-ext",  # Rust PackStream codec, ADR-0111: W2 3.6x, parity-gated; pulls matching neo4j
@@ -48,24 +49,29 @@ local = [
 ]
 ci = [
     "faiss-cpu",
+    "fastembed",
     "fastapi",
     "lancedb",
     "neo4j-rust-ext",  # Rust PackStream codec, ADR-0111: W2 3.6x, parity-gated; pulls matching neo4j
     "numpy",
     "openai",
     "openai-agents",
+    "pandas",
     "pydantic>=2.0",
     "pytest>=7.0",
     "pytest-asyncio>=0.21.0",
     "pyyaml",
     "ruff",
+    "setuptools>=68",
     "httpx>=0.25.0",
     "tenacity>=8.2.0",
     "uvicorn",
+    "mypy>=2.3.1",
 ]
 dev = [
     "datasets",
     "faiss-cpu",
+    "fastembed",
     "fastapi",
     "fastparquet",
     "build",
@@ -83,6 +89,7 @@ dev = [
     "black",
     "isort",
     "ruff",
+    "setuptools>=68",
     "neo4j-rust-ext",  # Rust PackStream codec, ADR-0111: W2 3.6x, parity-gated; pulls matching neo4j
     "numpy",
     "openai",
@@ -96,6 +103,8 @@ dev = [
     "tenacity>=8.2.0",
     "tomli; python_version < '3.11'",
     "uvicorn",
+    "pyoxigraph>=0.5.9",
+    "mypy>=2.3.1",
 ]
 notebook = [
     "jupyter",
@@ -113,7 +122,7 @@ pdf = [
 ]
 otel = [
     # ADR-0144: the OpenTelemetry tracing backend (otlp). Exports spans to an
-    # OTel Collector; the vendor-neutral default since ADR-0166 removed Opik.
+    # OTel Collector; the vendor-neutral export contract (ADR-0172).
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp-proto-grpc",
 ]
@@ -136,6 +145,7 @@ memory-bench = [
 ]
 
 [tool.pytest.ini_options]
+cache_dir = ".seocho/cache/pytest"
 testpaths = ["extraction/tests", "tests"]
 pythonpath = ["src", "extraction"]
 asyncio_mode = "auto"
@@ -158,9 +168,10 @@ exclude = ["__pycache__", "*.pyc", ".git"]
 
 # Dead-code detection (Track A quick-win — surface metric only, not yet a CI gate).
 # Run: `ruff check src/seocho/ extraction/ runtime/ --statistics`
-# When ready to enforce, add a CI step; until then this just makes the metric easy
-# to inspect locally without contradicting the existing flake8/black/isort setup.
+# Basic CI enforces E9/F over production Python; these defaults also support
+# focused unused-code inspection without changing the existing formatter setup.
 [tool.ruff]
+cache-dir = ".seocho/cache/ruff"
 line-length = 88
 target-version = "py311"
 extend-exclude = [
@@ -195,5 +206,6 @@ namespaces = false
 
 [tool.setuptools.package-data]
 seocho = ["py.typed"]
+"seocho.dashboard" = ["*.html", "*.css", "*.js"]
 "seocho.semantic_layer" = ["cik_table.json"]
 "seocho.ontology_templates" = ["*.yaml"]

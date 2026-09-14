@@ -36,7 +36,8 @@ coordination.
 Preserve the stack baseline unless a specific ADR changes it:
 
 - OpenAI Agents SDK
-- vendor-neutral tracing contract, with Opik as the preferred team backend
+- vendor-neutral tracing (`none|console|jsonl|otlp`), with JSONL artifacts and
+  an operator-selected OTLP backend (ADR-0172)
 - DozerDB as the production graph backend
 - single-tenant MVP with `workspace_id` propagated through runtime contracts
 - Owlready2 only in the offline ontology governance path

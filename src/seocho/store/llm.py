@@ -2,7 +2,7 @@
 LLM and embedding backend abstractions for the public SEOCHO SDK.
 
 The default implementation uses OpenAI-compatible HTTP APIs so the same
-interface can be reused across OpenAI, DeepSeek, Kimi, Grok, and Qwen.
+interface can be reused across OpenAI, DeepSeek, Kimi, Grok, Qwen, and Z.AI.
 """
 
 from __future__ import annotations
@@ -85,6 +85,16 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         api_key_env="DASHSCOPE_API_KEY",
         base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         default_model="qwen-plus",
+        default_embedding_model=None,
+        supports_embeddings=False,
+    ),
+    # Z.AI global (Zhipu AI international platform). Distinct from the
+    # Chinese domestic endpoint (open.bigmodel.cn). Fully OpenAI-compatible.
+    "zai": ProviderSpec(
+        name="zai",
+        api_key_env="ZAI_API_KEY",
+        base_url="https://api.z.ai/api/paas/v4/",
+        default_model="glm-5.1",
         default_embedding_model=None,
         supports_embeddings=False,
     ),
@@ -600,7 +610,6 @@ class OpenAICompatibleBackend(LLMBackend):
             if max_tokens is not None:
                 kwargs["max_tokens"] = max_tokens
 
-        normalized_mode = (mode or "").strip().lower() or None
         # ADR-0098 translated response_format into extra_body.guided_* for
         # vLLM. That was correct for vLLM 0.4-era guided decoding and is now
         # actively harmful: `guided_json` does not exist in vLLM 0.27 (grep of
@@ -1390,69 +1399,33 @@ def create_llm_backend(
     """
 
     provider_key = str(provider).strip().lower() or "openai"
-    if timeout is None:
-        try:
-            timeout = get_provider_spec(provider_key).default_timeout
-        except ValueError:
-            timeout = 120.0
-    if provider_key == "openai":
-        return OpenAIBackend(
-            model=model or get_provider_spec("openai").default_model,
-            api_key=api_key,
-            base_url=base_url,
-            timeout=timeout,
+    if provider_key not in _PROVIDER_SPECS:
+        raise ValueError(
+            f"Unsupported LLM provider '{provider}'. "
+            f"Known providers: {', '.join(sorted(_PROVIDER_SPECS))}"
         )
-    if provider_key == "deepseek":
-        return DeepSeekBackend(
-            model=model or get_provider_spec("deepseek").default_model,
-            api_key=api_key,
-            base_url=base_url,
-            timeout=timeout,
+    spec = get_provider_spec(provider_key)
+    selected_model = model or spec.default_model
+    if provider_key == "vllm" and not selected_model:
+        raise ValueError(
+            "vllm provider requires an explicit model — vLLM's served "
+            "model name is operator-chosen (e.g. 'Qwen2.5-7B-Instruct')."
         )
-    if provider_key == "kimi":
-        return KimiBackend(
-            model=model or get_provider_spec("kimi").default_model,
-            api_key=api_key,
-            base_url=base_url,
-            timeout=timeout,
+    resolved_timeout = spec.default_timeout if timeout is None else timeout
+    if provider_key == "zai":
+        return OpenAICompatibleBackend(
+            provider="zai", model=selected_model, api_key=api_key,
+            base_url=base_url, timeout=resolved_timeout,
         )
-    if provider_key == "grok":
-        return GrokBackend(
-            model=model or get_provider_spec("grok").default_model,
-            api_key=api_key,
-            base_url=base_url,
-            timeout=timeout,
-        )
-    if provider_key == "qwen":
-        return QwenBackend(
-            model=model or get_provider_spec("qwen").default_model,
-            api_key=api_key,
-            base_url=base_url,
-            timeout=timeout,
-        )
-    if provider_key == "mara":
-        return MaraBackend(
-            model=model or get_provider_spec("mara").default_model,
-            api_key=api_key,
-            base_url=base_url,
-            timeout=timeout,
-        )
-    if provider_key == "vllm":
-        vllm_model = model or get_provider_spec("vllm").default_model
-        if not vllm_model:
-            raise ValueError(
-                "vllm provider requires an explicit model — vLLM's served "
-                "model name is operator-chosen (e.g. 'Qwen2.5-7B-Instruct')."
-            )
-        return VLLMBackend(
-            model=vllm_model,
-            api_key=api_key,
-            base_url=base_url,
-            timeout=timeout,
-        )
-    raise ValueError(
-        f"Unsupported LLM provider '{provider}'. "
-        f"Known providers: {', '.join(sorted(_PROVIDER_SPECS))}"
+    # Resolve classes at call time so test/operator constructor overrides work.
+    backends = {
+        "openai": OpenAIBackend, "deepseek": DeepSeekBackend,
+        "kimi": KimiBackend, "grok": GrokBackend, "qwen": QwenBackend,
+        "mara": MaraBackend, "vllm": VLLMBackend,
+    }
+    return backends[provider_key](
+        model=selected_model, api_key=api_key, base_url=base_url,
+        timeout=resolved_timeout,
     )
 
 

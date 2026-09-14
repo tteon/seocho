@@ -284,3 +284,9 @@ time without depending on a specific trace backend.
 
 Local benchmark and diagnostic artifacts may live under `.seocho/benchmarks/results/`
 while iterating, but those files are local-only and must not be committed.
+
+## Reproducible environment
+
+Use [EXPERIMENT_PLATFORM.md](EXPERIMENT_PLATFORM.md) for the locked, isolated
+SDK/graph/agent/OTel environment. Setup does not launch a paid benchmark; apply
+the Experiment Continuity Gate before selecting a new arm or repeating a run.

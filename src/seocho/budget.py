@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Dict
 
 
 class BudgetExceededError(RuntimeError):

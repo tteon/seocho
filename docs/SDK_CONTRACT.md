@@ -54,15 +54,12 @@ database.
 
 | Guarantee | Status | Test | Issue |
 |-----------|:---:|------|-------|
-| Trace backend init failure is observable to the caller | ⚠️ | `TestOpikBackendSilentInit::test_log_span_no_ops_when_opik_client_init_raises` | seocho-8k1h |
 | `JSONLBackend` writes are durable and parseable | ✅ | `test_session_agent.py` tracing coverage | — |
 | Trace metadata carries `workspace_id` for runtime-aware records | ✅ | per CLAUDE.md §9 | — |
 
-**What this means today:** if you configure `OpikBackend` with a bad API
-key or unreachable workspace, init logs a warning and `log_span` becomes
-a no-op — no traces are written, no exception is raised. Your code has
-no way to detect this from the SDK surface. After seocho-8k1h lands,
-init raises (or a `ready` property is exposed) under strict mode.
+The supported backends are `none`, `console`, `jsonl`, and `otlp`. Backend
+readiness and export failures must be checked in the selected exporter; a local
+report does not prove collector delivery. See ADR-0172 for the retired backend.
 
 ### 2.4 Ontology governance
 
@@ -166,3 +163,13 @@ inspect dict markers.
 - Operating model: `docs/PHILOSOPHY.md`, `docs/ARCHITECTURE.md`
 - Related runtime contract: CLAUDE.md §6 (Runtime/API Guardrails)
 - Public work tracking: GitHub issues and pull requests
+
+## Execution-result pattern snapshot
+
+`ExecutionResult.agent_pattern` is a stored JSON mapping. If it is empty at
+construction, a dictionary in `answer_envelope.agent_pattern` supplies its initial
+value; a non-empty explicit argument takes precedence. Later envelope changes do
+not mutate this snapshot. Default results can be passed through
+`json.dumps(result.to_dict())`. `Seocho`, `AsyncSeocho` and
+`ExecutionPlanBuilder` remain importable from `seocho.client` after internal
+module separation (ADR-0234).

@@ -262,3 +262,11 @@ Treat a Graph-RAG change as acceptable only when it can show:
 3. which evidence filled those slots
 4. which slots remained missing
 5. how the final answer stayed grounded in that bundle
+
+## Shared semantic implementation ownership
+
+SDK query helpers own ontology hints, profile selection, vocabulary aliases and
+artifact reads; extraction exposes compatibility adapters (ADR-0234). Prompt
+composition and constraint slices share pure SHACL candidate merging. This
+refactor preserves intent, required slots, provenance, insufficiency and existing
+ranking behavior; it is not new answer-quality evidence.

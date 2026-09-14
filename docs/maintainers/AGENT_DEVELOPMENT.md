@@ -102,7 +102,6 @@ These affect everyone and may have repo-wide consequences.
 - `data/`
 - `logs/`
 - `neo4j/`
-- `opik/`
 - `extraction/output/`
 - bundled sample/binary folders inside `extraction/`
 
@@ -145,7 +144,7 @@ Do not violate these without an explicit architecture decision:
 
 - OpenAI Agents SDK remains the agent runtime baseline
 - DozerDB remains the graph backend baseline
-- vendor-neutral tracing remains the contract baseline, with Opik preferred for team observability
+- vendor-neutral tracing remains the contract baseline, with OTLP preferred for team observability
 - `workspace_id` remains part of runtime-facing contracts
 - heavy ontology reasoning stays outside request hot paths
 - runtime policy checks remain enforced for new actions

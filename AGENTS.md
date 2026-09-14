@@ -31,6 +31,10 @@ durable agent rules go in `AGENTS.md`; ExecPlan format/decision-style goes in
 `docs/maintainers/AGENT_EXECPLAN_CONVENTIONS.md`. The ADR index is validated by `scripts/ci/check_adr_index.py`
 (no new duplicate IDs; every DECISION_LOG reference resolves).
 
+For task checkout, handoff and cache commands, use
+[`docs/AGENT_WORKFLOW.md`](docs/AGENT_WORKFLOW.md). Run `make agent-doctor` before
+editing an unfamiliar workspace and `make agent-start TASK=<id>` for isolated work.
+
 ## Repo Map
 
 | Path | Role |
@@ -88,7 +92,8 @@ surface in the same commit or PR.
 - OpenAI Agents SDK is the agent runtime baseline.
 - DozerDB is the graph database backend baseline.
 - `workspace_id` must be propagated in runtime-facing models, APIs, and traces.
-- Tracing stays vendor-neutral; Opik is the preferred team backend.
+- Tracing stays vendor-neutral (`none|console|jsonl|otlp`); use JSONL
+  artifacts and an operator-selected OTLP backend (ADR-0172).
 - Owlready2 is allowed only in offline ontology governance paths, not hot
   request paths.
 

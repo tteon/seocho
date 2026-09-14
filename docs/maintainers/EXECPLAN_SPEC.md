@@ -70,8 +70,8 @@ Every ExecPlan must preserve SEOCHO's current baseline unless the plan includes
 an explicit ADR-backed reason to change it:
 
 - OpenAI Agents SDK for agent orchestration.
-- Vendor-neutral tracing as the contract, with Opik as the preferred team
-  backend.
+- Vendor-neutral tracing (`none|console|jsonl|otlp`), with JSONL artifacts and
+  an operator-selected OTLP backend (ADR-0172).
 - DozerDB as the production graph backend.
 - Single-tenant MVP behavior with `workspace_id` propagated through runtime and
   data contracts.
@@ -300,7 +300,7 @@ paths, commands, and expected observations.
     ## Cost, Latency, and Provider Policy
 
     State whether the change uses MARA, OpenAI, local embeddings, BGE,
-    sentence-transformers, DozerDB, Opik, or another provider/service. Explain
+    sentence-transformers, DozerDB, OTLP, or another provider/service. Explain
     why the choice is necessary and how cost or latency will be measured.
 
     ## Plan of Work

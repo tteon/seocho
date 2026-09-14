@@ -107,13 +107,15 @@ class _FileState:
     mtime: float
     size: int
     source_id: str
-    content_hash: str
+    content_hash: str = ""
 
 
 class FileTracker:
-    """Tracks which files have been indexed (path + mtime + hash).
+    """Tracks indexed files by path, modification time and size.
 
     Persists to a ``.seocho_index`` JSON file in the indexed directory.
+    Legacy content hashes are retained for compatibility but are not compared.
+    Use force/no-track for edits that preserve both modification time and size.
     """
 
     def __init__(self, directory: Union[str, Path]) -> None:
@@ -136,7 +138,8 @@ class FileTracker:
 
     def save(self) -> None:
         data = {
-            "version": 1,
+            "version": 2,
+            "change_detection": "mtime_size",
             "files": [
                 {
                     "path": s.path,
@@ -159,7 +162,7 @@ class FileTracker:
         stat = path.stat()
         return stat.st_mtime != state.mtime or stat.st_size != state.size
 
-    def mark_indexed(self, path: Path, source_id: str, content_hash: str) -> None:
+    def mark_indexed(self, path: Path, source_id: str, content_hash: str = "") -> None:
         stat = path.stat()
         self._states[str(path)] = _FileState(
             path=str(path),
@@ -235,6 +238,11 @@ def read_json_file(path: Path) -> List[Dict[str, Any]]:
     if isinstance(data, list):
         records = []
         for i, item in enumerate(data):
+            if not isinstance(item, dict):
+                logger.warning(
+                    "Skipping non-object item at %s index %d (%s)",
+                    path, i, type(item).__name__,
+                )
             if isinstance(item, dict):
                 content = item.get("content", json.dumps(item))
                 meta = _record_metadata(
@@ -262,6 +270,11 @@ def read_jsonl_file(path: Path) -> List[Dict[str, Any]]:
                 continue
             try:
                 item = json.loads(line)
+                if not isinstance(item, dict):
+                    logger.warning(
+                        "Skipping non-object JSON at %s line %d (%s)",
+                        path, i, type(item).__name__,
+                    )
                 if isinstance(item, dict):
                     content = item.get("content", json.dumps(item))
                     meta = _record_metadata(
@@ -473,6 +486,11 @@ class FileIndexer:
                 total_result.validation_errors.extend(result.validation_errors)
                 total_result.write_errors.extend(result.write_errors)
                 total_result.skipped_chunks += result.skipped_chunks
+                if result.fallback_used:
+                    total_result.fallback_used = True
+                    reason = result.fallback_reason or "degraded extraction"
+                    if reason not in total_result.fallback_reason.split("; "):
+                        total_result.fallback_reason = "; ".join(filter(None, (total_result.fallback_reason, reason)))
                 if not total_result.source_id:
                     total_result.source_id = result.source_id
                 if result.governance_candidate:
@@ -481,18 +499,16 @@ class FileIndexer:
             if strict_validation is not None:
                 self.pipeline.strict_validation = original_strict
 
-        # Track
-        if tracker:
-            from .pipeline import content_hash as _hash
-            full_text = path.read_text(encoding="utf-8", errors="replace")
-            tracker.mark_indexed(path, total_result.source_id, _hash(full_text))
+        # Failed indexing must be retried; never cache failure as unchanged.
+        if tracker and total_result.ok:
+            tracker.mark_indexed(path, total_result.source_id)
 
         return FileIndexResult(
             path=str(path),
             status="indexed" if total_result.ok else "failed",
             indexing_result=total_result,
             records_found=len(records),
-            error="; ".join(total_result.write_errors) if total_result.write_errors else None,
+            error="; ".join(filter(None, [*total_result.write_errors, total_result.fallback_reason])) or None,
         )
 
     def index_directory(

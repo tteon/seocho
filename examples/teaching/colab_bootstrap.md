@@ -10,7 +10,6 @@ Colab 에서 `examples/teaching/` 노트북을 돌릴 때 첫 셀에 아래 블�
 | Secret name | 값 |
 |---|---|
 | `OPENAI_API_KEY` | OpenAI 키 |
-| `OPIK_API_KEY`   | Opik 키 |
 | `NEO4J_URI`      | `bolt://...` |
 | `NEO4J_PASSWORD` | DB 비밀번호 |
 | `MOONSHOT_API_KEY` | (선택) Kimi |
@@ -25,7 +24,7 @@ import os, sys, subprocess
 
 # (a) seocho SDK 설치 (PyPI 최신)
 subprocess.run([sys.executable, '-m', 'pip', 'install', '-q',
-                'seocho', 'datasets', 'opik', 'python-dotenv', 'neo4j', 'pandas',
+                'seocho', 'datasets', 'python-dotenv', 'neo4j', 'pandas',
                 'openai-agents'],
                check=True)
 
@@ -51,12 +50,10 @@ def _set(env_key, secret_key=None, default=None):
         os.environ[env_key] = default
 
 _set('OPENAI_API_KEY')
-_set('OPIK_API_KEY')
 _set('MOONSHOT_API_KEY')
 _set('DEEPSEEK_API_KEY')
 _set('XAI_API_KEY')
-_set('OPIK_WORKSPACE', default='seocho')
-_set('OPIK_USER',      default='hardy')   # 본인 식별자
+_set('SEOCHO_USER_ID', default='anonymous')   # 본인 식별자
 _set('NEO4J_URI')
 _set('NEO4J_USER',     default='neo4j')
 _set('NEO4J_PASSWORD')

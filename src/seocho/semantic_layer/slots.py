@@ -9,7 +9,7 @@ to route (STRUCTURED vs CLARIFY vs FAIL).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Tuple
 
 from .keys import observation_key

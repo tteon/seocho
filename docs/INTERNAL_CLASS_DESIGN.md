@@ -141,3 +141,27 @@ In practical terms:
 
 These new classes are internal seams for decomposition, not a replacement for
 the current public API.
+
+## Implemented Python ownership boundaries (ADR-0234)
+
+The sync facade remains in `client.py`; `client_execution.py` owns
+`ExecutionPlanBuilder`, and `client_async.py` owns thread-offloaded async methods.
+Both retain their `seocho.client` import paths. Backend loading stays lazy.
+
+CLI `run`, `sweep`, `traces`, `new` and `connect` modules each own their parser
+and handler through `CommandGroup`. `parsers.py` holds the remaining memory/local
+argument contracts; `options.py` owns shared options. Experiment phases consume
+`run_clients.IndexClient` and `QueryClient`, while `e2e.build` owns construction.
+
+The query package's `ontology_hints`, `profile_packages`, `vocabulary` and
+`artifact_reader` modules own lightweight semantic lookup. Extraction keeps
+aliases/adapters. `semantic_candidates.py` shares SHACL merge rules with prompt
+composition; `query/row_scoring.py` shares row ranking while callers retain
+company matching policy. No new request-time ontology reasoning is introduced.
+
+`IndexingPipeline.index` orchestrates document work. `_prepare_chunk` owns
+extraction/validation/linking and explicit skipped-chunk accounting;
+`_shape_and_write_graph` owns graph writes; `_record_indexing` owns optional
+telemetry. Preserve this order and the existing callbacks when extending stages.
+These internal changes do not certify smaller modules as SOLID-compliant by
+size alone; a new operation still needs an explicit owner and contract.

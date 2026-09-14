@@ -175,7 +175,7 @@ tail -n 20 traces/seocho-runtime.jsonl
 Recommended interpretation:
 
 - `jsonl` is the neutral, portable trace artifact
-- Opik is optional and can be hosted or self-hosted
+- OTLP export is optional; the collector and storage backend are operator-selected
 
 ## 7. Examples And Sample Data
 

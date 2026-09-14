@@ -1,26 +1,4 @@
-"""Per-chapter JSONL tracing setup for the teaching notebooks.
-
-Was `opik_setup.py`. `ADR-0172` removed the Opik backend, so a chapter's traces
-now land in a local JSONL file and nowhere else — no workspace, no project, no
-API key, nothing leaving the machine. That is a better default for teaching
-material anyway: a learner can open `./traces/chapter_03.jsonl` and read what
-the SDK did, without signing up for anything.
-
-Contract:
-    setup_tracing("03") enables the jsonl backend at ./traces/chapter_03.jsonl
-    and returns the path it wrote to.
-
-Override knobs:
-    TEACHING_TRACE_DIR     directory for the JSONL files (default: ./traces)
-    SEOCHO_TRACE_BACKEND   honoured as-is if already set; this helper does not
-                           override an explicit choice.
-
-The old names (`setup_opik`, `teardown_opik`, `opik_console_link`) are kept as
-thin aliases because six chapter notebooks call them, and rewriting executed
-notebook JSON to chase a rename is churn with no benefit to a reader. They are
-scheduled for removal once the notebooks are next regenerated.
-"""
-
+"""Local JSONL tracing for teaching notebooks; no third-party account needed."""
 from __future__ import annotations
 
 import os
@@ -60,17 +38,4 @@ def trace_file(chapter: str) -> Optional[Path]:
     return path if path.exists() else None
 
 
-# Back-compat aliases for the six chapter notebooks. Remove when they are
-# regenerated; see the module docstring.
-setup_opik = setup_tracing
-teardown_opik = teardown_tracing
-opik_console_link = trace_file
-
-__all__ = [
-    "setup_tracing",
-    "teardown_tracing",
-    "trace_file",
-    "setup_opik",
-    "teardown_opik",
-    "opik_console_link",
-]
+__all__ = ["setup_tracing", "teardown_tracing", "trace_file"]

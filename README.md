@@ -8,361 +8,199 @@
 [![Python](https://img.shields.io/pypi/pyversions/seocho)](https://pypi.org/project/seocho/)
 [![Status: Alpha](https://img.shields.io/badge/status-alpha-orange.svg)](https://pypi.org/project/seocho/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Docs](https://img.shields.io/badge/Docs-seocho.blog-0f172a)](https://seocho.blog/docs/)
-[![Quickstart](https://img.shields.io/badge/Quickstart-5_min-2563eb)](QUICKSTART.md)
-[![Examples](https://img.shields.io/badge/Examples-SDK-0f766e)](examples/)
 
-SEOCHO sits between your agents and your graph database. You define the domain
-ontology once, then use the same contract to ingest documents, shape graph
-writes, generate schema-aware queries, and produce answers with traceable
-evidence.
+[Quickstart](QUICKSTART.md) · [Documentation](docs/README.md) ·
+[Your data & experiments](docs/EXPERIMENT_PLATFORM.md) ·
+[Examples](examples/) · [Contributing](CONTRIBUTING.md)
 
-In one sentence: SEOCHO turns your ontology into the operating contract for
-graph memory, retrieval, and agent answers.
+SEOCHO connects document indexing and graph-grounded answering through the same
+ontology. Define your entities, relationships and constraints; ingest your data;
+then inspect the graph evidence behind agent answers.
 
-Under the hood, indexing and query runs emit ontology signals that SEOCHO
-compiles into reviewable profiles, so an agent picks the right profile before
-routing, text-to-Cypher, reasoning, or answer synthesis.
+It ships as a **Python SDK** and an optional **HTTP runtime**. You own the data,
+graph database, model provider and operational evidence.
 
 ```mermaid
 flowchart LR
-    T["Notion / Slack / DataHub / Postgres / Neo4j / LangChain"] --> C["seocho connect"]
-    C --> D["Documents / JSONL"]
-    D --> I["SEOCHO index"]
-    O["Ontology: your schema"] --> I
-    O --> Q["SEOCHO query"]
-    I --> G[("Graph store")]
+    D[Files and source connectors] --> I[Indexing]
+    O[Ontology and policies] --> I
+    I --> G[(Graph database)]
+    O --> Q[Query and answering]
     G --> Q
-    Q --> A["Grounded answer"]
+    Q --> A[Answer and supporting evidence]
+    I --> R[Run reports and diagnostics]
+    Q --> R
 ```
 
-## Why Use It
+## What you can do
 
-Most agent memory systems start with chunks and prompts. SEOCHO starts with the
-schema you want the system to respect.
+| Workflow | SEOCHO provides | Inspect |
+|---|---|---|
+| Build graph memory | extraction, validation and graph shaping against your ontology | indexed facts, file failures and validation results |
+| Ask questions | schema-aware query and answer paths | support status, missing slots and available graph evidence |
+| Bring existing data | files and source connectors feeding the indexing path | normalized records and run specifications |
+| Evaluate a change | reproducible run/sweep workflows and saved-run comparison | matched inputs, per-question changes and failed stages |
+| Serve agents | an HTTP runtime with policy checks and workspace propagation | runtime responses, traces and deployment configuration |
 
-Use SEOCHO when you need:
+**Current scope:** alpha software; DozerDB is the graph baseline and OpenAI Agents
+SDK is the agent runtime baseline. The first-run CLI requires a DozerDB/Neo4j Bolt
+endpoint. Run completion is execution evidence, not proof of answer correctness,
+backend interchangeability or production readiness.
 
-- document ingestion that writes typed graph facts, not only vector chunks
-- answers that follow your ontology instead of drifting into free text
-- Cypher/query generation that knows the graph schema it is allowed to use
-- a local SDK path for development and a runtime API path for deployment
-- visible artifacts, traces, and graph writes that can be inspected later
+## Run your first project
 
-SEOCHO is not a hosted memory black box. It is a Python SDK and runtime shell
-for teams that want to own the ontology, graph, and operational evidence.
-
-## What You Build
-
-```python
-from seocho import Seocho, Ontology, NodeDef, RelDef, Property
-
-ontology = Ontology(
-    name="work",
-    nodes={
-        "Person": NodeDef(properties={"name": Property(str, unique=True)}),
-        "Company": NodeDef(properties={"name": Property(str, unique=True)}),
-    },
-    relationships={
-        "WORKS_AT": RelDef(source="Person", target="Company"),
-    },
-)
-
-client = Seocho.local(ontology, graph="bolt://localhost:7687", llm="mara/MiniMax-M2.7")
-client.add("Marie Curie worked at the University of Paris.")
-
-print(client.ask("Where did Marie Curie work?"))
-```
-
-> Export your provider key first — SEOCHO recommends MARA: `export MARA_API_KEY=...`.
-> Prefer another provider? Pass `llm="openai/gpt-4o"` (or `deepseek/…`, `kimi/…`)
-> and export that provider's key instead.
-
-That example writes an ontology-aware graph memory to DozerDB or Neo4j. The same public
-facade can later point at a running SEOCHO runtime:
-
-```python
-from seocho import Seocho
-
-client = Seocho.remote("http://localhost:8001")
-print(client.ask("What do we know about ACME?"))
-```
-
-## Five-Minute Quickstart
-
-Install the local SDK path:
+You need Python 3.10–3.12, [uv](https://docs.astral.sh/uv/), a running
+DozerDB/Neo4j database, and a model-provider key. Use the
+[deployment guide](docs/RUNTIME_DEPLOYMENT.md) if you need a graph service.
 
 ```bash
+uv venv
+source .venv/bin/activate
 uv pip install "seocho[local]"
-```
-
-Create and run a complete sample project:
-
-```bash
 seocho new hello-seocho
 cd hello-seocho
+```
+
+Export your provider key; MARA is the default preset:
+
+```bash
 export MARA_API_KEY=...
+export NEO4J_URI=bolt://localhost:7687
+export NEO4J_USER=neo4j
+export NEO4J_PASSWORD=...
+```
+
+In the generated `seocho.run.yaml`, replace `graph` and set an existing target
+`database` (use a separate database for experiments):
+
+```yaml
+graph:
+  uri: ${NEO4J_URI}
+  user: ${NEO4J_USER}
+  password: ${NEO4J_PASSWORD}
+database: neo4j
+```
+
+```bash
 seocho run --dry-run
 seocho run
 ```
 
-`seocho new` writes a tiny ontology, documents, questions, and a runnable
-`seocho.run.yaml`. `seocho run` indexes the documents into the embedded
-LadybugDB graph, asks the questions, and writes `runs/<name>-<timestamp>/`
-with both `report.md` and `report.json`.
+Dry-run validates local configuration and structured inputs without model calls.
+A real run also checks the target database, indexes the sample documents, asks
+the declared questions and saves `report.md` / `report.json` in a unique `runs/`
+directory. Open the report's status and diagnostics first.
 
-From a repo checkout, prefix the CLI with `uv run` — uv resolves the project
-environment and syncs dependencies for you, so there is no venv to activate.
-If you installed SEOCHO into your own environment instead (`uv pip install
-seocho`), drop the prefix and call `seocho …` directly.
+Other providers are selected with `models.default: provider/model`; see
+[Run Specs](docs/RUN_SPECS.md). From a source checkout, use
+`uv sync --locked --extra dev` and prefix commands with `uv run`.
 
-Want a domain-shaped example? The finance-compliance example ingests six short
-mock filings into an embedded local graph, then asks cross-document questions
-such as:
+## Use your data and compare changes
 
-- Which regulations is Acme Financial Services subject to?
-- What incidents have been reported?
-- Which control evidence mitigates the incident?
+Replace the generated `docs/` and `schema.yaml`, and give your questions stable
+IDs. Start with a small representative slice of your own corpus. The existing
+[connectors](docs/CONNECTORS.md) can materialize external sources as JSONL.
 
-```bash
-export MARA_API_KEY=...
-uv run python examples/finance-compliance/quickstart.py
-```
-
-Open [examples/finance-compliance/](examples/finance-compliance/) to inspect
-the ontology, sample documents, and script.
-
-Prefer the smallest possible hello world? Use [QUICKSTART.md](QUICKSTART.md).
-Maintainers should use
-[Release And Community Operations](docs/RELEASE_AND_COMMUNITY_OPERATIONS.md)
-for release criteria and the GitHub/Ghost/Discord operating split, including
-`#seocho-updates`, `#seocho-project`, and `seocho-office-hours`.
-
-### One YAML, one command
-
-Skip Python entirely with a run spec — declare your ontology, documents, and
-questions in YAML, then run the whole index → query → report flow:
+For baseline and candidate runs, keep the input/question set fixed and use
+separate prepared graph targets. `--no-track` ensures every input is indexed
+without reusing the file-change cache:
 
 ```bash
-export MARA_API_KEY=...
-uv run seocho run examples/run/quickstart.yaml
+seocho run seocho.run.yaml --no-track --output runs/baseline
+# Apply the intended change; configure the candidate's separate graph target.
+seocho run seocho.run.yaml --no-track --output runs/candidate
+
+seocho runs compare runs/baseline/RUN_ID runs/candidate/RUN_ID \
+  --change source \
+  --hypothesis 'The indexing fix reduces failed documents without losing support' \
+  --output-dir comparisons/indexing-fix
 ```
 
-`uv run seocho new hello-seocho` writes a runnable project. `uv run seocho run
---init` writes only a commented template for custom projects. To compare N
-configurations (models, enforcement modes, agent patterns) in one table,
-declare them as variants of a Jinja2 template and run `uv run seocho sweep` —
-see [docs/RUN_SPECS.md](docs/RUN_SPECS.md) for templates, sweeps, per-phase
-models, and ontology enforcement modes.
+Replace `RUN_ID` with each printed run directory. Comparison is offline. Changed
+corpora, missing questions or undeclared conditions prevent aggregate deltas;
+individual failures remain visible. Missing cost or evidence data is marked
+unavailable. For a model change, declare `--change models` instead.
 
-### Bring data from the tools you already use
-
-Materialize external sources into SEOCHO's normal indexing path:
+Browse saved runs, inspect question evidence and compare experiments in the
+[local dashboard](docs/EXPERIMENT_DASHBOARD.md):
 
 ```bash
-seocho connect notion --data-source-id "$NOTION_DATA_SOURCE_ID" \
-  --output .seocho/connectors/notion.jsonl
-seocho connect slack --channel "$SLACK_CHANNEL_ID" \
-  --output .seocho/connectors/slack.jsonl
-seocho connect neo4j --database neo4j \
-  --output .seocho/connectors/neo4j.jsonl
+seocho runs dashboard ./runs
+# Open http://127.0.0.1:8765
 ```
 
-Then set `documents.path` to that JSONL in `seocho.run.yaml`. LangChain and
-LlamaIndex users can convert their existing `Document` objects with
-`seocho.connectors` without adding a framework dependency to SEOCHO itself.
-See [docs/CONNECTORS.md](docs/CONNECTORS.md) and the copyable
-[connector starting point](examples/connectors/).
+Export a local, searchable visual report and SEOCHO module map with
+`seocho runs view runs/candidate/RUN_ID --output views/candidate.html`.
+Add `--baseline` to inspect the saved-run comparison. Module responsibilities
+are shown separately from observed execution; no external service is needed.
 
-## How SEOCHO Works
+The [experiment guide](docs/EXPERIMENT_PLATFORM.md) covers failures, fingerprints,
+repeatable environments and interpretation. Use [Benchmarks](docs/BENCHMARKS.md)
+for research protocols. An answer rate or reference-string match is a proxy;
+quality and performance claims require appropriate live evaluation.
 
-SEOCHO has three practical layers:
+## Use the Python SDK or HTTP runtime
 
-| Layer | Code | Job |
-|---|---|---|
-| Ontology | `src/seocho/ontology*.py` | Defines node types, relationships, properties, constraints, and governance metadata. |
-| Indexing | `src/seocho/index/` | Turns files or text into ontology-shaped graph payloads with validation and provenance. |
-| Querying | `src/seocho/query/` | Builds schema-aware Cypher, retrieves graph evidence, and synthesizes answers. |
-
-The runtime layer in `runtime/` exposes the same contract over HTTP with policy
-checks and `workspace_id` propagation. The legacy `extraction/` package remains
-as an active compatibility/batch-service surface while runtime ownership is
-being staged into `runtime/`.
-
-## Choose A Mode
-
-| Mode | Command or constructor | Best for |
-|---|---|---|
-| Local SDK | `Seocho.local(ontology)` | First run, notebooks, local development, embedded LadybugDB. |
-| Explicit graph backend | `Seocho(ontology=..., graph_store=..., llm=...)` | Development against Neo4j/DozerDB or custom stores. |
-| HTTP runtime client | `Seocho.remote("http://localhost:8001")` | Consuming a running SEOCHO service. |
-| Local platform stack | `make setup-env && make up` | UI + API + DozerDB on one machine. |
-
-Install choices. SEOCHO standardizes on [uv](https://docs.astral.sh/uv/) for
-project management; the `uv pip` forms below work in any environment, and `pip`
-is a drop-in if you are not on uv.
-
-| Install (uv) | Use it when |
-|---|---|
-| `uv pip install seocho` | You only need the HTTP client. |
-| `uv pip install "seocho[local]"` | You want the local SDK engine, agents, and embedded graph path. |
-| `uv pip install "seocho[ontology]"` | You need offline ontology governance tools. |
-| `uv sync --extra dev` (from a clone) | You are contributing to this repository. |
-
-## What The Ontology Controls
-
-| Stage | Effect |
-|---|---|
-| Ingestion | Entity and relationship types guide extraction. |
-| Validation | Graph payloads are checked against schema and constraints. |
-| Graph writes | Properties, uniqueness, provenance, and ontology context are recorded. |
-| Querying | Cypher generation uses the active ontology and graph schema. |
-| Runtime | Semantic artifacts, prompt context, traces, and `workspace_id` stay aligned. |
-
-This is the core SEOCHO idea: one schema contract should govern what gets
-written, what gets retrieved, and what an agent is allowed to claim.
-
-## The Operating Layer (Governed Agents)
-
-When an agent uses SEOCHO, the schema contract becomes an operating layer: one
-`Session` object through which every subsystem an agent needs is a method, on one
-governed path. The economics is the OS one — pay for rigor once at write time
-(the ontology fixes each entity's canonical address), so every read is a cheap,
-guaranteed, governed lookup.
+The same project ontology can be used from Python:
 
 ```python
-with client.session("analyst", priority="high") as sess:
-    node = sess.resolve("Chipotle", label="Company", sector="restaurant")  # memory: read-time interning
-    rows = sess.query("MATCH (n:Company) WHERE n._workspace_id = $workspace_id RETURN n")  # scheduling + isolation
-    agent = sess.agent()          # execution: a governed openai-agents Agent
-    sess.os_stats()               # observability;  sess.budget / sess.priority = resources
+import os
+from seocho import Ontology, Seocho
+
+client = Seocho.local(
+    Ontology.load("schema.yaml"),
+    graph=os.environ["NEO4J_URI"],
+    neo4j_user=os.environ["NEO4J_USER"],
+    neo4j_password=os.environ["NEO4J_PASSWORD"],
+    llm="mara/MiniMax-M2.7",
+)
+try:
+    client.add("Jane Park is the CEO of Acme Corp.", database="neo4j")
+    print(client.ask("Who leads Acme Corp?", database="neo4j"))
+finally:
+    client.close()
 ```
 
-| Subsystem | Method / handle | What the governed path guarantees |
-|---|---|---|
-| Memory | `sess.resolve()` / `add` / `ask` | Read-time interning reuses the write-time identity function — an exact, model-free, workspace-scoped address lookup. |
-| Scheduling | `sess.query()` | A shared admission gate bounds concurrency across all sessions of one layer. |
-| Isolation | `sess.query()` | The model's `workspace_id` is pinned server-side; reads that forget the tenant scope fail closed. |
-| Execution | `sess.agent()` | The agent's only graph access is this governed tool. |
-| Resources | `sess.budget` / `sess.priority` | A per-session token budget stops a run with a structured error, never a clipped answer. |
+Use `Seocho.remote("http://localhost:8001")` for an existing runtime service.
+See the [SDK guide](docs/PYTHON_INTERFACE_QUICKSTART.md),
+[SDK contract](docs/SDK_CONTRACT.md) and [backend extension contracts](docs/PLUGIN_SURFACE.md).
+Source connectors ingest data; backend adapters control where SEOCHO executes
+and stores it. They serve different roles.
 
-Every control is opt-in on the `Seocho(...)` constructor and off by default
-(`max_inflight`, `token_budget`, `reserved_for_high`, …). Because all graph
-access funnels through one call, the safety is structural — a prompt-injected
-agent cannot route around it. Runnable offline walkthrough:
-[`examples/agent_designs/os_unified_surface.py`](examples/agent_designs/os_unified_surface.py).
-Design: [ADR-0157](docs/decisions/ADR-0157-agentos-surface.md) (surface),
-[ADR-0163](docs/decisions/ADR-0163-control-data-plane-split.md) (control/data
-plane split — where Bolt/LLM protocol optimization lives).
+## Find the right code
 
-## Runtime Stack
-
-Run the local platform:
-
-```bash
-make setup-env
-make up
-```
-
-Default local endpoints:
-
-- UI: `http://localhost:8501`
-- API docs: `http://localhost:8001/docs`
-- DozerDB browser: `http://localhost:7474`
-
-Runtime APIs live in `runtime/`. Shared SDK behavior lives in `src/seocho/`.
-See [docs/RUNTIME_DEPLOYMENT.md](docs/RUNTIME_DEPLOYMENT.md) for the full
-operator guide.
-
-## Examples
-
-| Example | What it shows |
+| Area | Location |
 |---|---|
-| [examples/finance-compliance/](examples/finance-compliance/) | A small end-to-end ontology, sample docs, local graph ingest, and Q&A. |
-| [examples/quickstart.ipynb](examples/quickstart.ipynb) | Notebook tour of ontology, indexing, provider setup, and tracing. |
-| [examples/bring_your_data.ipynb](examples/bring_your_data.ipynb) | Pattern for using your own files and ontology. |
-| [examples/finder/](examples/finder/) | FinDER/FIBO tutorials for graph RAG, RDF vs LPG, and private tracing. |
+| SDK and canonical engine | [`src/seocho/`](src/seocho/) |
+| Indexing / query | [`src/seocho/index/`](src/seocho/index/) · [`src/seocho/query/`](src/seocho/query/) |
+| Runtime shell / compatibility | [`runtime/`](runtime/) · [`extraction/`](extraction/) |
+| Tests / runnable examples | [`tests/seocho/`](tests/seocho/) · [`examples/`](examples/) |
+| Architecture and decisions | [`docs/`](docs/) · [Decision log](docs/decisions/DECISION_LOG.md) |
+| Documentation site | [`website/`](website/) |
 
-## Repository Map
+The [repository layout](docs/REPOSITORY_LAYOUT.md) explains secondary and local
+surfaces. Private datasets, run artifacts and agent/editor state stay out of Git.
 
-| Path | Purpose |
-|---|---|
-| `src/seocho/` | Python SDK and canonical engine modules. |
-| `runtime/` | Deployment shell, API wiring, runtime policy, memory service. |
-| `extraction/` | Active extraction service and compatibility shims. |
-| `examples/` | Runnable examples, notebooks, and small datasets. |
-| `docs/` | Architecture, workflow, runtime, and user guides. |
-| `tests/seocho/` | SDK and engine regression tests. |
-| `extraction/tests/` | Runtime/extraction compatibility tests. |
-| `website/` | Tracked Astro/Starlight docs site. |
+## Contribute with a person or coding agent
 
-For contributor placement rules, read
-[docs/REPOSITORY_LAYOUT.md](docs/REPOSITORY_LAYOUT.md) and
-[docs/MODULE_OWNERSHIP_MAP.md](docs/MODULE_OWNERSHIP_MAP.md).
-
-## Learn More
-
-Same order as the [docs onboarding path](docs/README.md), top to bottom:
-
-| Need | Start here |
-|---|---|
-| Why SEOCHO exists | [docs/WHY_SEOCHO.md](docs/WHY_SEOCHO.md) |
-| First run | [QUICKSTART.md](QUICKSTART.md) |
-| Beginner walkthrough | [docs/BEGINNER_GUIDE.md](docs/BEGINNER_GUIDE.md) |
-| Python SDK details | [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md) |
-| Bring your own data | [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md) |
-| Connect Notion, Slack, DataHub, Postgres, Neo4j/DozerDB, LangChain, or LlamaIndex | [docs/CONNECTORS.md](docs/CONNECTORS.md), [examples/connectors/](examples/connectors/) |
-| File/artifact locations | [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) |
-| Architecture overview | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| Runtime internals | [docs/RUNTIME_ARCHITECTURE.md](docs/RUNTIME_ARCHITECTURE.md) |
-| Query internals | [docs/QUERY_ARCHITECTURE.md](docs/QUERY_ARCHITECTURE.md) |
-| Runtime deployment | [docs/RUNTIME_DEPLOYMENT.md](docs/RUNTIME_DEPLOYMENT.md) |
-| Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| Maintainer workflow | [docs/WORKFLOW.md](docs/WORKFLOW.md) |
-| Issue and task system | [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) |
-| Full docs site | [seocho.blog](https://seocho.blog) |
-
-## FIBO Upstream Governance
-
-SEOCHO keeps the official EDM Council FIBO repository as a pinned source
-snapshot under `third_party/fibo`. Runtime code should not read the full FIBO
-OWL/RDF tree directly; use compiled governance artifacts instead.
+Start with a reproducible issue and a bounded acceptance criterion. Use
+[CONTRIBUTING.md](CONTRIBUTING.md) for setup and review, [AGENTS.md](AGENTS.md)
+for the coding contract, and [Agent Workflow](docs/AGENT_WORKFLOW.md) for isolated
+task checkouts and handoffs. The [workflow](docs/WORKFLOW.md) and
+[issue/task system](docs/ISSUE_TASK_SYSTEM.md) define the delivery and review trail.
 
 ```bash
-git submodule update --init --recursive
-uv run python scripts/ontology/compile_fibo_snapshot.py \
-  --source third_party/fibo \
-  --curated-yaml-dir examples/finder/datasets/fibo_modules \
-  --modules BE,FBC,FND,SEC \
-  --out outputs/semantic_artifacts/fibo/latest
+make agent-doctor
+make agent-start TASK=issue-123
+# Change into the printed checkout, install the locked dev environment, edit/test.
+make agent-check
 ```
 
-The compiler emits:
+Report failures with the smallest safe reproduction and a redacted diagnostic
+excerpt. Link related ADRs and before/after evidence in the PR. See
+[GitHub Automation](docs/GITHUB_AUTOMATION.md) for required checks, including
+[docs consistency](.github/workflows/docs-consistency.yml), and
+[release operations](docs/RELEASE_AND_COMMUNITY_OPERATIONS.md) for publishing.
 
-- `manifest.json` — upstream commit, imports, module/resource counts, snapshot hash
-- `catalog.json` — runtime selector label/definition/IRI index
-- `compatibility_report.json` — official FIBO vs SEOCHO curated LPG slice alignment
-- `artifact_index.json` — source snapshot vs runtime artifact contract
-
-FIBO updates should be promoted only after compatibility review and benchmark
-gates over FinDER/private finance cases. Heavy OWL reasoning remains an offline
-governance concern; request paths consume the compiled catalog/artifact.
-
-## Development
-
-```bash
-git clone git@github.com:tteon/seocho.git
-cd seocho
-uv sync --extra dev
-uv run python -m pytest tests/seocho/ -q
-```
-
-Before submitting broader changes, run:
-
-```bash
-bash scripts/ci/run_basic_ci.sh
-```
-
-## License
-
-MIT - see [LICENSE](LICENSE).
+[Report a bug](https://github.com/tteon/seocho/issues/new/choose) ·
+[Security policy](SECURITY.md) · [Changelog](CHANGELOG.md) · [MIT license](LICENSE)

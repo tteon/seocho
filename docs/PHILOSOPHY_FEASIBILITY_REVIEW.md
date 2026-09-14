@@ -86,7 +86,7 @@ Evaluate each dimension with `Green`, `Amber`, or `Red`.
   - baseline `/rules/assess` thresholds and publish pass criteria
 - Day 31-60:
   - close confidence/override loop with operator UX and audit export
-  - add replay-grade Opik trace dashboards for router/debate/semantic
+  - add replay-grade OTLP trace dashboards for router/debate/semantic
 - Day 61-90:
   - production hardening for index/constraint lifecycle
   - define release gate tying ADR + readiness + SLO checks

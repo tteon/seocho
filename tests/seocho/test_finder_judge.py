@@ -9,6 +9,8 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 _BENCH = Path(__file__).resolve().parents[2] / "scripts" / "benchmarks"
 _spec = importlib.util.spec_from_file_location("finder_judge", _BENCH / "finder_judge.py")
 assert _spec and _spec.loader
@@ -105,3 +107,29 @@ def test_paired_analysis_pairs_by_case():
     assert rec["lane_wins"] == 1 and rec["vector_wins"] == 1
     # x1: +0.5 (graph 1.0 - vector 0.5), x2: -1.0 (graph 0.0 - vector 1.0) -> mean -0.25
     assert rec["mean_delta"] == -0.25
+
+
+# ---- sanity guard: empty candidates skip the judge entirely ----------------
+
+class _NeverCalledLLM:
+    """Judge stub that fails the test if the LLM is reached at all."""
+
+    def complete(self, *args, **kwargs):
+        raise AssertionError("judge LLM must not be called on an empty candidate")
+
+
+@pytest.mark.parametrize("candidate", ["", "   ", "\n\t ", None, float("nan")])
+def test_judge_one_skips_llm_on_empty_candidate(candidate):
+    out = JUDGE.judge_one(_NeverCalledLLM(), "Q", "gold", candidate)
+    assert out["verdict"] == "incorrect" and out["score"] == 0.0
+    assert out["sanity_skipped"] is True
+
+
+@pytest.mark.parametrize("candidate", ["8.4%", "$5B", "12.7", "Apple Inc."])
+def test_judge_one_judges_terse_candidates(candidate):
+    """Terse-but-correct FinDER numerics must reach the judge, not auto-fail."""
+    llm = _FakeJudgeLLM('{"verdict":"correct","score":1.0}')
+    out = JUDGE.judge_one(llm, "Q", "gold", candidate)
+    assert llm.calls, "terse candidate was not sent to the judge"
+    assert out["verdict"] == "correct"
+    assert "sanity_skipped" not in out

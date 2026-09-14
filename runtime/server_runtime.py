@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from dataclasses import dataclass, field
@@ -214,19 +215,7 @@ def get_databases_impl() -> str:
 
 
 def get_graphs_impl() -> str:
-    return str(
-        [
-            {
-                "graph_id": target.graph_id,
-                "database": target.database,
-                "description": target.description,
-                "ontology_id": target.ontology_id,
-                "vocabulary_profile": target.vocabulary_profile,
-                "workspace_scope": target.workspace_scope,
-            }
-            for target in graph_registry.list_graphs()
-        ]
-    )
+    return json.dumps([target.to_public_dict() for target in graph_registry.list_graphs()])
 
 
 def get_schema_impl(database: str = "neo4j") -> str:

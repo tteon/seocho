@@ -257,7 +257,7 @@ with s.session('finder-full') as sess:
   <thead><tr><th>Need</th><th>FinDER baseline</th><th>seocho</th></tr></thead>
   <tbody>
     <tr><td>Why this answer?</td><td>Top-k passage IDs</td><td><code>context_hash</code> + ontology-typed nodes/edges + <code>elementId(...)</code> in Cypher</td></tr>
-    <tr><td>Whose run was that?</td><td>Notebook cell metadata</td><td><code>user_id</code> + <code>workspace_id</code> on every span (JSONL or Opik)</td></tr>
+    <tr><td>Whose run was that?</td><td>Notebook cell metadata</td><td><code>user_id</code> + <code>workspace_id</code> on every span (JSONL or JSONL)</td></tr>
     <tr><td>What does v2 of the schema break?</td><td>Manual diff</td><td><code>ontology_v1.migration_plan(ontology_v2)</code> → inspectable Cypher list</td></tr>
     <tr><td>Did the retriever silently fall back?</td><td>—</td><td><code>span.metadata.degraded</code> + <code>fallback_from</code> + <code>fallback_reason</code></td></tr>
     <tr><td>Are inferred rules pinned to the schema?</td><td>n/a</td><td><code>infer_rules_from_graph()</code> stamps <code>ontology_identity_hash</code></td></tr>
@@ -275,7 +275,7 @@ with s.session('finder-full') as sess:
     <li><strong>20 min</strong> — Hands-on: load FIBO subset, ingest <code>tutorial_filings_sample.json</code>, ask each query, inspect spans.</li>
     <li><strong>15 min</strong> — Extend the ontology with one new class motivated by an unmet competency question (e.g. <code>BusinessSegment</code> for <code>case_002</code>); run <code>migration_plan</code>.</li>
     <li><strong>10 min</strong> — Switch to the HuggingFace FinDER split, score Correctness + Faithfulness, compare to Table 7.</li>
-    <li><strong>10 min</strong> — Inspect Opik traces; filter by <code>workspace_id</code>; show drift detection on the v1→v2 hash change.</li>
+    <li><strong>10 min</strong> — Inspect JSONL traces; filter by <code>workspace_id</code>; show drift detection on the v1→v2 hash change.</li>
   </ol>
 </section>
 
@@ -287,7 +287,7 @@ with s.session('finder-full') as sess:
   <tbody>
     <tr><td><code>context_hash</code></td><td>One hash per FIBO subset version → re-running with FIBO-2025-Q3 produces a different hash, every span tells you which</td></tr>
     <tr><td><code>workspace_id</code></td><td>Use one workspace per evaluation split (<code>finder-test</code>, <code>finder-train</code>) so you never cross-contaminate retrieval indexes</td></tr>
-    <tr><td><code>user_id</code></td><td>One per analyst running the eval — Opik filter by <code>metadata.user_id</code> shows exactly that person's runs</td></tr>
+    <tr><td><code>user_id</code></td><td>One per analyst running the eval — JSONL filter by <code>metadata.user_id</code> shows exactly that person's runs</td></tr>
     <tr><td><code>category</code> (FinDER native)</td><td>Pass into <code>session.add(metadata={'category': row['category']})</code>; it shows up on the persisted node</td></tr>
     <tr><td><code>degraded</code> / <code>fallback_from</code></td><td>If the agent path raised, the pipeline path took over — your eval row is not invalid, but it should be flagged separately</td></tr>
   </tbody>

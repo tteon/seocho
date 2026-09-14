@@ -115,6 +115,22 @@ def _parse_judge(text: str) -> dict:
 
 
 def judge_one(llm, query: str, gold: str, candidate: str) -> dict:
+    # Sanity guard - an empty candidate is incorrect by definition, so skip
+    # the judge call. LLM judges (especially same-vendor as the generator)
+    # tend to return a plausible-sounding correct/partial on empty answers; a
+    # cross-vendor recheck of 38 such cells flipped all 38 to incorrect.
+    # Deliberately empty-only: terse-but-correct answers ("8.4%", "$5B") must
+    # still be judged, never auto-failed.
+    if not _safe_str(candidate).strip():
+        return {
+            "verdict": "incorrect",
+            "score": 0.0,
+            "rationale": "empty candidate answer (sanity guard, no judge call)",
+            "matched": [],
+            "missing_or_wrong": [],
+            "parse_error": False,
+            "sanity_skipped": True,
+        }
     user = (f"QUESTION:\n{_safe_str(query)}\n\n"
             f"GOLD ANSWER (ground truth):\n{_safe_str(gold)}\n\n"
             f"CANDIDATE ANSWER:\n{_safe_str(candidate)}")

@@ -8,6 +8,7 @@ into this module rather than maintaining separate merge logic.
 from __future__ import annotations
 
 import json
+from .semantic_candidates import merge_shacl_candidates as _merge_shacl_candidates
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -264,52 +265,6 @@ def _merge_ontology_candidates(candidates: Sequence[Any]) -> Dict[str, Any]:
         "classes": list(merged_classes.values()),
         "relationships": list(merged_relationships.values()),
     }
-
-
-def _merge_shacl_candidates(candidates: Sequence[Any]) -> Dict[str, Any]:
-    shape_map: Dict[str, Dict[str, Any]] = {}
-    for candidate in candidates:
-        if not isinstance(candidate, dict):
-            continue
-        for shape in candidate.get("shapes", []):
-            if not isinstance(shape, dict):
-                continue
-            target_class = str(shape.get("target_class", "")).strip()
-            if not target_class:
-                continue
-            existing = shape_map.setdefault(target_class, {"target_class": target_class, "properties": []})
-            seen = {
-                (
-                    prop.get("path"),
-                    prop.get("constraint"),
-                    json.dumps(prop.get("params", {}), sort_keys=True),
-                )
-                for prop in existing["properties"]
-                if isinstance(prop, dict)
-            }
-            for prop in shape.get("properties", []):
-                if not isinstance(prop, dict):
-                    continue
-                path = str(prop.get("path", "")).strip()
-                constraint = str(prop.get("constraint", "")).strip()
-                if not path or not constraint:
-                    continue
-                key = (
-                    path,
-                    constraint,
-                    json.dumps(prop.get("params", {}), sort_keys=True),
-                )
-                if key in seen:
-                    continue
-                seen.add(key)
-                existing["properties"].append(
-                    {
-                        "path": path,
-                        "constraint": constraint,
-                        "params": prop.get("params", {}) if isinstance(prop.get("params", {}), dict) else {},
-                    }
-                )
-    return {"shapes": list(shape_map.values())}
 
 
 def _merge_vocabulary_candidates(candidates: Sequence[Any]) -> Dict[str, Any]:

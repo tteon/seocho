@@ -302,7 +302,7 @@ RETURN count(*) AS orphan_extractions;
 - 라우팅(Ch 4)에서 `confidence` 점수에 *temporal staleness penalty*를 곱한다:
   `effective_confidence = confidence * exp(-Δt / τ)` where τ = 도메인별 half-life.
 - 인덱싱 종료 직후 위 5개 쿼리를 자동 실행 → 위반 0 검증 통과해야 production routing에 노출.
-- 위반 발생 시 즉시 Opik trace에 `temporal_anomaly` tag로 기록 (워크스페이스 단위 알림).
+- 위반 발생 시 즉시 JSONL trace에 `temporal_anomaly` tag로 기록 (워크스페이스 단위 알림).
 
 ### 10.4 SEOCHO SDK 표준화 후보
 

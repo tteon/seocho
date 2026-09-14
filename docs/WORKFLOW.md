@@ -9,6 +9,7 @@ that, start with `QUICKSTART.md` or `docs/RUNTIME_DEPLOYMENT.md`.
 
 | Area | What it answers | Read when |
 |---|---|---|
+| [Agent Workflow](https://github.com/tteon/seocho/blob/main/docs/AGENT_WORKFLOW.md) | task checkout, handoff and validation entrypoints | starting agent-assisted coding |
 | [Stack Baseline](#stack-baseline) | which runtime, graph, and tracing assumptions are current | starting any repo work |
 | [Operating Planes](#operating-planes) | which module owns control-plane vs data-plane behavior | choosing where to edit |
 | [End-to-End Workflow](#end-to-end-workflow) | how work moves from issue to landing | preparing a PR |
@@ -18,8 +19,8 @@ that, start with `QUICKSTART.md` or `docs/RUNTIME_DEPLOYMENT.md`.
 ## Stack Baseline
 
 - Agent runtime: OpenAI Agents SDK
-- Tracing/evaluation contract: vendor-neutral (`none|console|jsonl|opik`)
-- Preferred team observability backend: Opik
+- Tracing/evaluation contract: vendor-neutral (`none|console|jsonl|otlp`)
+- Team observability: operator-selected OTLP collector
 - Canonical neutral trace artifact: JSONL
 - Graph backend: DozerDB
 - MVP tenancy: single-tenant with `workspace_id` propagated end-to-end
@@ -120,7 +121,7 @@ Primary surfaces:
 - monitor split health surfaces (`/health/runtime`, `/health/batch`)
 - enforce runtime policy checks
 - capture traces through the configured observability backend
-- prefer `jsonl` as the portable artifact and Opik as the optional team exporter
+- prefer `jsonl` as the portable artifact and OTLP as the optional team exporter
 
 ### Semantic Path Summary
 
@@ -156,7 +157,7 @@ Primary surfaces:
 - local tracker linting may be used in maintainer workspaces, but it is not a
   public repository contract
 - current dev quality gates in `Makefile` run against `extraction-service`
-- default `make up` now rebuilds an image-backed `extraction-service` so the
+- `make up-build` rebuilds an image-backed `extraction-service` so the
   running runtime matches a known source snapshot
 - use `make up-live` or `make dev-up` only when you explicitly want bind-mounted
   edits from `extraction/`, `runtime/`, and `seocho/` reflected immediately
@@ -298,3 +299,7 @@ the runtime shell validation contract in `scripts/ci/check-runtime-shell-contrac
 - schedule follow-up issues for unresolved risks
 - keep release readiness and open-source community operations aligned with
   `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`
+
+For an isolated, locked development environment, use
+[EXPERIMENT_PLATFORM.md](https://github.com/tteon/seocho/blob/main/docs/EXPERIMENT_PLATFORM.md): `make platform-setup`,
+`make platform-check`, then `make platform-ci`.

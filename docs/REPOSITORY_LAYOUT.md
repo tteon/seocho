@@ -31,6 +31,7 @@ metadata, and one-command local stack entry points.
 | `README.md`, `QUICKSTART.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `LICENSE` | yes | Standard public project entry points |
 | `AGENTS.md`, `CLAUDE.md` | yes | Coding-agent orientation and SEOCHO-specific guardrails |
 | `pyproject.toml`, `Makefile`, `.env.example`, `.gitignore`, `.dockerignore` | yes | Python packaging, common commands, and repo/tool defaults |
+| `.python-version`, `uv.lock` | yes | Contributor Python default and reviewed dependency resolution |
 | `compose.yaml` | yes | The one default local stack; every other compose file lives under `docker/` |
 | `llms.txt` | yes | Machine-readable docs index; the convention requires the repository root |
 | `.gitattributes` | only with active rules | Do not keep an empty placeholder |
@@ -85,6 +86,10 @@ and must not be tracked as part of the public GitHub surface.
 | `seocho-core/` | Optional accelerator workspace | Rust/Python hybrid support code, not the first stop for normal app changes. |
 | `dataplane/` | Optional native runtime components | Rust sidecars/proxies that sit below the Python control plane; the first component is the Oxigraph ontology read model. |
 
+For isolated coding tasks, see [Agent Workflow](AGENT_WORKFLOW.md). Task
+checkouts live under the common repository’s ignored `.seocho/worktrees/` and
+Python tool caches under `.seocho/cache/`; product ownership stays unchanged.
+
 ## Local Runtime State And Generated Artifacts
 
 These paths are usually not where feature work should land.
@@ -111,8 +116,8 @@ stacks live under `docker/`, documented in `docker/README.md`.
 | `docker/compose.memory.yaml` | Optional authoritative PostgreSQL agent memory (`make memory-up`) |
 | `docker/compose.tutorials.yaml` | FinDER tutorial JupyterLab + Neo4j (`make tutorials-up`) |
 
-The Opik compose overlay was removed with the Opik tracing backend
-(ADR-0172); the TLS-enterprise overlay was removed as unreferenced (#617);
+Retired vendor-specific compose and tracing integrations were removed in
+ADR-0172; the TLS-enterprise overlay was removed as unreferenced (#617);
 the observability stack is a root compose profile via ``include:``
 (ADR-0199).
 

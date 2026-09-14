@@ -24,7 +24,7 @@ covers everything else.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import FrozenSet, List, Optional, Set
+from typing import FrozenSet, List, Optional
 
 __all__ = ["AgentCapability", "TaskDescriptor", "Match", "Matchmaker"]
 

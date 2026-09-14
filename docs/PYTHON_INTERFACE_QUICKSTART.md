@@ -561,6 +561,13 @@ qwen_llm = QwenBackend(model="<model-id>")
 Provider env vars follow the preset names: `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`,
 `MOONSHOT_API_KEY`, `XAI_API_KEY`, `DASHSCOPE_API_KEY`, and `MARA_API_KEY`.
 
+For the Z.AI global API, use `create_llm_backend(provider="zai")` with
+`ZAI_API_KEY`, or `Seocho(..., llm="zai/glm-5.1")`. The preset defaults to
+`https://api.z.ai/api/paas/v4/`; `model` and `base_url` remain overridable.
+The [provider's HTTP API documentation](https://docs.z.ai/guides/develop/http/introduction)
+describes the endpoint. Embeddings require a separate backend. Preset wiring
+is covered by offline tests; these tests do not establish live API compatibility.
+
 For semantic search, choose an in-memory or persistent vector backend:
 
 ```python

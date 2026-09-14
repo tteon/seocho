@@ -22,7 +22,7 @@ import json
 import os
 import re
 import urllib.request
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Optional, List, Tuple
 
 from ..semantic_layer import Period, observation_key
 from ..semantic_layer.concepts import ConceptRegistry

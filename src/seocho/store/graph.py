@@ -18,13 +18,12 @@ Usage::
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from seocho.cypher_ident import IDENT_RE, is_valid_identifier
 from seocho.ontology import Ontology

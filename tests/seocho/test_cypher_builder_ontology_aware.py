@@ -77,3 +77,58 @@ def test_anchor_matches_ticker_branch() -> None:
     assert params["anchor"] == "JKHY"
     # period OR year matching present (FY period vs bare year)
     assert "m.period" in cypher
+
+
+# ---------------------------------------------------------------------------
+# _count: ontology-declared endpoints are authoritative for anchor vs counted
+# ---------------------------------------------------------------------------
+
+def _carbon_like_ontology() -> Ontology:
+    """Distinct endpoint labels: Project -LOCATED_IN-> HostCountry."""
+    return Ontology(
+        name="carbon_like",
+        graph_model="lpg",
+        nodes={
+            "Project": NodeDef(properties={"registry_id": P(str, unique=True), "name": P(str)}),
+            "HostCountry": NodeDef(properties={"country_iso": P(str, unique=True), "name": P(str, index=True)}),
+        },
+        relationships={
+            "LOCATED_IN": RelDef(source="Project", target="HostCountry",
+                                 description="project located in country"),
+        },
+    )
+
+
+def test_count_filter_entity_anchors_on_declared_target() -> None:
+    """Regression: "How many projects are in Vietnam" produced
+    (src:HostCountry)-[:LOCATED_IN]->(anchor:Project) with
+    anchor.registry_id = 'Vietnam' — declared-direction reversed AND the filter
+    equality on the counted label, so the count was always 0. With distinct
+    endpoint labels the declaration decides: counted = source, anchor = target,
+    regardless of how the plan filled anchor_label/target_label."""
+    builder = CypherBuilder(_carbon_like_ontology())
+    for anchor_label, target_label in (("HostCountry", "Project"), ("Project", "HostCountry")):
+        cypher, params = builder.build(
+            intent="count", anchor_entity="Vietnam",
+            anchor_label=anchor_label, target_label=target_label,
+            relationship_type="LOCATED_IN", workspace_id="ws",
+        )
+        assert "(src:`Project`)-[:`LOCATED_IN`]->(anchor:`HostCountry`)" in cypher
+        assert "anchor:`Project`" not in cypher
+        assert "Vietnam" in list(params.values())
+
+
+def test_count_same_label_relationship_keeps_in_degree() -> None:
+    """FinBench-style Account -TRANSFER-> Account keeps the existing
+    anchor-as-arrow-head behaviour (no override for same-label endpoints)."""
+    ontology = Ontology(
+        name="fin", graph_model="lpg",
+        nodes={"Account": NodeDef(properties={"id": P(str, unique=True)})},
+        relationships={"TRANSFER": RelDef(source="Account", target="Account")},
+    )
+    cypher, _ = CypherBuilder(ontology).build(
+        intent="count", anchor_entity="42",
+        anchor_label="Account", target_label="Account",
+        relationship_type="TRANSFER", workspace_id="ws",
+    )
+    assert "(src:`Account`)-[:`TRANSFER`]->(anchor:`Account`)" in cypher

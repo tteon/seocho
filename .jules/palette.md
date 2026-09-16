@@ -1,0 +1,1 @@
+- CLI parameter `--json` help strings were inconsistent across `src/seocho/cli/`. Some used `"JSON output"`, some `"Emit JSON output"`, and one was missing entirely. I unified them all to `help="Emit JSON"` for documentation clarity and CLI consistency.

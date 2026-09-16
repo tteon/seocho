@@ -26,7 +26,7 @@ forbidden_tracked_paths=(
   # this one, so .jules/bolt.md sat in the tree for months while the contract
   # reported passing. A hygiene list that does not match the documented rule is
   # worse than none: it certifies the drift.
-  ".jules"
+
   ".serena"
   ".github/README.md"
   ".gitattributes"

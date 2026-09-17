@@ -83,7 +83,7 @@ class _MismatchGraphStore(_FakeGraphStore):
         super().__init__()
         self.queries = []
 
-    def query(self, cypher: str, *, params=None, database="neo4j"):  # noqa: ANN001
+    def query(self, cypher: str, *, params=None, database="neo4j", workspace_id=None, enforce_workspace_filter=False, **kwargs):  # noqa: ANN001
         self.queries.append(cypher)
         return [
             {

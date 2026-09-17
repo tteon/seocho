@@ -865,7 +865,11 @@ class Seocho:
             )
         db = database or self.default_database
         ontology = self.get_ontology(db)
-        return ontology.coverage_stats(self._engine.graph_store, database=db)
+        return ontology.coverage_stats(
+            self._engine.graph_store,
+            database=db,
+            workspace_id=self.workspace_id,
+        )
 
     def prompt_context_from_ontology(
         self,
@@ -1528,7 +1532,13 @@ class Seocho:
         """
         if not self._local_mode:
             raise RuntimeError("query() requires local engine mode (ontology + graph_store + llm)")
-        return self.graph_store.query(cypher, params=params, database=database)
+        return self.graph_store.query(
+            cypher,
+            params=params,
+            database=database,
+            workspace_id=self.workspace_id,
+            enforce_workspace_filter=True,
+        )
 
     # ------------------------------------------------------------------
     # Agent-level session API

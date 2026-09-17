@@ -19,7 +19,7 @@ def _onto():
 
 class _FakeGraph:
     def __init__(self): self.calls = []
-    def query(self, cypher, **k): self.calls.append(cypher); return [{"c": {"name": "Acme"}}]
+    def query(self, cypher, **kwargs): self.calls.append(cypher); return [{"c": {"name": "Acme"}}]
     def get_schema(self, *, database="neo4j"): return {"labels": ["Company"], "relationship_types": []}
 
 

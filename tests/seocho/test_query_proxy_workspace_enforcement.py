@@ -27,7 +27,7 @@ class _StrictStore:
     path, this would raise TypeError — that's the regression guard.
     """
 
-    def query(self, cypher, *, params=None, database="neo4j"):
+    def query(self, cypher, *, params=None, database="neo4j", **kwargs):
         return [{"ok": True}]
 
 

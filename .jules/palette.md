@@ -1,0 +1,1 @@
+In the SEOCHO repository's CLI (`src/seocho/cli/`), the standard help string for JSON output arguments (`--json`) is `help="Emit JSON"`. Ensure consistency across all CLI parsers by replacing variants like "JSON output" or "Emit JSON output" with "Emit JSON".

@@ -1,3 +1,0 @@
-- Discovered an inconsistency in CLI message casing across `src/seocho/cli/__init__.py`. Many messages use proper sentence case ("No memories found.", "No semantic artifacts found."), but empty graph targets uses sentence casing with proper punctuation, others don't, wait... "No graph targets configured." is fine. Let's look for other lower case or inconsistent messages.
-- Found many instances where the JSON output parameter has the help text `help="JSON output"`. Memory states: "In the SEOCHO repository's CLI (`src/seocho/cli/`), the standard help string for JSON output arguments (`--json`) is `help="Emit JSON"`."
-- I should replace all `help="JSON output"` with `help="Emit JSON"` in `src/seocho/cli/ontology.py` and `src/seocho/cli/parsers.py`.

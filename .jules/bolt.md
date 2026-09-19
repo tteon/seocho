@@ -1,0 +1,1 @@
+- Use explicit loops to avoid list comprehension when memory overhead of the intermediate list is high, or stream JSONL using `with path.open('r') as f:` instead of `path.read_text().splitlines()` which loads the whole file into a string, then splits it, keeping all parts in memory simultaneously.

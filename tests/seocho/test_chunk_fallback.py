@@ -19,8 +19,8 @@ def _engine(fake_query):
     eng.workspace_id = "ws-cf"
 
     class _GS:
-        def query(self, cypher, params=None, database="neo4j"):
-            return fake_query(cypher, params or {}, database)
+        def query(self, cypher, params=None, database="neo4j", workspace_id=None, enforce_workspace_filter=False):
+            return fake_query(cypher, params or {}, database, workspace_id, enforce_workspace_filter)
 
     eng.graph_store = _GS()
     return eng
@@ -36,7 +36,7 @@ def test_chunk_fallback_enabled_default_off(monkeypatch) -> None:
 def test_fallback_passes_keywords_and_workspace_as_params() -> None:
     seen: Dict[str, Any] = {}
 
-    def fq(cypher, params, database):
+    def fq(cypher, params=None, database="neo4j", workspace_id=None, enforce_workspace_filter=False):
         seen["cypher"] = cypher
         seen["params"] = params
         return [{"text": "Apple Inc. is headquartered in Cupertino, California."}]
@@ -53,19 +53,19 @@ def test_fallback_passes_keywords_and_workspace_as_params() -> None:
 
 
 def test_fallback_empty_question_returns_blank() -> None:
-    eng = _engine(lambda c, p, d: [{"text": "x"}])
+    eng = _engine(lambda c, p, d, w, e: [{"text": "x"}])
     assert eng._graph_chunk_fallback("", "db") == ""
     # all-stopword question → no keywords → no query
     assert eng._graph_chunk_fallback("what is the", "db") == ""
 
 
 def test_fallback_no_chunk_hit_returns_blank() -> None:
-    eng = _engine(lambda c, p, d: [])
+    eng = _engine(lambda c, p, d, w, e: [])
     assert eng._graph_chunk_fallback("Apple revenue 2023", "db") == ""
 
 
 def test_fallback_swallows_query_error() -> None:
-    def boom(c, p, d):
+    def boom(c, p, d, w, e):
         raise RuntimeError("bolt down")
 
     eng = _engine(boom)

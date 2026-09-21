@@ -1,0 +1,1 @@
+Found inconsistency in CLI help string for `--json` across commands. Most commands use `help="JSON output"` or `help="Emit JSON"`. `run.py` uses `help="Emit JSON"`, `options.py` uses `help="Emit JSON output"`, `connect.py` uses `help="Emit JSON"`, and `ontology.py` uses `help="JSON output"`.

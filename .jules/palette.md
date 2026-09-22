@@ -1,3 +1,0 @@
-- CLI help strings for --json parameters are inconsistent ("Emit JSON output", "JSON output", "Emit JSON", missing help text).
-- Based on repo rules: In the SEOCHO repository's CLI (`src/seocho/cli/`), the standard help string for JSON output arguments (`--json`) is `help="Emit JSON"`.
-- Will standardize this as a clear UX/a11y improvement for CLI help text.

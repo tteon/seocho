@@ -1,0 +1,1 @@
+Replaced `path.read_text().splitlines()` with lazy file iteration `for line in path.open("r", encoding="utf-8"):` when parsing `.jsonl` and `.env` files in `scripts/`. This avoids loading potentially large files entirely into memory at once, reducing memory overhead, particularly for trace, cache, and benchmarking logs which can grow significantly.

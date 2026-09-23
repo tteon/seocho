@@ -15,7 +15,8 @@ from seocho.eval.inference_spine import apply_cost_ledger, join_engine_spans
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    with path.open("r", encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
 
 
 def save_report(args: argparse.Namespace, requests: Path, out: Path) -> None:

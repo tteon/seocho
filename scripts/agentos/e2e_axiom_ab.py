@@ -47,9 +47,10 @@ def _load_env(root: Path) -> None:
     candidates = [root / ".env", Path("/home/hadry/lab/seocho/.env")]
     for envf in candidates:
         if envf.exists():
-            for line in envf.read_text().splitlines():
-                if line.strip() and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
+            with envf.open('r', encoding='utf-8') as f:
+                for line in f:
+                    if line.strip() and not line.strip().startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
                     k = k.strip()
                     # Only load LLM/provider API keys from .env; NEVER load NEO4J_*
                     # (the .env points at a different DozerDB instance than this

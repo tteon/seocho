@@ -28,7 +28,8 @@ from pathlib import Path
 
 
 def load_sets(path: Path):
-    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    with path.open('r', encoding='utf-8') as f:
+        return [json.loads(line) for line in f if line.strip()]
 
 
 def hot_set(counter: Counter, decile: float = 0.10) -> set:

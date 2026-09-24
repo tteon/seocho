@@ -1,0 +1,1 @@
+Always stream `.jsonl` and `.env` files using `with path.open('r', encoding='utf-8') as f:` for lazy iteration rather than `read_text().splitlines()` to avoid memory overhead from loading large traces or logs into memory at once.

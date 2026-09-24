@@ -51,15 +51,15 @@ def _load_env(root: Path) -> None:
                 for line in f:
                     if line.strip() and not line.strip().startswith("#") and "=" in line:
                         k, v = line.split("=", 1)
-                    k = k.strip()
-                    # Only load LLM/provider API keys from .env; NEVER load NEO4J_*
-                    # (the .env points at a different DozerDB instance than this
-                    # e2e uses — loading it caused a wrong-password lockout).
-                    if k.startswith("NEO4J") or k.startswith("BOLT"):
-                        continue
-                    # strip surrounding quotes — a quoted key is otherwise sent
-                    # verbatim (quotes included) and 401s.
-                    os.environ.setdefault(k, v.strip().strip('"').strip("'"))
+                        k = k.strip()
+                        # Only load LLM/provider API keys from .env; NEVER load NEO4J_*
+                        # (the .env points at a different DozerDB instance than this
+                        # e2e uses — loading it caused a wrong-password lockout).
+                        if k.startswith("NEO4J") or k.startswith("BOLT"):
+                            continue
+                        # strip surrounding quotes — a quoted key is otherwise sent
+                        # verbatim (quotes included) and 401s.
+                        os.environ.setdefault(k, v.strip().strip('"').strip("'"))
             return
 
 

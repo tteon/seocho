@@ -55,8 +55,8 @@ def _load_env() -> None:
                 for line in f:
                     if line.strip() and not line.strip().startswith("#") and "=" in line:
                         k, v = line.split("=", 1)
-                    if not k.strip().startswith(("NEO4J", "BOLT")):
-                        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+                        if not k.strip().startswith(("NEO4J", "BOLT")):
+                            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
             return
 
 

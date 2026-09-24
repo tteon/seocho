@@ -1,0 +1,1 @@
+In the SEOCHO CLI, empty state messages should use proper sentence case, punctuation, and respect domain terminology (e.g., 'No quarantined items found.' instead of generic terms or terse phrasing like 'Quarantine empty.').

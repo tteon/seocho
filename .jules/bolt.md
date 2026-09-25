@@ -1,0 +1,1 @@
+Performance Opportunity Addressed: Replaced `read_text().splitlines()` with lazy file iteration `with path.open('r', encoding='utf-8') as f: for line in f:` in `scripts/finbench/results_log.py` to avoid loading entire log/JSONL files into memory at once, reducing avoidable file I/O and JSONL overhead. Manual strip calls were kept for string parsing to avoid newline bugs.

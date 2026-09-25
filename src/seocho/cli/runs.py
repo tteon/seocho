@@ -28,7 +28,9 @@ def register(subparsers: Any) -> None:
     compare.add_argument(
         "--output-dir", type=Path, help="Write comparison.json/md to a new directory"
     )
-    compare.add_argument("--json", action="store_true", dest="output_json")
+    compare.add_argument(
+        "--json", action="store_true", dest="output_json", help="Emit JSON"
+    )
 
     view = commands.add_parser(
         "view", help="Export a local interactive HTML view of saved results"

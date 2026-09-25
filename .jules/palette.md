@@ -1,2 +1,0 @@
-- Discovered a missing help text for the `--json` option in `seocho runs compare` command.
-- Standard help text for `--json` in this CLI is `help="Emit JSON"`. Added it to `src/seocho/cli/runs.py` for consistency with other commands.

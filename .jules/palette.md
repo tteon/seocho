@@ -1,1 +1,0 @@
-- Use "Emit JSON" as the standardized help string for `--json` CLI arguments.

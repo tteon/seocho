@@ -1,0 +1,1 @@
+- Optimization: Replace `path.read_text().splitlines()` with `with path.open('r', encoding='utf-8') as f:` for large `.jsonl` files to avoid loading the entire file content into memory at once before iterating.

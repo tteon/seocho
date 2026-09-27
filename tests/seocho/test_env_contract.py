@@ -114,11 +114,11 @@ def test_documented_variables_never_inject_empty_values():
     So: a variable with no value is commented out. It stays documented (the
     contract checker counts `# NAME=`) and stays inert.
     """
-    lines = (ROOT / ".env.example").read_text().splitlines()
-    live_empty = [
-        line for line in lines
-        if re.fullmatch(r"[A-Z][A-Z0-9_]*=", line.strip())
-    ]
+    with (ROOT / ".env.example").open('r', encoding='utf-8') as f:
+        live_empty = [
+            line for line in f
+            if re.fullmatch(r"[A-Z][A-Z0-9_]*=", line.strip())
+        ]
     assert not live_empty, (
         "these declarations inject an empty value into every container, which "
         "defeats the code default rather than documenting it -- comment them "
@@ -157,12 +157,13 @@ def test_graph_credentials_resolve_under_the_documented_env():
     import os
 
     env = {}
-    for line in (ROOT / ".env.example").read_text().splitlines():
-        stripped = line.strip()
-        if stripped.startswith("#") or "=" not in stripped:
-            continue
-        name, _, value = stripped.partition("=")
-        env[name.strip()] = value
+    with (ROOT / ".env.example").open('r', encoding='utf-8') as f:
+        for line in f:
+            stripped = line.strip()
+            if stripped.startswith("#") or "=" not in stripped:
+                continue
+            name, _, value = stripped.partition("=")
+            env[name.strip()] = value
 
     # What compose.yaml pins for the container.
     env["NEO4J_URI"] = "bolt://neo4j:7687"

@@ -908,11 +908,14 @@ class IndexingPipeline:
         domain_persisted = int(summary.get("relationships_created", 0) or 0)
         try:
             _rows = self.graph_store.query(
-                "MATCH (a)-[r]->(b) WHERE a._workspace_id=$ws AND r._source_id=$sid "
+                "MATCH (a)-[r]->(b) WHERE a._workspace_id=$workspace_id AND r._source_id=$sid "
                 "AND NOT type(r) IN $prov RETURN count(r) AS c",
-                params={"ws": self.workspace_id, "sid": source_id,
+                params={"workspace_id": self.workspace_id, "sid": source_id,
                         "prov": list(self._PROVENANCE_REL_TYPES)},
-                database=database)
+                database=database,
+                workspace_id=self.workspace_id,
+                enforce_workspace_filter=True,
+            )
             if _rows:
                 domain_persisted = int((_rows[0].get("c") if _rows[0] else 0) or 0)
         except Exception:  # noqa: BLE001 - census must never fail the write

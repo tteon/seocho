@@ -34,7 +34,7 @@ def entrypoint() -> str:
     """Executable lines only — the comments in this file *describe* the flags
     that were removed, so scanning raw text finds them in the prose."""
     return "\n".join(
-        line for line in ENTRYPOINT.read_text().splitlines()
+        line.rstrip('\n') for line in ENTRYPOINT.open('r', encoding='utf-8')
         if not line.lstrip().startswith("#")
     )
 

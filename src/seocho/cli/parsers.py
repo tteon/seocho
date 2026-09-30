@@ -171,7 +171,7 @@ def register_memory_commands(subparsers: Any) -> None:
         help="Print the compose command without running it",
     )
     serve_parser.add_argument(
-        "--json", dest="output_json", action="store_true", help="Emit JSON output"
+        "--json", dest="output_json", action="store_true", help="Emit JSON"
     )
 
     stop_parser = subparsers.add_parser(
@@ -194,7 +194,7 @@ def register_memory_commands(subparsers: Any) -> None:
         help="Print the compose command without running it",
     )
     stop_parser.add_argument(
-        "--json", dest="output_json", action="store_true", help="Emit JSON output"
+        "--json", dest="output_json", action="store_true", help="Emit JSON"
     )
 
     artifacts_parser = subparsers.add_parser(

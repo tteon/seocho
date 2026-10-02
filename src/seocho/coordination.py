@@ -53,6 +53,10 @@ class CoordinationRecord:
         forbidden_values = _FORBIDDEN_KEY_PARTS.intersection(self.value)
         if forbidden_values:
             raise ValueError("customer data is forbidden in coordination values")
+        for k in self.value.keys():
+            k_normalized = str(k).lower()
+            if any(part in k_normalized for part in _FORBIDDEN_KEY_PARTS):
+                raise ValueError("customer data is forbidden in coordination values")
 
 
 def active_policy_record(

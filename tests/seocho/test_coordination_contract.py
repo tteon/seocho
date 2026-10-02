@@ -26,7 +26,7 @@ def test_etcd_records_hold_pointers_not_customer_data() -> None:
     assert policy.value == {"policy_id": "wallet-risk", "policy_version": "3.1.0"}
 
 
-@pytest.mark.parametrize("field", ["customer_id", "wallet", "transaction", "risk_signal"])
+@pytest.mark.parametrize("field", ["customer_id", "wallet", "transaction", "risk_signal", "transaction_id"])
 def test_etcd_contract_rejects_customer_and_risk_payloads(field: str) -> None:
     record = CoordinationRecord(
         kind="active_policy",

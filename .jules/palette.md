@@ -1,0 +1,1 @@
+- CLI empty state and error messages in `src/seocho/cli/` should use proper sentence case and punctuation. For example, use "No quarantined items found." instead of "Quarantine empty.".

@@ -1,0 +1,1 @@
+Replaced `read_text().splitlines()` with lazy file iteration `with path.open('r', encoding='utf-8') as f:` in data processing scripts (e.g., `scripts/benchmarks`, `scripts/agentos`, etc). This avoids memory overhead from loading large JSONL traces and text files into memory simultaneously.

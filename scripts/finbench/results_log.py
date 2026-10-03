@@ -149,10 +149,11 @@ def _extract(report: Dict[str, Any], path: Path) -> Optional[Dict[str, Any]]:
 def collect(root: Path, ledger: Path) -> Dict[str, int]:
     seen = set()
     if ledger.exists():
-        for line in ledger.read_text().splitlines():
-            if not line.strip():
-                continue
-            e = json.loads(line)
+        with ledger.open('r', encoding='utf-8') as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                e = json.loads(line)
             seen.add((e.get("schema_version"), e.get("source"),
                       e.get("content_hash"), e.get("extract_hash")))
 
@@ -198,7 +199,8 @@ def collect(root: Path, ledger: Path) -> Dict[str, int]:
 def summarise(ledger: Path) -> str:
     if not ledger.exists():
         return "no ledger yet — run with --collect\n"
-    entries = [json.loads(l) for l in ledger.read_text().splitlines() if l.strip()]
+    with ledger.open('r', encoding='utf-8') as f:
+        entries = [json.loads(l) for l in f if l.strip()]
     lines = ["# Experiment results ledger", "",
              f"{len(entries)} entries in `{ledger}`. Append-only: a superseded result stays "
              "so the change is visible rather than hidden.", "",

@@ -1,0 +1,2 @@
+- File I/O streaming optimization: Replace `read_text().splitlines()` with `with path.open('r', encoding='utf-8') as f:` for reading `.jsonl` and `.env` files in `scripts/`, `eval/`, and `tests/` to stream files lazily. This reduces memory overhead, especially for large trace logs or dataset ledgers.
+- Keep in mind to explicitly use `.strip()` if performing manual parsing.

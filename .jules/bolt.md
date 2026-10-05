@@ -1,0 +1,1 @@
+Learned that parsing files with json.loads(path.read_text().splitlines()) is a performance bottleneck since it loads everything into memory at once. Converting to use stream context managers like with path.open('r', encoding='utf-8') as f: provides memory efficiency and iteration.

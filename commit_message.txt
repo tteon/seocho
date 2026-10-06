@@ -1,0 +1,15 @@
+refactor: improve file reading performance
+
+Replaced instances of `path.read_text().splitlines()` with lazy file iteration `with path.open("r", encoding="utf-8") as f: for line in f:` in several benchmark, evaluation, and test scripts. This prevents loading entire files into memory at once as a single large list of strings, which is especially important for JSONL traces and evaluation logs.
+
+Files modified:
+- scripts/agentos/e2e_axiom_ab.py
+- scripts/agentos/e2e_cold_start_ab.py
+- scripts/agentos/e2e_cross_model_intern.py
+- scripts/agentos/e2e_ontology_source_ab.py
+- scripts/benchmarks/inference_workbench.py
+- scripts/cache_sim/h0_gate.py
+- scripts/finbench/results_log.py
+- scripts/serve_track/smoke_plugin.py
+- tests/seocho/test_env_contract.py
+- tests/seocho/test_serving_image_hardening.py

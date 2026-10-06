@@ -1,0 +1,2 @@
+- Discovered an inefficient file streaming pattern throughout the codebase: using `read_text().splitlines()` reads the entire file into memory at once, creating a large string, then creates a large list of string lines. This is particularly problematic for JSONL traces and evaluation logs (e.g. `scripts/benchmarks/inference_workbench.py`, `scripts/finbench/results_log.py`).
+- Will refactor instances of `read_text().splitlines()` to use a lazy stream iterator (`with path.open('r', encoding='utf-8') as f:`).

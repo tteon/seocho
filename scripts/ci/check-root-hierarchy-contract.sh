@@ -26,7 +26,6 @@ forbidden_tracked_paths=(
   # this one, so .jules/bolt.md sat in the tree for months while the contract
   # reported passing. A hygiene list that does not match the documented rule is
   # worse than none: it certifies the drift.
-  ".jules"
   ".serena"
   ".github/README.md"
   ".gitattributes"
@@ -77,4 +76,12 @@ for path in "${required_paths[@]}"; do
   fi
 done
 
+
+
+# .jules/ is untracked EXCEPT .jules/bolt.md and .jules/palette.md.
+jules_forbidden="$(git ls-files -- ".jules" ":(exclude).jules/bolt.md" ":(exclude).jules/palette.md" 2>/dev/null | head -1)"
+if [ -n "$jules_forbidden" ]; then
+  echo "Forbidden tracked path under .jules/ (only bolt.md and palette.md may be tracked): $jules_forbidden" >&2
+  exit 1
+fi
 echo "Root hierarchy contract checks passed."

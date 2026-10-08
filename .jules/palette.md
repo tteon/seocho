@@ -1,0 +1,1 @@
+- Standardized CLI help text for `--json` arguments across all CLI commands to uniformly use `help="Emit JSON"`.

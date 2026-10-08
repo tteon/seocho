@@ -21,7 +21,7 @@ def register(subparsers) -> None:
 
     ontology_check_parser = ontology_subparsers.add_parser("check", help="Validate one ontology definition")
     ontology_check_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
-    ontology_check_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    ontology_check_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     ontology_export_parser = ontology_subparsers.add_parser("export", help="Export ontology-derived artifacts")
     ontology_export_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
@@ -32,12 +32,12 @@ def register(subparsers) -> None:
         help="Output artifact format",
     )
     ontology_export_parser.add_argument("--output", default=None, help="Optional output file path")
-    ontology_export_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    ontology_export_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     ontology_diff_parser = ontology_subparsers.add_parser("diff", help="Diff two ontology definitions")
     ontology_diff_parser.add_argument("--left", required=True, help="Left ontology file")
     ontology_diff_parser.add_argument("--right", required=True, help="Right ontology file")
-    ontology_diff_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    ontology_diff_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     ontology_report_parser = ontology_subparsers.add_parser(
         "report",
@@ -51,14 +51,14 @@ def register(subparsers) -> None:
         action="store_true",
         help="Skip optional Owlready2 offline inspection",
     )
-    ontology_report_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    ontology_report_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     ontology_inspect_parser = ontology_subparsers.add_parser(
         "inspect-owl",
         help="Inspect an OWL ontology with Owlready2 (optional offline dependency)",
     )
     ontology_inspect_parser.add_argument("--source", required=True, help="OWL file path or URI")
-    ontology_inspect_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    ontology_inspect_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     ontology_rdf_governance_parser = ontology_subparsers.add_parser(
         "rdf-governance", help="Run hash-pinned offline SHACL and optional OWL consistency checks",
@@ -68,7 +68,7 @@ def register(subparsers) -> None:
     ontology_rdf_governance_parser.add_argument("--data-format", default="turtle", help="RDF data format for pySHACL")
     ontology_rdf_governance_parser.add_argument("--run-reasoner", action="store_true", help="Run optional offline Owlready2/Pellet consistency check")
     ontology_rdf_governance_parser.add_argument("--output", default=None, help="Optional receipt JSON path")
-    ontology_rdf_governance_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    ontology_rdf_governance_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     ontology_review_parser = ontology_subparsers.add_parser(
         "review",
@@ -88,7 +88,7 @@ def register(subparsers) -> None:
     ontology_review_parser.add_argument("--spec", default=None, help="Mapping-spec YAML (for apply)")
     ontology_review_parser.add_argument("--output", default=None, help="Output path (export-spec / apply)")
     ontology_review_parser.add_argument("--workspace", default="", help="workspace_id to stamp on quarantined items")
-    ontology_review_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    ontology_review_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     ontology_datahub_parser = ontology_subparsers.add_parser(
         "datahub",
@@ -99,7 +99,7 @@ def register(subparsers) -> None:
     ontology_datahub_parser.add_argument("--gms", default=None, help="DataHub GMS server URL (for live emit)")
     ontology_datahub_parser.add_argument("--token", default=None, help="DataHub access token (for live emit)")
     ontology_datahub_parser.add_argument("--emit", action="store_true", help="Actually emit to --gms (default: dry-run)")
-    ontology_datahub_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    ontology_datahub_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     ontology_select_parser = ontology_subparsers.add_parser(
         "select-guardrail",
@@ -113,7 +113,7 @@ def register(subparsers) -> None:
         "--corpus", required=True,
         help="Corpus profile JSON (label->freq, a CorpusProfile dict, or an experiment record)",
     )
-    ontology_select_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    ontology_select_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     ontology_dhapply_parser = ontology_subparsers.add_parser(
         "datahub-apply",
@@ -128,7 +128,7 @@ def register(subparsers) -> None:
         help="DataHub GMS URL to pull reviewed glossary terms from live (instead of --terms)")
     ontology_dhapply_parser.add_argument("--status", default="APPROVED", help="Only apply terms with this review status")
     ontology_dhapply_parser.add_argument("--output", default=None, help="Write the new ontology JSON-LD here")
-    ontology_dhapply_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    ontology_dhapply_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     ontology_dhqueue_parser = ontology_subparsers.add_parser(
         "datahub-queue",
@@ -140,7 +140,7 @@ def register(subparsers) -> None:
     ontology_dhqueue_parser.add_argument("--token", default=None, help="DataHub access token (for live emit)")
     ontology_dhqueue_parser.add_argument("--emit", action="store_true", help="Actually emit to --gms (default: dry-run)")
     ontology_dhqueue_parser.add_argument("--output", default=None, help="Write MCP JSON to this path (dry-run)")
-    ontology_dhqueue_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    ontology_dhqueue_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     ontology_eval_answers_parser = ontology_subparsers.add_parser(
         "eval-answers",
@@ -154,7 +154,7 @@ def register(subparsers) -> None:
     ontology_eval_answers_parser.add_argument("--provider", default="mara", help="LLM provider preset (default: mara)")
     ontology_eval_answers_parser.add_argument("--model", default=None, help="Model override (default: provider default)")
     ontology_eval_answers_parser.add_argument("--workers", type=int, default=6, help="Concurrent workers (default: 6)")
-    ontology_eval_answers_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    ontology_eval_answers_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     ontology_learn_parser = ontology_subparsers.add_parser(
         "learn", help="Create a review-only LLMs4OL candidate report from an extracted graph",
@@ -163,7 +163,7 @@ def register(subparsers) -> None:
     ontology_learn_parser.add_argument("--graph", required=True, help="Extracted graph JSON input")
     ontology_learn_parser.add_argument("--output", required=True, help="Explicit review-report JSON output path")
     ontology_learn_parser.add_argument("--min-support", type=int, default=2, help="Minimum observed support per candidate")
-    ontology_learn_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    ontology_learn_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
 
     ontology_import_parser = ontology_subparsers.add_parser(
@@ -179,7 +179,7 @@ def register(subparsers) -> None:
         "--output", default=None,
         help="Write the draft document here (YAML); default prints to stdout")
     ontology_import_parser.add_argument(
-        "--json", dest="output_json", action="store_true", help="JSON output")
+        "--json", dest="output_json", action="store_true", help="Emit JSON")
 
 
     ontology_subparsers.add_parser(
@@ -192,7 +192,7 @@ def register(subparsers) -> None:
     ontology_clone_parser.add_argument("template", help="Template name (see `ontology templates`)")
     ontology_clone_parser.add_argument("--output", default=None, help="Write the draft YAML here")
     ontology_clone_parser.add_argument(
-        "--json", dest="output_json", action="store_true", help="JSON output")
+        "--json", dest="output_json", action="store_true", help="Emit JSON")
 
     # Lifecycle commands deliberately use explicit state/root arguments.  They
     # never infer a host path from an agent prompt or a bundle manifest.
@@ -201,16 +201,16 @@ def register(subparsers) -> None:
     bundle_build = bundle_sub.add_parser("build", help="Atomically publish a new immutable bundle")
     bundle_build.add_argument("--schema", required=True)
     bundle_build.add_argument("--output", required=True, help="New (nonexistent) bundle directory")
-    bundle_build.add_argument("--json", dest="output_json", action="store_true")
+    bundle_build.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
     bundle_verify = bundle_sub.add_parser("verify", help="Verify manifest and artifact hashes")
     bundle_verify.add_argument("--bundle", required=True)
-    bundle_verify.add_argument("--json", dest="output_json", action="store_true")
+    bundle_verify.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     def lifecycle_args(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("--state-db", default=".seocho/ontology/state.sqlite", help="Single-host SQLite/WAL state database")
         parser.add_argument("--workspace", required=True)
         parser.add_argument("--package", required=True)
-        parser.add_argument("--json", dest="output_json", action="store_true")
+        parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     activate = ontology_subparsers.add_parser("activate", help="CAS-activate a verified immutable bundle")
     lifecycle_args(activate)
@@ -227,7 +227,7 @@ def register(subparsers) -> None:
         lp = lease_sub.add_parser(action)
         lp.add_argument("--state-db", default=".seocho/ontology/state.sqlite")
         lp.add_argument("--owner", required=True, help="Stable process identity, never a model-generated value")
-        lp.add_argument("--json", dest="output_json", action="store_true")
+        lp.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
         if action == "acquire":
             lp.add_argument("--workspace", required=True); lp.add_argument("--package", required=True)
             lp.add_argument("--purpose", required=True); lp.add_argument("--ttl", type=int, default=60)
@@ -242,7 +242,7 @@ def register(subparsers) -> None:
     for action in ("acquire", "renew", "release"):
         lp = lock_sub.add_parser(action)
         lp.add_argument("--state-db", default=".seocho/ontology/state.sqlite")
-        lp.add_argument("--owner", required=True); lp.add_argument("--json", dest="output_json", action="store_true")
+        lp.add_argument("--owner", required=True); lp.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
         if action == "acquire":
             lp.add_argument("--workspace", required=True); lp.add_argument("--package", required=True)
             lp.add_argument("--purpose", required=True); lp.add_argument("--ttl", type=int, default=60)
@@ -253,18 +253,18 @@ def register(subparsers) -> None:
     gc = ontology_subparsers.add_parser("gc", help="Report candidate immutable bundles; dry-run only")
     gc.add_argument("--root", required=True, help="Directory containing immutable bundle directories")
     gc.add_argument("--dry-run", action="store_true", required=True, help="Required: no deletion is implemented")
-    gc.add_argument("--json", dest="output_json", action="store_true")
+    gc.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
     context_parser = ontology_subparsers.add_parser("context", help="Return verified, bounded ontology context for an agent")
     context_sub = context_parser.add_subparsers(dest="context_action", required=True)
     profile_parser = context_sub.add_parser("profile", help="Return one purpose-scoped immutable profile")
     profile_parser.add_argument("--bundle", required=True); profile_parser.add_argument("--purpose", required=True, choices=["indexing", "query", "projection"])
-    profile_parser.add_argument("--json", dest="output_json", action="store_true")
+    profile_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
     slice_parser = context_sub.add_parser("slice", help="Return a bounded JIT slice; never raw ontology files")
     slice_parser.add_argument("--bundle", required=True); slice_parser.add_argument("--purpose", required=True, choices=["indexing", "query", "projection"])
     slice_parser.add_argument("--terms", required=True, help="Comma-separated retrieval terms")
     slice_parser.add_argument("--max-chars", type=int, default=4000)
-    slice_parser.add_argument("--json", dest="output_json", action="store_true")
+    slice_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
 
 
 def handle(args: argparse.Namespace) -> int:

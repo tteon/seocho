@@ -1,0 +1,1 @@
+Replaced `read_text().splitlines()` with lazy file iteration `with path.open("r", encoding="utf-8") as f:` across various scripts (`e2e_*.py`, `results_log.py`, `inference_workbench.py`, `smoke_plugin.py`, `h0_gate.py`, and tests) to avoid memory overhead from loading large trace/log/.env files entirely into memory.

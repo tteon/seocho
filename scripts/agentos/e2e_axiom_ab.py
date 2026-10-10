@@ -60,7 +60,7 @@ def _load_env(root: Path) -> None:
                             continue
                         # strip surrounding quotes — a quoted key is otherwise sent
                         # verbatim (quotes included) and 401s.
-                    os.environ.setdefault(k, v.strip().strip('"').strip("'"))
+                        os.environ.setdefault(k, v.strip().strip('"').strip("'"))
             return
 
 

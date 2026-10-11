@@ -1,0 +1,1 @@
+I replaced `path.read_text().splitlines()` with `path.open('r', encoding='utf-8')` to lazily iterate over large files such as `.jsonl` and `.env` to improve performance (avoid memory overhead from loading large trace or logs into memory all at once).

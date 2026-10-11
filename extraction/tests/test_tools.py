@@ -25,6 +25,8 @@ async def test_schema_tool_uses_current_connector(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(server_runtime, 'get_neo4j_connector_service', lambda: connector)
     invoke = agent_server.get_schema_tool.on_invoke_tool
     context = RunContextWrapper(context=None)
+    context.run_config = MagicMock()
+    context.tool_name = 'test'
     assert await invoke(context, '{"database":"kgnormal"}') == 'Node: Person'
     assert await invoke(context, '{"database":"kgnormal"}') == 'Node: Person, Company'
     connector.get_schema.assert_called_with('kgnormal')
@@ -58,6 +60,8 @@ async def test_graph_and_database_discovery(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(server_runtime, 'db_registry', databases)
     monkeypatch.setattr(server_runtime, 'graph_registry', graphs)
     context = RunContextWrapper(context=None)
+    context.run_config = MagicMock()
+    context.tool_name = 'test'
     result = await agent_server.get_graphs_tool.on_invoke_tool(context, '{}')
     assert json.loads(result) == [descriptor]
     result = await agent_server.get_databases_tool.on_invoke_tool(context, '{}')

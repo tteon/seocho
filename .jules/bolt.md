@@ -1,0 +1,2 @@
+- Use `with path.open('r', encoding='utf-8') as f:` to iterate over lines instead of `path.read_text().splitlines()`. This reduces memory overhead, especially for large JSONL or env files, by avoiding reading the entire file into memory as a list of strings at once.
+- When applying this refactor to manual string parsing (e.g., .env or custom files), ensure to explicitly strip newlines (`line.rstrip('\n')`) or use `.strip()` since `splitlines()` automatically stripped newlines but file iteration retains them.

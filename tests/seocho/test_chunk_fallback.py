@@ -20,6 +20,8 @@ def _engine(fake_query):
 
     class _GS:
         def query(self, cypher, params=None, database="neo4j", **kwargs):
+            assert kwargs["workspace_id"] == eng.workspace_id
+            assert kwargs["enforce_workspace_filter"] is True
             return fake_query(cypher, params or {}, database)
 
     eng.graph_store = _GS()

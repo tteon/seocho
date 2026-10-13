@@ -908,7 +908,9 @@ class IndexingPipeline:
         domain_persisted = int(summary.get("relationships_created", 0) or 0)
         try:
             _rows = self.graph_store.query(
-                "MATCH (a)-[r]->(b) WHERE a._workspace_id=$workspace_id AND r._source_id=$sid "
+                "MATCH (a)-[r]->(b) WHERE a._workspace_id=$workspace_id "
+                "AND b._workspace_id=$workspace_id AND r._workspace_id=$workspace_id "
+                "AND r._source_id=$sid "
                 "AND NOT type(r) IN $prov RETURN count(r) AS c",
                 params={"workspace_id": self.workspace_id, "sid": source_id,
                         "prov": list(self._PROVENANCE_REL_TYPES)},

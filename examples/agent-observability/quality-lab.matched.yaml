@@ -1,0 +1,159 @@
+{
+  "workspace_id": "finder-matched-coordination",
+  "recorder_url": "http://127.0.0.1:8800/v1",
+  "dataset": "../../outputs/agent-observability/matched/prepared/cases.json",
+  "evaluation": "../../outputs/agent-observability/matched/prepared/evaluation.json",
+  "manifest": "../../outputs/agent-observability/matched/prepared/manifest.json",
+  "models": [
+    "gemma-4-31B-it",
+    "gpt-oss-120b"
+  ],
+  "evaluator_model": "DeepSeek-V3.2",
+  "arms": [
+    {
+      "arm_id": "direct",
+      "condition": {
+        "tier_policy": "forced",
+        "tier": "T1_RETRIEVAL",
+        "hard_output_limit": 1024,
+        "evaluator_output_limit": 2048,
+        "max_calls": 8,
+        "max_tool_calls": 6,
+        "judge_coordination": false,
+        "condition_id": "direct",
+        "strategy": "vanilla"
+      },
+      "variants": [
+        "original"
+      ]
+    },
+    {
+      "arm_id": "single_decomposition",
+      "condition": {
+        "tier_policy": "forced",
+        "tier": "T1_RETRIEVAL",
+        "hard_output_limit": 1024,
+        "evaluator_output_limit": 2048,
+        "max_calls": 8,
+        "max_tool_calls": 6,
+        "judge_coordination": false,
+        "condition_id": "single_decomposition",
+        "strategy": "planned_vanilla",
+        "fixed_tasks": [
+          {
+            "task_id": "facts",
+            "question": "Identify facts and source IDs required to answer the question. Preserve missing evidence and company, period, unit distinctions: {question}"
+          },
+          {
+            "task_id": "verification",
+            "question": "Verify the required relationships, calculations, units, periods and assumptions against the original sources; give supported conclusions and preserve missing information: {question}"
+          }
+        ],
+        "delegation": "single",
+        "coordination": "sequential_context",
+        "worker_identity": "single"
+      },
+      "variants": [
+        "original"
+      ]
+    },
+    {
+      "arm_id": "independent_parallel",
+      "condition": {
+        "tier_policy": "forced",
+        "tier": "T1_RETRIEVAL",
+        "hard_output_limit": 1024,
+        "evaluator_output_limit": 2048,
+        "max_calls": 8,
+        "max_tool_calls": 6,
+        "judge_coordination": false,
+        "condition_id": "independent_parallel",
+        "strategy": "planned_vanilla",
+        "fixed_tasks": [
+          {
+            "task_id": "facts",
+            "question": "Identify facts and source IDs required to answer the question. Preserve missing evidence and company, period, unit distinctions: {question}"
+          },
+          {
+            "task_id": "verification",
+            "question": "Verify the required relationships, calculations, units, periods and assumptions against the original sources; give supported conclusions and preserve missing information: {question}"
+          }
+        ],
+        "delegation": "parallel",
+        "coordination": "independent",
+        "worker_identity": "per_task"
+      },
+      "variants": [
+        "original"
+      ]
+    },
+    {
+      "arm_id": "sequential_context",
+      "condition": {
+        "tier_policy": "forced",
+        "tier": "T1_RETRIEVAL",
+        "hard_output_limit": 1024,
+        "evaluator_output_limit": 2048,
+        "max_calls": 8,
+        "max_tool_calls": 6,
+        "judge_coordination": false,
+        "condition_id": "sequential_context",
+        "strategy": "planned_vanilla",
+        "fixed_tasks": [
+          {
+            "task_id": "facts",
+            "question": "Identify facts and source IDs required to answer the question. Preserve missing evidence and company, period, unit distinctions: {question}"
+          },
+          {
+            "task_id": "verification",
+            "question": "Verify the required relationships, calculations, units, periods and assumptions against the original sources; give supported conclusions and preserve missing information: {question}"
+          }
+        ],
+        "delegation": "single",
+        "coordination": "sequential_context",
+        "worker_identity": "per_task"
+      },
+      "variants": [
+        "original"
+      ]
+    },
+    {
+      "arm_id": "peer_review",
+      "condition": {
+        "tier_policy": "forced",
+        "tier": "T1_RETRIEVAL",
+        "hard_output_limit": 1024,
+        "evaluator_output_limit": 2048,
+        "max_calls": 8,
+        "max_tool_calls": 6,
+        "judge_coordination": false,
+        "condition_id": "peer_review",
+        "strategy": "planned_vanilla",
+        "fixed_tasks": [
+          {
+            "task_id": "facts",
+            "question": "Identify facts and source IDs required to answer the question. Preserve missing evidence and company, period, unit distinctions: {question}"
+          },
+          {
+            "task_id": "verification",
+            "question": "Verify the required relationships, calculations, units, periods and assumptions against the original sources; give supported conclusions and preserve missing information: {question}"
+          }
+        ],
+        "delegation": "parallel",
+        "coordination": "peer_review",
+        "worker_identity": "per_task"
+      },
+      "variants": [
+        "original"
+      ]
+    }
+  ],
+  "split": "pilot_all",
+  "seeds": [
+    42
+  ],
+  "samples": 2,
+  "order_seed": 20261012,
+  "max_calls": 1920,
+  "max_reserved_output_tokens": 3932160
+}

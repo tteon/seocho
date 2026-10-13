@@ -148,3 +148,43 @@ regressions. Existing focused test/lint and documentation gates remain in place
 The basic CI gate also covers the local experiment dashboard catalog, real
 loopback HTTP read boundaries, CLI dispatch, and comparison parity. Browser
 interaction checks are recorded separately in the dashboard ExecPlan.
+
+The opt-in Graph-RAG collaboration gate (`tests/seocho/test_collaboration.py` and `tests/seocho/test_finder_collaboration.py`, and `tests/seocho/test_fixed_context_designs.py`)
+uses scripted model responses to exercise Agents SDK budget and evidence
+contracts, original-filing parsing, gold isolation, and source verification
+without MARA or DozerDB; live compatibility remains a separate gate.
+
+The basic CI gate includes the Phase 2 Recorder-backed YAML harness matrix in
+`tests/seocho/test_agent_observability_harness.py`; deterministic checks do not
+substitute for live provider compatibility or answer-quality evaluation.
+
+Phase 3 replay/intervention regression coverage is in
+`tests/seocho/test_agent_intervention.py`, including all operators, N sampling,
+budget sweeps and pre-dispatch conservative cost caps.
+
+Phase 4 signal tests (`tests/seocho/test_agent_signals.py`) validate derived
+mathematics and recorded-source provenance. Scripted verdicts and toy vectors
+are contract fixtures, not semantic-model or FinDER quality evidence.
+
+Recorder analytics regression tests are included in basic CI. Local mock report
+artifacts remain ignored; no scheduled report runs invoke paid providers. Statistical
+and Recorder-backed fixtures verify contracts without asserting model quality.
+
+Basic CI also covers Recorder UI workspace isolation, raw-body inspection,
+read-only source preservation, same-origin Mock job submission and positive silver
+failure-flow projections. Browser acceptance and packaged assets are local checks;
+no UI acceptance enables paid-provider scheduled work.
+
+The basic CI Recorder contract slice also runs `tests/seocho/test_pi_agent.py` for optional Pi JSON framing and failure handling; it does not invoke a remote Pi process or paid provider.
+Evaluator isolation, arithmetic/quote receipt checks and T/F stratum handling are
+covered by `tests/seocho/test_agent_evaluator.py` in basic CI. Mocks assert unknown
+quality; they do not establish evaluator accuracy.
+
+The basic CI contract also runs `tests/seocho/test_agent_tools.py` for Recorder
+coverage of model-selected tool loops, parallel operand dependencies, specialist
+return and shared call-budget exhaustion. These deterministic fixtures establish
+contracts; live MARA compatibility is documented separately in experiment reports.
+
+Basic CI additionally runs `tests/seocho/test_quality_lab.py` for controlled variant
+lineage, private-label isolation, coordination context delivery, audit coverage,
+suite budget exhaustion and provider-versus-judgment failure distinctions.

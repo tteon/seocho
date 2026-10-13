@@ -1,0 +1,24 @@
+{
+  "workload_id": "incident-response-synthetic-v1",
+  "description": "Small synthetic engineering workload; no general quality or performance claim.",
+  "companies": ["acme", "beta"],
+  "incidents": [
+    {"id": "acme-access", "company": "acme", "summary": "Internal access exposed 42 client records", "date": "2026-02-03", "severity": "medium", "source": "incident-register:acme-access"},
+    {"id": "acme-surveillance", "company": "acme", "summary": "Late post-trade reviews", "date": "2026-02-14", "severity": "high", "source": "incident-register:acme-surveillance"},
+    {"id": "beta-access", "company": "beta", "summary": "Privileged access review overdue", "date": "2026-02-05", "severity": "high", "source": "incident-register:beta-access"}
+  ],
+  "attestations": [
+    {"id": "acme-access-fail", "incident": "acme-access", "control": "acme-access-review", "status": "failing", "date": "2026-02-10", "source": "audit:acme-access-fail"},
+    {"id": "acme-access-pass", "incident": "acme-access", "control": "acme-access-review", "status": "passing", "date": "2026-02-20", "source": "audit:acme-access-pass"},
+    {"id": "beta-access-pass", "incident": "beta-access", "control": "beta-access-review", "status": "passing", "date": "2026-02-21", "source": "audit:beta-access-pass"},
+    {"id": "beta-access-fail", "incident": "beta-access", "control": "beta-access-review", "status": "failing", "date": "2026-02-21", "source": "audit:beta-access-fail"}
+  ],
+  "cases": [
+    {"id": "lookup", "category": "single-hop", "question": "List Acme incidents and their severity.", "anchors": ["acme"], "required_slots": ["incidents", "severity"], "expected_refs": ["acme-access", "acme-surveillance"], "gold": "Access exposure is medium severity; late post-trade reviews are high severity."},
+    {"id": "path", "category": "multi-hop", "question": "Which control and dated attestation support remediation of Acme's access incident?", "anchors": ["acme"], "required_slots": ["incident", "control", "attestation", "date"], "expected_refs": ["acme-access", "acme-access-pass"], "gold": "Acme access-review has passing evidence on 2026-02-20; preserve the earlier failing evidence on 2026-02-10."},
+    {"id": "compare", "category": "comparison", "question": "Compare Acme and Beta access remediation evidence. Which is unambiguous?", "anchors": ["acme", "beta"], "required_slots": ["acme_evidence", "beta_evidence", "comparison"], "expected_refs": ["acme-access-pass", "beta-access-pass", "beta-access-fail"], "gold": "Acme has a later passing attestation. Beta has conflicting same-date attestations, so its result is unresolved."},
+    {"id": "missing", "category": "insufficiency", "question": "Is Acme's surveillance incident remediated? Cite the control and attestation, or identify missing evidence.", "anchors": ["acme"], "required_slots": ["surveillance_incident", "surveillance_control", "surveillance_attestation"], "expected_refs": ["acme-surveillance"], "gold": "The surveillance incident exists, but no supporting control or attestation is present. Remediation cannot be confirmed."},
+    {"id": "temporal", "category": "temporal", "question": "Was Acme's access control passing as of 2026-02-15? Distinguish evidence recorded after that date.", "anchors": ["acme"], "required_slots": ["as_of_status", "evidence_date", "later_evidence"], "expected_refs": ["acme-access-fail", "acme-access-pass"], "gold": "It was failing on the available 2026-02-10 evidence. The 2026-02-20 passing evidence cannot establish passing status as of 2026-02-15."},
+    {"id": "conflict", "category": "conflict", "question": "Can Beta's access control be confirmed passing on 2026-02-21? Preserve all contradictory evidence.", "anchors": ["beta"], "required_slots": ["status", "contradictory_evidence"], "expected_refs": ["beta-access-pass", "beta-access-fail"], "gold": "Cannot confirm: passing and failing attestations both dated 2026-02-21 conflict. No precedence is supplied."}
+  ]
+}

@@ -118,6 +118,19 @@ uv run pytest \
   tests/seocho/test_llm_model_override.py \
   tests/seocho/test_model_router.py \
   tests/seocho/test_reflection.py \
+  tests/seocho/test_agent_analytics.py \
+  tests/seocho/test_agent_evaluator.py \
+  tests/seocho/test_agent_intervention.py \
+  tests/seocho/test_agent_observability_harness.py \
+  tests/seocho/test_agent_signals.py \
+  tests/seocho/test_agent_tools.py \
+  tests/seocho/test_collaboration.py \
+  tests/seocho/test_finder_collaboration.py \
+  tests/seocho/test_fixed_context_designs.py \
+  tests/seocho/test_pi_agent.py \
+  tests/seocho/test_quality_lab.py \
+  tests/seocho/test_recorder.py \
+  tests/seocho/test_recorder_ui.py \
   tests/seocho/test_matchmaker.py \
   tests/seocho/test_ontology_context_map.py \
   tests/seocho/test_promotion_boundary_gate.py \

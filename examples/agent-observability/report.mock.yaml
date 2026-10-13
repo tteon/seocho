@@ -1,0 +1,9 @@
+name: Recorder Phase 5 local evidence
+hypothesis: null
+workspace_id: phase2-mock-lab
+directory: ../../outputs/agent-observability/phase2-reviewed-acceptance/store
+output: ../../outputs/agent-observability/phase5/phase2-report
+cost: total_tokens
+basis: logical
+bootstrap_draws: 2000
+correction: holm

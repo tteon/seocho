@@ -1,0 +1,3 @@
+# Conservative reservation cap, not a provider price estimate.
+max_tokens: 1000000
+input_token_reservation: 8192

@@ -1,0 +1,19 @@
+workspace_id: phase2-mock-lab
+recorder_url: http://127.0.0.1:8800/v1
+dataset: mock-cases.json
+evaluation: mock-evaluation.json
+seeds:
+- 42
+samples: 1
+models:
+  planner: mock-fixed
+  solver: mock-fixed
+  router: mock-fixed
+  synthesis: mock-fixed
+  evaluator: mock-fixed
+conditions:
+- condition_id: vanilla-T0_PARAMETRIC
+  strategy: vanilla
+  tier_policy: forced
+  tier: T0_PARAMETRIC
+evaluator_version: v2

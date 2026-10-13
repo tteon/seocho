@@ -1,0 +1,8 @@
+silver_k: 2
+agreement: normalized_exact
+alignment_threshold: 0.75
+ambiguity_margin: 0.05
+position_weight: 0.1
+cluster_threshold: 0.9
+entropy_drop_threshold: 0.5
+minimum_samples: 2

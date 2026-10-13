@@ -33,8 +33,10 @@ dependencies = [
 
 [project.scripts]
 seocho = "seocho.cli:main"
+obs = "seocho.recorder.cli:app"
 
 [project.optional-dependencies]
+recorder = ["pandas", "scipy", "matplotlib", "duckdb", "fastapi", "httpx>=0.25.0", "pydantic>=2.0", "typer", "uvicorn", "pyyaml", "openai", "openai-agents"]
 local = [
     "fastembed",
     "fastapi",
@@ -48,6 +50,11 @@ local = [
     "uvicorn",
 ]
 ci = [
+    "duckdb",
+    "typer",
+    "scipy",
+    "matplotlib",
+
     "faiss-cpu",
     "fastembed",
     "fastapi",
@@ -69,6 +76,9 @@ ci = [
     "mypy>=2.3.1",
 ]
 dev = [
+    "duckdb",
+    "typer",
+
     "datasets",
     "faiss-cpu",
     "fastembed",
@@ -209,3 +219,6 @@ seocho = ["py.typed"]
 "seocho.dashboard" = ["*.html", "*.css", "*.js"]
 "seocho.semantic_layer" = ["cik_table.json"]
 "seocho.ontology_templates" = ["*.yaml"]
+
+"seocho.eval.agent_observability" = ["templates/*.txt"]
+"seocho.recorder" = ["static/*.html", "static/*.js", "static/*.css", "static/vendor/*"]

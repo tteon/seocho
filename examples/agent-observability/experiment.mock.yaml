@@ -1,0 +1,94 @@
+workspace_id: phase2-mock-lab
+recorder_url: http://127.0.0.1:8800/v1
+dataset: mock-cases.json
+evaluation: mock-evaluation.json
+seeds:
+- 42
+samples: 1
+models:
+  planner: mock-fixed
+  solver: mock-fixed
+  router: mock-fixed
+  synthesis: mock-fixed
+  evaluator: mock-fixed
+conditions:
+- condition_id: vanilla-T0_PARAMETRIC
+  strategy: vanilla
+  tier_policy: forced
+  tier: T0_PARAMETRIC
+- condition_id: vanilla-T1_RETRIEVAL
+  strategy: vanilla
+  tier_policy: forced
+  tier: T1_RETRIEVAL
+- condition_id: vanilla-T2_REFERENCE
+  strategy: vanilla
+  tier_policy: forced
+  tier: T2_REFERENCE
+- condition_id: global_budget-T0_PARAMETRIC
+  strategy: global_budget
+  tier_policy: forced
+  tier: T0_PARAMETRIC
+- condition_id: global_budget-T1_RETRIEVAL
+  strategy: global_budget
+  tier_policy: forced
+  tier: T1_RETRIEVAL
+- condition_id: global_budget-T2_REFERENCE
+  strategy: global_budget
+  tier_policy: forced
+  tier: T2_REFERENCE
+- condition_id: planned_vanilla-T0_PARAMETRIC
+  strategy: planned_vanilla
+  tier_policy: forced
+  tier: T0_PARAMETRIC
+- condition_id: planned_vanilla-T1_RETRIEVAL
+  strategy: planned_vanilla
+  tier_policy: forced
+  tier: T1_RETRIEVAL
+- condition_id: planned_vanilla-T2_REFERENCE
+  strategy: planned_vanilla
+  tier_policy: forced
+  tier: T2_REFERENCE
+- condition_id: planned_global_budget-T0_PARAMETRIC
+  strategy: planned_global_budget
+  tier_policy: forced
+  tier: T0_PARAMETRIC
+- condition_id: planned_global_budget-T1_RETRIEVAL
+  strategy: planned_global_budget
+  tier_policy: forced
+  tier: T1_RETRIEVAL
+- condition_id: planned_global_budget-T2_REFERENCE
+  strategy: planned_global_budget
+  tier_policy: forced
+  tier: T2_REFERENCE
+- condition_id: plan_and_budget-T0_PARAMETRIC
+  strategy: plan_and_budget
+  tier_policy: forced
+  tier: T0_PARAMETRIC
+- condition_id: plan_and_budget-T1_RETRIEVAL
+  strategy: plan_and_budget
+  tier_policy: forced
+  tier: T1_RETRIEVAL
+- condition_id: plan_and_budget-T2_REFERENCE
+  strategy: plan_and_budget
+  tier_policy: forced
+  tier: T2_REFERENCE
+- condition_id: routed_plan_and_budget-T0_PARAMETRIC
+  strategy: routed_plan_and_budget
+  tier_policy: forced
+  tier: T0_PARAMETRIC
+- condition_id: routed_plan_and_budget-T1_RETRIEVAL
+  strategy: routed_plan_and_budget
+  tier_policy: forced
+  tier: T1_RETRIEVAL
+- condition_id: routed_plan_and_budget-T2_REFERENCE
+  strategy: routed_plan_and_budget
+  tier_policy: forced
+  tier: T2_REFERENCE
+- condition_id: agent-decided-static
+  strategy: routed_plan_and_budget
+  tier_policy: agent_decided
+  router: static
+- condition_id: agent-decided-llm
+  strategy: routed_plan_and_budget
+  tier_policy: agent_decided
+  router: llm

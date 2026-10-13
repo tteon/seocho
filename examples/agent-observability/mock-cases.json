@@ -1,0 +1,20 @@
+[
+  {
+    "case_id": "mock-contract",
+    "question": "What is the reporting period?",
+    "fixed_passages": [
+      {
+        "evidence_id": "fixed-1",
+        "text": "Reporting period is fiscal 2023.",
+        "source": "mock-fixture"
+      }
+    ],
+    "agent_reference": [
+      {
+        "evidence_id": "reference-1",
+        "text": "The reference describes the fiscal reporting period.",
+        "source": "separate-mock-reference"
+      }
+    ]
+  }
+]

@@ -1,0 +1,49 @@
+workspace_id: quality-mock
+recorder_url: http://127.0.0.1:8800/v1
+dataset: ../../outputs/agent-observability/quality-mock/prepared/cases.json
+evaluation: ../../outputs/agent-observability/quality-mock/prepared/evaluation.json
+manifest: ../../outputs/agent-observability/quality-mock/prepared/manifest.json
+models: [mock-fixed]
+evaluator_model: mock-fixed
+split: pilot_all
+champion_arm: standard
+seeds: [42]
+samples: 1
+order_seed: 42
+max_calls: 40
+max_reserved_output_tokens: 81920
+arms:
+- arm_id: standard
+  condition:
+    condition_id: standard
+    strategy: vanilla
+    tier_policy: forced
+    tier: T1_RETRIEVAL
+    max_calls: 10
+    hard_output_limit: 1024
+    evaluator_output_limit: 2048
+  variants: [original, position_front, position_middle, position_back, instruction_injection, missing_evidence, numeric_counterfactual]
+- arm_id: peer-review
+  condition:
+    condition_id: peer-review
+    strategy: planned_vanilla
+    tier_policy: forced
+    tier: T1_RETRIEVAL
+    coordination: peer_review
+    max_calls: 10
+    hard_output_limit: 1024
+    evaluator_output_limit: 2048
+    fixed_tasks:
+    - task_id: facts
+      question: 'Identify the facts and missing source slots for: {question}'
+    - task_id: verification
+      question: 'Independently check periods, units and assumptions for: {question}'
+- arm_id: small-budget
+  condition:
+    condition_id: small-budget
+    strategy: vanilla
+    tier_policy: forced
+    tier: T1_RETRIEVAL
+    max_calls: 10
+    hard_output_limit: 256
+    evaluator_output_limit: 2048

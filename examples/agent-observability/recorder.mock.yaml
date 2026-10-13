@@ -1,0 +1,5 @@
+upstream_url: http://127.0.0.1:8801/v1
+directory: outputs/agent-observability/mock
+cache_namespace: mock-local-v1
+cache_mode: off
+missing_tags: reject

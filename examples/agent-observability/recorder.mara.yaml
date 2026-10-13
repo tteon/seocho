@@ -1,0 +1,6 @@
+upstream_url: https://api.cloud.mara.com/v1
+upstream_api_key_env: MARA_API_KEY
+directory: outputs/agent-observability/mara
+cache_namespace: mara-research-account-v1
+cache_mode: off
+missing_tags: reject

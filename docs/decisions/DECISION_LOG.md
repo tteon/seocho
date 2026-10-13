@@ -1478,3 +1478,60 @@ Use this block for new entries:
   work, and local HTML inspection reuses saved-run comparison. Module maps are
   architectural references; no module timings or quality verdicts are invented.
   Complete remaining active Opik removal under ADR-0172 while retaining history.
+
+## 2026-10-11
+
+- [Accepted, experimental] `ADR-0238-finder-quality-experiment-loop.md`
+  - source-linked controlled FinDER variants, review queues and document-group splits
+  - shared public task plans with explicit sequential context, peer and adaptive review
+  - Recorder-derived failure taxonomy, bounded paired budget/prompt experiments
+  - keep evaluator failures, unknown judgments and disabled champion promotion visible
+
+## 2026-10-09
+
+- [Accepted, experimental] `ADR-0237-research-recorder.md`
+  - capture actual research model transport in append-only DuckDB/blob records
+  - isolate framework adapters and evaluator domains; label cache origin and unknown cost
+  - require local acceptance before later phase work and paid reruns
+  - extend Phase 2 with explicit orchestration pairs, YAML conditions and separate
+    fixed-passage/reference/evaluation artifacts after user authorization
+  - add Phase 3 pinned origin replay and causal branch interventions with shared
+    conservative cost admission and fresh downstream N samples
+  - derive Phase 4 surrogate signals in a separate versioned store; retain unknown
+    verdicts, alignment uncertainty and independent-origin consensus semantics
+
+## 2026-10-05
+
+- [Accepted, experimental] `ADR-0236-budgeted-graphrag-collaboration.md`
+  - compare planning, sequential/parallel evidence workers and one reviewer repair
+    round through Agents SDK and MARA with common runtime admission limits
+  - use an original-10-K FinDER pilot as the primary workload and retain the
+    synthetic incident fixture for regression tests; keep gold evaluation-only
+  - preserve workspace-scoped graph receipts and unknown usage; require live
+    validation before external compatibility or performance claims
+
+
+Phase 5 refinement of ADR-0237: offline statistical reports preserve unknown verdicts
+and prices, task/seed pairing and replay cost basis; prediction is distinct from
+measured efficiency. No routing/UI behavior is enabled by analysis.
+
+Phase 6 refinement of ADR-0237: local graph/call/population views use fixed-workspace
+read-only originals; Mock replay branches write separate stores. Upstream request
+identity is retained to avoid bypassing pinned replay validation. D3 is packaged
+locally; no paid execution or invented dependency edges are introduced.
+
+- 2026-10-11: ADR-0237 refined with opt-in isolated server Pi inference harness,
+  shared SDK evaluation, explicit streaming/schema-placement comparison limits,
+  and actual Recorder-backed FinDER/MARA integration evidence.
+- 2026-10-11: ADR-0237 refined for evaluator v2, evaluation-only FinDER metadata,
+  independent semantic/receipt checks, and observed domain/reasoning strata.
+- 2026-10-11: ADR-0238 refined for single-agent public epistemic assessment,
+  bounded tool choice without specialists, blind paired judgments and explicit
+  distinction between answerability and correctness confidence.
+- 2026-10-11: ADR-0238 refined for model-wise public execution paths:
+  direct/ordered decomposition/adaptive tools, same solver model, fixed-source
+  contracts, and gold-free path evaluation separate from answer quality.
+
+2026-10-12: ADR-0238 research comparison adds the matched single-worker identity
+control for fixed sequential context, with explicit host orchestration and
+unchanged production runtime. See [ADR-0238](ADR-0238-finder-quality-experiment-loop.md).

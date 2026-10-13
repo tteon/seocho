@@ -270,3 +270,115 @@ artifact reads; extraction exposes compatibility adapters (ADR-0234). Prompt
 composition and constraint slices share pure SHACL candidate merging. This
 refactor preserves intent, required slots, provenance, insufficiency and existing
 ranking behavior; it is not new answer-quality evidence.
+
+
+## Opt-in Collaboration Experiment
+
+`src/seocho/agent/collaboration.py` implements the experimental evidence
+assembly comparison described in
+[ADR-0236](decisions/ADR-0236-budgeted-graphrag-collaboration.md).
+Code-scheduled baselines are extended by native SDK `Agent.as_tool()` Manager
+and `handoff()` Router modes. Both use the same retrieval workers and separate
+answerer. Cross-agent context is host-owned task/evidence packets; SDK handoff
+filtering removes router history. Actual native transitions and agent-tool calls
+are distinguished from reference-exchange telemetry. Every nested model turn,
+tool dispatch and native transfer shares the global budget, and accumulated
+model input is bounded before dispatch. Reports retain agent design versions,
+context bytes (not tokens), transitions and duplicate retrieval counts.
+Workers use bounded, validated, workspace-scoped read recipes and return actual
+query rows with source references. Planner tasks declare required slots, relation
+paths, earlier-task dependencies, and per-task model-call allowances. One reviewer round may request additional
+retrieval, but cannot add evidence. The fixed answerer cites assembled records
+and preserves missing slots. Reference validity is enforced; claim entailment and
+slot completion still require evaluation.
+
+This path does not change normal SDK or runtime answering. See
+[the runnable experiment](../examples/graphrag-collaboration/README.md) for the
+FinDER original-filing pilot, synthetic regression fixture, MARA/DozerDB setup,
+budget semantics, and live-validation gaps. Gold membership is evaluation-only;
+source graph construction and query ranking must never consume it. Reference
+coverage is conditional on exact source-span mapping and must report unmapped
+gold separately.
+
+
+### Fixed-evidence design comparison
+
+`src/seocho/eval/fixed_context_designs.py` implements an earlier, no-database
+comparison: Standard, CoT prompting, decomposition within one Solver, sequential
+Agent.as_tool delegation to one Specialist, and parallel Agent.as_tool delegation
+to multiple Specialists. It freezes a question-selected original FinDER evidence
+bundle across all arms. CoT is a prompt-level instruction; private reasoning is
+not exposed or scored. Typed subtask results preserve task identity, findings,
+references and missing information. Citation identity is checked, while entailment
+requires separate evaluation. Shared budgets include all nested agent turns.
+The runnable CLI is examples/graphrag-collaboration/run_fixed_finder.py. Gold is
+used only after inference; separately budgeted judgments are recorded as model
+judgments. This does not alter production query routing or graph retrieval.
+
+Research comparison runners use the [Recorder transport contract](AGENT_OBSERVABILITY.md)
+for full model request/response evidence. HTTP tags declare tiers; full decision,
+realization and tool lineage remain a separate instrumentation requirement.
+
+Phase 2 research runs emit explicit decision/realization events with source
+items, returned subtask contexts, call IDs and actual usage. Forced and agent-decided
+information tiers are separate conditions; fixed passage plugins preserve the
+FinDER comparison baseline. Evaluation gold is in a separate artifact/domain.
+
+Recorded research runs support pinned causal branch replay and targeted
+reference knock-in through the [Recorder contract](AGENT_OBSERVABILITY.md).
+Cached prefix usage is inherited; modified workers and synthesis/evaluation are
+fresh. This does not imply dependent-DAG replay in the normal SDK query route.
+
+The optional [research signal analysis](AGENT_OBSERVABILITY.md) reads audited
+subtask/evidence delivery records into a separate derived database. Silver consensus,
+alignment confidence and reference availability are proxies; they are not subtask
+gold, evidence-use proof or automatic agent memory inputs.
+
+Recorder research Phase 5 exposes offline population reports through `obs report`.
+Agent information source fingerprints and declared tool identities support fairness
+checks; unknown legacy identities are not inferred. Statistical reports do not
+change query routing or silently fetch new evidence. See `AGENT_OBSERVABILITY.md`.
+
+Recorder Phase 6 UI renders recorded plan dependencies and solver routing/context
+edges, with silver divergence explicitly labeled as a proxy. It does not infer a
+causal task chain from execution order. Node interventions are isolated Mock branches
+through Phase 3; operational query routing and production memory policy are unchanged.
+
+Optional research Pi inference is described in `docs/AGENT_OBSERVABILITY.md`. It is a controlled, Recorder-backed experimental harness condition with the SDK evaluator retained; it does not change the production SDK/runtime handoff contract or establish Pi-native multi-agent orchestration.
+FinDER evaluator v2 annotations (gold references, domain, original reasoning
+boolean/type) remain evaluator-only. Architecture selection must use held-out
+within-stratum evidence; ordinary inference routing must not consume evaluation
+annotations. The evaluation domain also records deterministic `verify_receipts`
+events separately from semantic model judgments.
+
+Research Recorder tool-agent condition: the model can request a specialist as a
+tool after fixed-source delivery. The specialist receives only those passages;
+returned citation IDs must belong to that delivered context. Shared physical LLM
+call limits include manager turns, specialist work and evaluation. This optional
+research condition does not change the public query routing policy. See
+`docs/AGENT_OBSERVABILITY.md` for evaluation limits and unsupported replay/Pi paths.
+
+Research quality-lab coordination can pass previous findings to a later solver,
+review peers against delivered evidence, or choose existing tasks for one review
+round. Record source child steps and the actual context payloads, and use revised
+findings in synthesis. Public task plans and fixed sources isolate coordination;
+these experiments do not alter public Graph-RAG routing or graph construction.
+
+Single-agent research metacognition keeps required-slot and unsupported-assumption
+claims public and separate from private reasoning. An initial fixed-source answer
+is retained before model-selected tools; specialist delegation is disabled in
+this arm. Capability requests do not establish ontology/KG necessity. Missing
+source or unavailable graph evidence remains explicit; see Recorder contract.
+
+Research single-agent execution-path conditions use the same solver model for
+public planning, sequential subquestion solving and synthesis. Ordered dependency
+plans deliver explicit prior results and preserve missing slots; adaptive mode
+can use fixed-source tools without specialists. Plan-quality judging is separate
+from gold-based answer judging. This experiment does not change production
+routing or claim internal reasoning-trace access.
+
+Matched research coordination optionally reuses one worker identity for fixed
+sequential tasks and synthesis. Explicit returned contexts remain host-managed
+and source-audited. Compare this identity-only control with separate sequential
+agents before attributing quality to multiple agents; independent and peer
+review arms change context flow. No production query/handoff behavior changes.

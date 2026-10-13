@@ -191,7 +191,7 @@ def collect(root: Path, ledger: Path) -> Dict[str, int]:
 
     if new_lines:
         ledger.parent.mkdir(parents=True, exist_ok=True)
-        with ledger.open("a") as fh:
+        with ledger.open("a", encoding="utf-8") as fh:
             fh.write("\n".join(new_lines) + "\n")
     return {"added": added, "already_logged": skipped, "unparsed": unparsed}
 

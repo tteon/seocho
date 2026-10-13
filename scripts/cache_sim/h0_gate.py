@@ -27,7 +27,7 @@ from collections import Counter
 from pathlib import Path
 
 
-def load_sets(path: Path):
+def load_sets(path: Path) -> list[dict]:
     with path.open('r', encoding='utf-8') as f:
         return [json.loads(line) for line in f if line.strip()]
 

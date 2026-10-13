@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -50,13 +51,17 @@ class CoordinationRecord:
         encoded = json.dumps(dict(self.value), sort_keys=True, default=str)
         if len(encoded.encode("utf-8")) > 8192:
             raise ValueError("coordination value exceeds 8 KiB")
-        forbidden_values = _FORBIDDEN_KEY_PARTS.intersection(self.value)
-        if forbidden_values:
-            raise ValueError("customer data is forbidden in coordination values")
-        for k in self.value.keys():
-            k_normalized = str(k).lower()
-            if any(part in k_normalized for part in _FORBIDDEN_KEY_PARTS):
-                raise ValueError("customer data is forbidden in coordination values")
+        pending: list[Any] = [self.value]
+        while pending:
+            value = pending.pop()
+            if isinstance(value, Mapping):
+                for key, nested in value.items():
+                    normalized_key = str(key).lower()
+                    if any(part in normalized_key for part in _FORBIDDEN_KEY_PARTS):
+                        raise ValueError("customer data is forbidden in coordination values")
+                    pending.append(nested)
+            elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+                pending.extend(value)
 
 
 def active_policy_record(

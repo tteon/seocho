@@ -27,6 +27,8 @@ Local `Seocho.query()` uses the governed read path. Bind every returned node to
 `$workspace_id`; the client supplies its workspace and replaces any caller value
 for that reserved parameter without changing the caller's parameter dictionary.
 An unscoped query raises `WorkspaceFilterMissingError` before driver execution.
+Queries using `WITH`, `UNION`, or `UNWIND` raise `WorkspaceScopeViolationError`:
+the bounded checker cannot prove workspace scope through variable rebinding.
 
 ```python
 rows = client.query(

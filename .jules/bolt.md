@@ -1,0 +1,1 @@
+- Use lazy file iteration `for line in f:` rather than `read_text().splitlines()` to parse .jsonl and .env files in `scripts/`. This reduces memory overhead for large traces and logs.

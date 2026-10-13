@@ -50,11 +50,12 @@ _QUESTIONS = [
 def _load_env() -> None:
     for envf in [_ROOT / ".env", Path("/home/hadry/lab/seocho/.env")]:
         if envf.exists():
-            for line in envf.read_text().splitlines():
-                if line.strip() and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    if not k.strip().startswith(("NEO4J", "BOLT")):
-                        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            with envf.open("r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip() and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        if not k.strip().startswith(("NEO4J", "BOLT")):
+                            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
             return
 
 

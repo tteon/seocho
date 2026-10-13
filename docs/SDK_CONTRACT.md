@@ -21,6 +21,25 @@ the desired behavior.
 
 ## 2. Guarantees by surface
 
+### Raw graph reads (`Seocho.query()`)
+
+Local `Seocho.query()` uses the governed read path. Bind every returned node to
+`$workspace_id`; the client supplies its workspace and replaces any caller value
+for that reserved parameter without changing the caller's parameter dictionary.
+An unscoped query raises `WorkspaceFilterMissingError` before driver execution.
+
+```python
+rows = client.query(
+    "MATCH (n) WHERE n._workspace_id = $workspace_id "
+    "RETURN labels(n)[0] AS type, count(n) AS count",
+    database="neo4j",
+)
+```
+
+The bounded query checker and workspace parameter propagation do not replace
+database authorization or tenant separation. Custom graph stores must honor the
+`workspace_id` and `enforce_workspace_filter` query arguments.
+
 ### 2.1 Execution mode selection (`Session(agent_config=...)`)
 
 | Guarantee | Status | Test | Issue |

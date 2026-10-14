@@ -173,7 +173,8 @@ def check_serving(out_path: Path, venv: Path, timeout: float = 300.0) -> int:
             "is expected -- only AsyncLLM loads stat-logger plugins.",
         )
 
-    rows = [json.loads(line) for line in out_path.read_text().splitlines() if line.strip()]
+    with out_path.open('r', encoding='utf-8') as f:
+        rows = [json.loads(line) for line in f if line.strip()]
     if not any(r.get("event") == "engine_initialized" for r in rows):
         return _fail("engine_initialized recorded", "log_engine_initialized never fired")
     _ok("plugin wrote records", f"{len(rows)} rows")

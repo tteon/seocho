@@ -1,0 +1,1 @@
+Learned that the standard help string for JSON output arguments (`--json`) across the CLI commands should be `help="Emit JSON"`. There were several inconsistencies using `help="JSON output"` or `help="Emit JSON output"`. I have standardized these.

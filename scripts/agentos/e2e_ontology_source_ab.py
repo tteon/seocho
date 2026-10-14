@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import sys
+
 _ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT / "src"))
 
@@ -50,11 +51,14 @@ _QUESTIONS = [
 def _load_env() -> None:
     for envf in [_ROOT / ".env", Path("/home/hadry/lab/seocho/.env")]:
         if envf.exists():
-            for line in envf.read_text().splitlines():
-                if line.strip() and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    if not k.strip().startswith(("NEO4J", "BOLT")):
-                        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            with envf.open("r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip() and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        if not k.strip().startswith(("NEO4J", "BOLT")):
+                            os.environ.setdefault(
+                                k.strip(), v.strip().strip('"').strip("'")
+                            )
             return
 
 
@@ -73,14 +77,19 @@ def _thin_schema(onto) -> str:
 def _declared_schema(onto, policy) -> str:
     s = schema_for_prompt(onto, policy)
     # schema_for_prompt returns a dict; render it compactly for the prompt
-    return json.dumps({k: (list(v) if isinstance(v, tuple) else v) for k, v in s.items()},
-                      default=str, indent=0)[:4000]
+    return json.dumps(
+        {k: (list(v) if isinstance(v, tuple) else v) for k, v in s.items()},
+        default=str,
+        indent=0,
+    )[:4000]
 
 
 def _client(llm):
     import openai
-    return openai.OpenAI(api_key=os.environ["MARA_API_KEY"],
-                         base_url="https://api.cloud.mara.com/v1"), llm.split("/", 1)[1]
+
+    return openai.OpenAI(
+        api_key=os.environ["MARA_API_KEY"], base_url="https://api.cloud.mara.com/v1"
+    ), llm.split("/", 1)[1]
 
 
 def _gen(client, model, schema_text, question) -> str:
@@ -92,10 +101,20 @@ def _gen(client, model, schema_text, question) -> str:
     )
     try:
         r = client.chat.completions.create(
-            model=model, temperature=0.0, response_format={"type": "json_object"},
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": question}])
-        raw = re.sub(r"^```(json)?|```$", "", (r.choices[0].message.content or "{}").strip(),
-                     flags=re.MULTILINE).strip()
+            model=model,
+            temperature=0.0,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": question},
+            ],
+        )
+        raw = re.sub(
+            r"^```(json)?|```$",
+            "",
+            (r.choices[0].message.content or "{}").strip(),
+            flags=re.MULTILINE,
+        ).strip()
         return json.loads(raw).get("cypher", "") or ""
     except Exception as e:
         print(f"    gen error: {type(e).__name__} {str(e)[:80]}")
@@ -107,11 +126,22 @@ _HALLUCINATION = ("unknown_labels", "unknown_relationships", "unknown_properties
 
 def _score(cypher, policy) -> Dict[str, Any]:
     if not cypher.strip():
-        return {"cypher": "", "violations": ["empty"], "hallucinated": True, "conformant": False}
-    viol = validate_text2cypher_fallback(cypher, params={"workspace_id": "acme", "limit": 1}, policy=policy)
+        return {
+            "cypher": "",
+            "violations": ["empty"],
+            "hallucinated": True,
+            "conformant": False,
+        }
+    viol = validate_text2cypher_fallback(
+        cypher, params={"workspace_id": "acme", "limit": 1}, policy=policy
+    )
     hallucinated = any(v.split(":")[0] in _HALLUCINATION for v in viol)
-    return {"cypher": cypher, "violations": list(viol),
-            "hallucinated": hallucinated, "conformant": len(viol) == 0}
+    return {
+        "cypher": cypher,
+        "violations": list(viol),
+        "hallucinated": hallucinated,
+        "conformant": len(viol) == 0,
+    }
 
 
 def main() -> None:
@@ -134,18 +164,30 @@ def main() -> None:
         for i, q in enumerate(qs):
             s = _score(_gen(client, model, schema, q), policy)
             scored.append(s)
-            print(f"  [{i}] conformant={s['conformant']} hallucinated={s['hallucinated']} "
-                  f"viol={s['violations'][:2]}")
+            print(
+                f"  [{i}] conformant={s['conformant']} hallucinated={s['hallucinated']} "
+                f"viol={s['violations'][:2]}"
+            )
         n = len(scored)
         results[arm] = {
             "n": n,
             "conformance_rate": round(sum(1 for s in scored if s["conformant"]) / n, 3),
-            "hallucination_rate": round(sum(1 for s in scored if s["hallucinated"]) / n, 3),
+            "hallucination_rate": round(
+                sum(1 for s in scored if s["hallucinated"]) / n, 3
+            ),
             "avg_violations": round(sum(len(s["violations"]) for s in scored) / n, 2),
             "per_q": scored,
         }
 
-    report = {"model": args.llm, "questions": len(qs), "arms": {k: {kk: vv for kk, vv in v.items() if kk != "per_q"} for k, v in results.items()}, "detail": results}
+    report = {
+        "model": args.llm,
+        "questions": len(qs),
+        "arms": {
+            k: {kk: vv for kk, vv in v.items() if kk != "per_q"}
+            for k, v in results.items()
+        },
+        "detail": results,
+    }
     print("\n=== ontology-source A/B (seocho-ia4.13) ===")
     print(f"  {'metric':22s} {'THIN':>8s} {'DECLARED':>10s}")
     for m in ("conformance_rate", "hallucination_rate", "avg_violations"):

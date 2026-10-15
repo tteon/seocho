@@ -1059,9 +1059,23 @@ class CypherBuilder:
                 and rel_def.source != rel_def.target
             ):
                 if getattr(self, "anchor_role", "") == "source":
-                    anchor_label, src_label = rel_def.source, rel_def.target
+                    anchor_endpoint, counted_endpoint = rel_def.source, rel_def.target
                 else:
-                    anchor_label, src_label = rel_def.target, rel_def.source
+                    anchor_endpoint, counted_endpoint = rel_def.target, rel_def.source
+
+                def concrete_label(declared: str, *candidates: str) -> str:
+                    return next(
+                        (candidate for candidate in candidates
+                         if candidate in self.ontology.nodes
+                         and self.ontology._label_conforms(candidate, declared)),
+                        declared,
+                    )
+
+                # Declarations orient the edge; conforming plan labels name the
+                # concrete labels that the graph writer actually stores.
+                plan_anchor, plan_counted = anchor_label, src_label
+                anchor_label = concrete_label(anchor_endpoint, plan_anchor, plan_counted)
+                src_label = concrete_label(counted_endpoint, plan_counted, plan_anchor)
             src_clause = f":{quote_identifier(src_label)}" if src_label else ""
             rel_clause = f":{quote_identifier(relationship_type)}"
             anchor_clause = f":{quote_identifier(anchor_label)}" if anchor_label else ""

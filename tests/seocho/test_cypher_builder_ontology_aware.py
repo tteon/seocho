@@ -12,6 +12,8 @@ No live Neo4j.
 """
 from __future__ import annotations
 
+import pytest
+
 from seocho import NodeDef, Ontology, P, RelDef
 from seocho.query.cypher_builder import CypherBuilder
 
@@ -132,3 +134,29 @@ def test_count_same_label_relationship_keeps_in_degree() -> None:
         relationship_type="TRANSFER", workspace_id="ws",
     )
     assert "(src:`Account`)-[:`TRANSFER`]->(anchor:`Account`)" in cypher
+
+
+@pytest.mark.parametrize("anchor_label,target_label,role,pattern", [
+    ("Office", "Employee", "target", "(src:`Employee`)-[:`LOCATED_IN`]->(anchor:`Office`)"),
+    ("Employee", "Office", "target", "(src:`Employee`)-[:`LOCATED_IN`]->(anchor:`Office`)"),
+    ("Employee", "Office", "source", "(anchor:`Employee`)-[:`LOCATED_IN`]->(src:`Office`)"),
+])
+def test_count_preserves_concrete_subtypes_on_both_endpoints(
+    anchor_label: str, target_label: str, role: str, pattern: str,
+) -> None:
+    ontology = Ontology(
+        name="typed", nodes={
+            "Agent": NodeDef(properties={}),
+            "Employee": NodeDef(broader=["Agent"], properties={"name": P(str, unique=True)}),
+            "Location": NodeDef(properties={}),
+            "Office": NodeDef(broader=["Location"], properties={"name": P(str, unique=True)}),
+        },
+        relationships={"LOCATED_IN": RelDef(source="Agent", target="Location")},
+    )
+    cypher, _ = CypherBuilder(ontology).build(
+        intent="count", anchor_entity="Seoul", workspace_id="ws",
+        anchor_label=anchor_label, target_label=target_label,
+        relationship_type="LOCATED_IN",
+        schema_hints={"anchor_role": role},
+    )
+    assert pattern in cypher

@@ -54,107 +54,177 @@ def _extract(report: Dict[str, Any], path: Path) -> Optional[Dict[str, Any]]:
     if sv.startswith("seocho.finbench.workload-gate"):
         m = report.get("verdict_matrix") or {}
         total = sum(m.values()) if m else 0
-        return {**common, "experiment": "workload_gate",
-                "dataset": report.get("cost_model"),
-                "headline": {
-                    "cases": total,
-                    "false_clear": m.get("false_clear"),
-                    "false_flag": m.get("false_flag"),
-                    "agreement": (round((m.get("true_clear", 0) + m.get("true_flag", 0))
-                                        / total, 4) if total else None)},
-                "conditions": {"budget_rows": report.get("budget_rows"),
-                               "engine": report.get("engine"),
-                               "db_hits_per_l2": report.get("db_hits_per_l2"),
-                               "cases_file": report.get("cases")}}
+        return {
+            **common,
+            "experiment": "workload_gate",
+            "dataset": report.get("cost_model"),
+            "headline": {
+                "cases": total,
+                "false_clear": m.get("false_clear"),
+                "false_flag": m.get("false_flag"),
+                "agreement": (
+                    round((m.get("true_clear", 0) + m.get("true_flag", 0)) / total, 4)
+                    if total
+                    else None
+                ),
+            },
+            "conditions": {
+                "budget_rows": report.get("budget_rows"),
+                "engine": report.get("engine"),
+                "db_hits_per_l2": report.get("db_hits_per_l2"),
+                "cases_file": report.get("cases"),
+            },
+        }
 
     if sv.startswith("seocho.finbench.driver-overhead"):
-        probes = [p for p in report.get("probes", []) if p.get("overhead_share") is not None]
+        probes = [
+            p for p in report.get("probes", []) if p.get("overhead_share") is not None
+        ]
         worst = max(probes, key=lambda p: p["overhead_share"]) if probes else None
-        return {**common, "experiment": "driver_overhead",
-                "dataset": report.get("database"),
-                "headline": {"worst_probe": worst and worst["probe"],
-                             "worst_client_share": worst and worst["overhead_share"],
-                             "worst_client_ms": worst and worst["client_overhead_ms"]},
-                "conditions": {"anchor": report.get("anchor"),
-                               "repeats": report.get("repeats")}}
+        return {
+            **common,
+            "experiment": "driver_overhead",
+            "dataset": report.get("database"),
+            "headline": {
+                "worst_probe": worst and worst["probe"],
+                "worst_client_share": worst and worst["overhead_share"],
+                "worst_client_ms": worst and worst["client_overhead_ms"],
+            },
+            "conditions": {
+                "anchor": report.get("anchor"),
+                "repeats": report.get("repeats"),
+            },
+        }
 
     if sv.startswith("seocho.finbench.curated-parameters"):
         bands = report.get("bands", [])
-        ratios = [(a["db_hits"] / a["l2"]) for b in bands for a in b.get("anchors", [])
-                  if a.get("db_hits") and a.get("l2")]
-        return {**common, "experiment": "cost_model_calibration",
-                "dataset": report.get("source"),
-                "headline": {"bands": len(bands),
-                             "anchors_measured": len(ratios),
-                             "ratio_min": round(min(ratios), 3) if ratios else None,
-                             "ratio_max": round(max(ratios), 3) if ratios else None},
-                "conditions": {"method": report.get("method"),
-                               "validated_against": report.get("validated_against")}}
+        ratios = [
+            (a["db_hits"] / a["l2"])
+            for b in bands
+            for a in b.get("anchors", [])
+            if a.get("db_hits") and a.get("l2")
+        ]
+        return {
+            **common,
+            "experiment": "cost_model_calibration",
+            "dataset": report.get("source"),
+            "headline": {
+                "bands": len(bands),
+                "anchors_measured": len(ratios),
+                "ratio_min": round(min(ratios), 3) if ratios else None,
+                "ratio_max": round(max(ratios), 3) if ratios else None,
+            },
+            "conditions": {
+                "method": report.get("method"),
+                "validated_against": report.get("validated_against"),
+            },
+        }
 
     if sv.startswith("seocho.finbench.hub-degree"):
         rows = report.get("results", [])
-        return {**common, "experiment": "hub_degree_probe",
-                "dataset": report.get("database"),
-                "headline": {"arms": sorted({r["arm"] for r in rows}),
-                             "timeouts": sum(1 for r in rows if r.get("timed_out"))},
-                "conditions": {"hub_skew": report.get("hub_skew"),
-                               "truncation_limit": report.get("truncation_limit")}}
+        return {
+            **common,
+            "experiment": "hub_degree_probe",
+            "dataset": report.get("database"),
+            "headline": {
+                "arms": sorted({r["arm"] for r in rows}),
+                "timeouts": sum(1 for r in rows if r.get("timed_out")),
+            },
+            "conditions": {
+                "hub_skew": report.get("hub_skew"),
+                "truncation_limit": report.get("truncation_limit"),
+            },
+        }
 
     if sv.startswith("seocho.finbench.ablation-ontology"):
         arms = report.get("arms", {})
-        return {**common, "experiment": "ontology_comparison",
-                "dataset": report.get("database"),
-                "headline": {arm: {"accuracy": _num((a or {}).get("accuracy")),
-                                   "db_hits": ((a or {}).get("stages") or {})
-                                              .get("s4_db_hits_total")}
-                             for arm, a in arms.items() if isinstance(a, dict)},
-                "conditions": {"model": report.get("model")}}
+        return {
+            **common,
+            "experiment": "ontology_comparison",
+            "dataset": report.get("database"),
+            "headline": {
+                arm: {
+                    "accuracy": _num((a or {}).get("accuracy")),
+                    "db_hits": ((a or {}).get("stages") or {}).get("s4_db_hits_total"),
+                }
+                for arm, a in arms.items()
+                if isinstance(a, dict)
+            },
+            "conditions": {"model": report.get("model")},
+        }
 
     if sv.startswith("seocho.finbench.cliff"):
         steps = report.get("steps", [])
-        return {**common, "experiment": "memory_sweep",
-                "dataset": report.get("database"),
-                "headline": {"profiles": len(steps),
-                             "failed_to_start": sum(1 for s in steps if s.get("error"))},
-                "conditions": {"cypher": report.get("cypher")}}
+        return {
+            **common,
+            "experiment": "memory_sweep",
+            "dataset": report.get("database"),
+            "headline": {
+                "profiles": len(steps),
+                "failed_to_start": sum(1 for s in steps if s.get("error")),
+            },
+            "conditions": {"cypher": report.get("cypher")},
+        }
 
     if sv.startswith("seocho.finbench.neo4rs-probe"):
         probes = {p["probe"]: p for p in report.get("probes", [])}
         big = probes.get("rows_50k", {})
         abort = probes.get("early_abort_50_of_unbounded", {})
-        return {**common, "experiment": "native_driver_probe",
-                "dataset": report.get("database"),
-                "headline": {"driver": report.get("driver"),
-                             "decode_50k_ms": big.get("decode_ms"),
-                             "per_row_us": big.get("per_row_us"),
-                             "early_abort_ms": abort.get("abort_ms"),
-                             "early_abort_saving": abort.get("saving_ratio")},
-                "conditions": {"repeats": report.get("repeats")}}
+        return {
+            **common,
+            "experiment": "native_driver_probe",
+            "dataset": report.get("database"),
+            "headline": {
+                "driver": report.get("driver"),
+                "decode_50k_ms": big.get("decode_ms"),
+                "per_row_us": big.get("per_row_us"),
+                "early_abort_ms": abort.get("abort_ms"),
+                "early_abort_saving": abort.get("saving_ratio"),
+            },
+            "conditions": {"repeats": report.get("repeats")},
+        }
 
     if sv.startswith("seocho.finbench.mara-breakdown") or "models" in report:
         models = report.get("models") or []
-        return {**common, "experiment": "model_breakdown",
-                "dataset": report.get("database"),
-                "headline": {m.get("model"): {
+        return {
+            **common,
+            "experiment": "model_breakdown",
+            "dataset": report.get("database"),
+            "headline": {
+                m.get("model"): {
                     "accuracy": _num(m.get("accuracy")),
                     "sargable": (m.get("stages") or {}).get("s4_sargable_rate"),
-                    "db_hits": (m.get("stages") or {}).get("s4_db_hits_total")}
-                    for m in models if isinstance(m, dict)},
-                "conditions": {"cases": report.get("cases_file") or report.get("cases")}}
+                    "db_hits": (m.get("stages") or {}).get("s4_db_hits_total"),
+                }
+                for m in models
+                if isinstance(m, dict)
+            },
+            "conditions": {"cases": report.get("cases_file") or report.get("cases")},
+        }
 
-    return {**common, "experiment": "unrecognised",
-            "note": "no extractor for this schema_version; add one rather than dropping it"}
+    return {
+        **common,
+        "experiment": "unrecognised",
+        "note": "no extractor for this schema_version; add one rather than dropping it",
+    }
 
 
 def collect(root: Path, ledger: Path) -> Dict[str, int]:
     seen = set()
     if ledger.exists():
-        for line in ledger.read_text().splitlines():
-            if not line.strip():
-                continue
-            e = json.loads(line)
-            seen.add((e.get("schema_version"), e.get("source"),
-                      e.get("content_hash"), e.get("extract_hash")))
+        with ledger.open("r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                e = json.loads(line)
+                seen.add(
+                    (
+                        e.get("schema_version"),
+                        e.get("source"),
+                        e.get("content_hash"),
+                        e.get("extract_hash"),
+                    )
+                )
 
     added, skipped, unparsed = 0, 0, 0
     new_lines: List[str] = []
@@ -180,8 +250,12 @@ def collect(root: Path, ledger: Path) -> Dict[str, int]:
         entry["extract_hash"] = hashlib.sha256(
             json.dumps(entry, sort_keys=True, ensure_ascii=False).encode()
         ).hexdigest()[:16]
-        key = (entry["schema_version"], entry["source"], entry["content_hash"],
-               entry["extract_hash"])
+        key = (
+            entry["schema_version"],
+            entry["source"],
+            entry["content_hash"],
+            entry["extract_hash"],
+        )
         if key in seen:
             skipped += 1
             continue
@@ -198,19 +272,30 @@ def collect(root: Path, ledger: Path) -> Dict[str, int]:
 def summarise(ledger: Path) -> str:
     if not ledger.exists():
         return "no ledger yet — run with --collect\n"
-    entries = [json.loads(l) for l in ledger.read_text().splitlines() if l.strip()]
-    lines = ["# Experiment results ledger", "",
-             f"{len(entries)} entries in `{ledger}`. Append-only: a superseded result stays "
-             "so the change is visible rather than hidden.", "",
-             "| experiment | dataset | headline | source |",
-             "|---|---|---|---|"]
+    with ledger.open("r", encoding="utf-8") as f:
+        entries = [json.loads(l) for l in f if l.strip()]
+    lines = [
+        "# Experiment results ledger",
+        "",
+        f"{len(entries)} entries in `{ledger}`. Append-only: a superseded result stays "
+        "so the change is visible rather than hidden.",
+        "",
+        "| experiment | dataset | headline | source |",
+        "|---|---|---|---|",
+    ]
     for e in entries:
         head = e.get("headline") or e.get("note") or ""
-        head = json.dumps(head, ensure_ascii=False) if isinstance(head, dict) else str(head)
+        head = (
+            json.dumps(head, ensure_ascii=False)
+            if isinstance(head, dict)
+            else str(head)
+        )
         if len(head) > 110:
             head = head[:107] + "…"
-        lines.append(f"| {e.get('experiment')} | `{e.get('dataset') or '—'}` | {head} | "
-                     f"`{Path(e.get('source', '')).name}` |")
+        lines.append(
+            f"| {e.get('experiment')} | `{e.get('dataset') or '—'}` | {head} | "
+            f"`{Path(e.get('source', '')).name}` |"
+        )
     return "\n".join(lines) + "\n"
 
 

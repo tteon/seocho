@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import sys
+
 _ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT / "src"))
 
@@ -49,11 +50,14 @@ _INTERN_FILE = _ROOT / "outputs/agentos/cross_model_intern_namespace.json"
 def _load_env() -> None:
     for envf in [_ROOT / ".env", Path("/home/hadry/lab/seocho/.env")]:
         if envf.exists():
-            for line in envf.read_text().splitlines():
-                if line.strip() and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    if not k.strip().startswith(("NEO4J", "BOLT")):
-                        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            with envf.open("r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip() and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        if not k.strip().startswith(("NEO4J", "BOLT")):
+                            os.environ.setdefault(
+                                k.strip(), v.strip().strip('"').strip("'")
+                            )
             return
 
 
@@ -73,8 +77,10 @@ def _ontology():
 
 def _client():
     import openai
-    return openai.OpenAI(api_key=os.environ["MARA_API_KEY"],
-                         base_url="https://api.cloud.mara.com/v1")
+
+    return openai.OpenAI(
+        api_key=os.environ["MARA_API_KEY"], base_url="https://api.cloud.mara.com/v1"
+    )
 
 
 def _sys_prompt(onto) -> str:
@@ -95,12 +101,25 @@ def _sys_prompt(onto) -> str:
 def _extract(client, model, system, text) -> Dict[str, Any]:
     try:
         r = client.chat.completions.create(
-            model=model, temperature=0.0, response_format={"type": "json_object"},
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": text}])
-        raw = re.sub(r"^```(json)?|```$", "", (r.choices[0].message.content or "{}").strip(),
-                     flags=re.MULTILINE).strip()
+            model=model,
+            temperature=0.0,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": text},
+            ],
+        )
+        raw = re.sub(
+            r"^```(json)?|```$",
+            "",
+            (r.choices[0].message.content or "{}").strip(),
+            flags=re.MULTILINE,
+        ).strip()
         d = json.loads(raw)
-        return {"nodes": d.get("nodes", []) or [], "relationships": d.get("relationships", []) or []}
+        return {
+            "nodes": d.get("nodes", []) or [],
+            "relationships": d.get("relationships", []) or [],
+        }
     except Exception as e:
         print(f"    {model} extract error: {type(e).__name__} {str(e)[:90]}")
         return {"nodes": [], "relationships": []}
@@ -121,8 +140,8 @@ def main() -> None:
         docs = docs[: args.smoke]
     models = [m.strip() for m in args.models.split(",") if m.strip()]
 
-    table = SharedInternTable()          # ONE shared canonical namespace
-    table.load(_INTERN_FILE)             # cross-session: accumulate into prior runs
+    table = SharedInternTable()  # ONE shared canonical namespace
+    table.load(_INTERN_FILE)  # cross-session: accumulate into prior runs
     per_model: Dict[str, set] = {}
 
     for model in models:
@@ -132,27 +151,36 @@ def main() -> None:
             r = _extract(client, model, system, item["text"])
             nodes = [n for n in r["nodes"] if isinstance(n, dict)]
             # intern into the SHARED table (workspace = the shared corpus namespace)
-            apply_identity_keys(onto, nodes, r["relationships"],
-                                intern_table=table, workspace_id="finder")
+            apply_identity_keys(
+                onto,
+                nodes,
+                r["relationships"],
+                intern_table=table,
+                workspace_id="finder",
+            )
             for n in nodes:
                 nid = str(n.get("id", ""))
-                if "|" in nid:            # a canonical composite id (interned)
+                if "|" in nid:  # a canonical composite id (interned)
                     ids.add(nid)
             print(f"  [{i}] +{len(nodes)}n | canonical so far={len(ids)}")
         per_model[model] = ids
 
-    table.persist(_INTERN_FILE)          # cross-session: save the namespace
+    table.persist(_INTERN_FILE)  # cross-session: save the namespace
 
     # cross-model agreement over canonical entities
     all_ids = set().union(*per_model.values()) if per_model else set()
+
     def count_models(cid):
         return sum(1 for s in per_model.values() if cid in s)
+
     by_all = sorted(c for c in all_ids if count_models(c) == len(models))
     by_ge2 = sorted(c for c in all_ids if count_models(c) >= 2)
     unique1 = sorted(c for c in all_ids if count_models(c) == 1)
 
     report = {
-        "models": models, "docs": len(docs), "ontology": "finance-compliance",
+        "models": models,
+        "docs": len(docs),
+        "ontology": "finance-compliance",
         "shared_namespace_size": len(all_ids),
         "agreed_by_all_models": len(by_all),
         "agreed_by_ge2_models": len(by_ge2),
@@ -168,11 +196,17 @@ def main() -> None:
     print("\n=== cross-model shared intern table (seocho-ia4) ===")
     print(f"  models: {models}")
     print(f"  shared canonical namespace: {len(all_ids)} entities")
-    print(f"  agreed by ALL {len(models)} models: {len(by_all)} ({report['agreement_rate_all']:.0%})")
-    print(f"  agreed by >=2 models:          {len(by_ge2)} ({report['agreement_rate_ge2']:.0%})")
+    print(
+        f"  agreed by ALL {len(models)} models: {len(by_all)} ({report['agreement_rate_all']:.0%})"
+    )
+    print(
+        f"  agreed by >=2 models:          {len(by_ge2)} ({report['agreement_rate_ge2']:.0%})"
+    )
     print(f"  unique to one model:           {len(unique1)}")
-    print(f"  interning collapse (table hits): {table.stats()['hits']} "
-          f"(cross-model+cross-doc duplicates folded)")
+    print(
+        f"  interning collapse (table hits): {table.stats()['hits']} "
+        f"(cross-model+cross-doc duplicates folded)"
+    )
     print(f"  per-model canonical entities: {report['per_model_canonical_count']}")
     print(f"  sample agreed-by-all: {by_all[:8]}")
 

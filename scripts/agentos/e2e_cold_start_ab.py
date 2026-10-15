@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import sys
+
 _ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT / "src"))
 
@@ -44,26 +45,40 @@ from seocho.ontology.metrics import compute_ontology_metrics  # noqa: E402
 from seocho.ontology.upper import render_upper_frame  # noqa: E402
 
 _CORPUS = "examples/finder/datasets/finder_tutorial_subset.json"
-_EXPECTED_COMPANIES = ["apple", "microsoft", "nvidia", "alphabet", "meta",
-                       "tesla", "jpmorgan", "berkshire", "amazon"]
+_EXPECTED_COMPANIES = [
+    "apple",
+    "microsoft",
+    "nvidia",
+    "alphabet",
+    "meta",
+    "tesla",
+    "jpmorgan",
+    "berkshire",
+    "amazon",
+]
 
 
 def _load_env() -> None:
     for envf in [_ROOT / ".env", Path("/home/hadry/lab/seocho/.env")]:
         if envf.exists():
-            for line in envf.read_text().splitlines():
-                if line.strip() and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    if not k.strip().startswith(("NEO4J", "BOLT")):
-                        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            with envf.open("r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip() and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        if not k.strip().startswith(("NEO4J", "BOLT")):
+                            os.environ.setdefault(
+                                k.strip(), v.strip().strip('"').strip("'")
+                            )
             return
 
 
 def _client(llm: str):
     import openai
+
     if llm.startswith("mara/"):
-        return openai.OpenAI(api_key=os.environ["MARA_API_KEY"],
-                             base_url="https://api.cloud.mara.com/v1"), llm.split("/", 1)[1]
+        return openai.OpenAI(
+            api_key=os.environ["MARA_API_KEY"], base_url="https://api.cloud.mara.com/v1"
+        ), llm.split("/", 1)[1]
     return openai.OpenAI(), llm
 
 
@@ -79,12 +94,19 @@ def _bootstrap_sys(running_vocab: Dict[str, set]) -> str:
     frame = render_upper_frame()
     vocab = ""
     if running_vocab:
-        seen = "; ".join(f"{u}: {', '.join(sorted(ts))}" for u, ts in sorted(running_vocab.items()) if ts)
-        vocab = ("\n\nSpecific types seen so far (REUSE when they fit; introduce new "
-                 f"ones freely otherwise):\n  {seen}\n")
+        seen = "; ".join(
+            f"{u}: {', '.join(sorted(ts))}"
+            for u, ts in sorted(running_vocab.items())
+            if ts
+        )
+        vocab = (
+            "\n\nSpecific types seen so far (REUSE when they fit; introduce new "
+            f"ones freely otherwise):\n  {seen}\n"
+        )
     return (
-        frame + vocab +
-        '\n\nReturn STRICT JSON: {"nodes":[{"id":"<slug>","type":"<SpecificType>",'
+        frame
+        + vocab
+        + '\n\nReturn STRICT JSON: {"nodes":[{"id":"<slug>","type":"<SpecificType>",'
         '"upper":"<FoundationalCategory>","properties":{"name":"..."}}],'
         '"relationships":[{"source":"<id>","target":"<id>","type":"<REL_TYPE>",'
         '"upper":"<abstractRelation>"}]}\nIDs must be stable slugs.'
@@ -94,14 +116,21 @@ def _bootstrap_sys(running_vocab: Dict[str, set]) -> str:
 def _extract(client, model, system, text) -> Dict[str, Any]:
     try:
         r = client.chat.completions.create(
-            model=model, temperature=0.0,
+            model=model,
+            temperature=0.0,
             response_format={"type": "json_object"},
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": text}],
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": text},
+            ],
         )
         raw = r.choices[0].message.content or "{}"
         raw = re.sub(r"^```(json)?|```$", "", raw.strip(), flags=re.MULTILINE).strip()
         d = json.loads(raw)
-        return {"nodes": d.get("nodes", []) or [], "relationships": d.get("relationships", []) or []}
+        return {
+            "nodes": d.get("nodes", []) or [],
+            "relationships": d.get("relationships", []) or [],
+        }
     except Exception as e:
         print(f"    extract error: {type(e).__name__} {str(e)[:100]}")
         return {"nodes": [], "relationships": []}
@@ -114,10 +143,17 @@ def _normalize_type(t: str) -> str:
 
 def _measure(graph: Dict[str, Any], arm: str) -> Dict[str, Any]:
     nodes, rels = graph["nodes"], graph["relationships"]
-    raw_types = [str(n.get("label", n.get("type", ""))) for n in nodes if n.get("label", n.get("type"))]
+    raw_types = [
+        str(n.get("label", n.get("type", "")))
+        for n in nodes
+        if n.get("label", n.get("type"))
+    ]
     distinct_raw = sorted(set(raw_types))
     distinct_norm = sorted({_normalize_type(t) for t in raw_types})
-    names = {str((n.get("properties", {}) or {}).get("name", n.get("id", ""))).lower() for n in nodes}
+    names = {
+        str((n.get("properties", {}) or {}).get("name", n.get("id", ""))).lower()
+        for n in nodes
+    }
     companies = sorted({c for c in _EXPECTED_COMPANIES if any(c in nm for nm in names)})
     onto, axioms = induce_ontology_from_graph(graph)
     hierarchical = sum(1 for nd in onto.nodes.values() if nd.broader)
@@ -190,16 +226,26 @@ def main() -> None:
                 running.setdefault(str(up), set()).add(str(n.get("type", "")))
         g_boot["nodes"] += r["nodes"]
         g_boot["relationships"] += r["relationships"]
-        print(f"  [{i}] +{len(r['nodes'])}n +{len(r['relationships'])}r | vocab={sum(len(v) for v in running.values())} types")
+        print(
+            f"  [{i}] +{len(r['nodes'])}n +{len(r['relationships'])}r | vocab={sum(len(v) for v in running.values())} types"
+        )
     arms["BOOTSTRAP"] = _measure(g_boot, "BOOTSTRAP")
 
     report = {"corpus": _CORPUS, "docs": len(docs), "model": args.llm, "arms": arms}
     print("\n=== cold-start extraction A/B (seocho-ia4.11) ===")
     hdr = ("metric", "PURE_OPEN", "BOOTSTRAP")
     print(f"  {hdr[0]:28s} {hdr[1]:>12s} {hdr[2]:>12s}")
-    for k in ["nodes", "relationships", "distinct_entity_types", "type_drift_spread",
-              "company_coverage", "induced_types", "induced_hierarchical_types",
-              "induced_relationships", "axioms_mined"]:
+    for k in [
+        "nodes",
+        "relationships",
+        "distinct_entity_types",
+        "type_drift_spread",
+        "company_coverage",
+        "induced_types",
+        "induced_hierarchical_types",
+        "induced_relationships",
+        "axioms_mined",
+    ]:
         a, b = arms["PURE_OPEN"].get(k, "-"), arms["BOOTSTRAP"].get(k, "-")
         print(f"  {k:28s} {str(a):>12s} {str(b):>12s}")
 

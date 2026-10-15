@@ -1,0 +1,1 @@
+* In the SEOCHO repository's CLI (`src/seocho/cli/`), the standard help string for JSON output arguments (`--json`) is `help="Emit JSON"`. Discovered some inconsistencies like "JSON output" and "Emit JSON output".

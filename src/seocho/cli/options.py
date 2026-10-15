@@ -23,5 +23,5 @@ def add_client_options(
         parser.add_argument("--session-id", default=None, help="Session scope")
     if include_json:
         parser.add_argument(
-            "--json", dest="output_json", action="store_true", help="Emit JSON output"
+            "--json", dest="output_json", action="store_true", help="Emit JSON"
         )

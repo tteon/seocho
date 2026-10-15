@@ -1,0 +1,1 @@
+- Use standard case/phrasing for common CLI arguments. Specifically, standard help string for `--json` is `Emit JSON`.

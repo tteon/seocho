@@ -1,0 +1,1 @@
+- CLI copy for empty states should use full sentences instead of shorthand. For example, "No quarantined items found." instead of "Quarantine empty."

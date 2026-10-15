@@ -1,0 +1,1 @@
+- Unified JSON output help text to "Emit JSON" across all CLI parsers for consistency (was previously a mix of "JSON output" and "Emit JSON output").

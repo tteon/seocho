@@ -1,0 +1,1 @@
+- Standardized JSON output help string in CLI commands to "Emit JSON" for consistency.

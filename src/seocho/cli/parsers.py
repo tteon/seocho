@@ -171,7 +171,7 @@ def register_memory_commands(subparsers: Any) -> None:
         help="Print the compose command without running it",
     )
     serve_parser.add_argument(
-        "--json", dest="output_json", action="store_true", help="Emit JSON output"
+        "--json", dest="output_json", action="store_true", help="Emit JSON"
     )
 
     stop_parser = subparsers.add_parser(
@@ -194,7 +194,7 @@ def register_memory_commands(subparsers: Any) -> None:
         help="Print the compose command without running it",
     )
     stop_parser.add_argument(
-        "--json", dest="output_json", action="store_true", help="Emit JSON output"
+        "--json", dest="output_json", action="store_true", help="Emit JSON"
     )
 
     artifacts_parser = subparsers.add_parser(
@@ -376,7 +376,7 @@ def register_local_commands(subparsers: Any) -> None:
         "--strict", action="store_true", help="Reject data that fails SHACL validation"
     )
     index_parser.add_argument(
-        "--json", dest="output_json", action="store_true", help="JSON output"
+        "--json", dest="output_json", action="store_true", help="Emit JSON"
     )
 
     local_ask_parser = subparsers.add_parser(
@@ -413,7 +413,7 @@ def register_local_commands(subparsers: Any) -> None:
         "--repair-budget", type=int, default=2, help="Max repair attempts"
     )
     local_ask_parser.add_argument(
-        "--json", dest="output_json", action="store_true", help="JSON output"
+        "--json", dest="output_json", action="store_true", help="Emit JSON"
     )
 
     status_parser = subparsers.add_parser("status", help="Show graph database status")
@@ -443,7 +443,7 @@ def register_local_commands(subparsers: Any) -> None:
         "--llm-base-url", default=None, help="Override the provider base URL"
     )
     status_parser.add_argument(
-        "--json", dest="output_json", action="store_true", help="JSON output"
+        "--json", dest="output_json", action="store_true", help="Emit JSON"
     )
 
     compare_parser = subparsers.add_parser(
@@ -465,7 +465,7 @@ def register_local_commands(subparsers: Any) -> None:
         "--model-b", default=None, help="LLM model for config B (default: same as A)"
     )
     compare_parser.add_argument(
-        "--json", dest="output_json", action="store_true", help="JSON output"
+        "--json", dest="output_json", action="store_true", help="Emit JSON"
     )
 
     experiment_parser = subparsers.add_parser(
@@ -504,7 +504,7 @@ def register_local_commands(subparsers: Any) -> None:
         "--output", default=None, help="Save results to this directory"
     )
     experiment_parser.add_argument(
-        "--json", dest="output_json", action="store_true", help="JSON output"
+        "--json", dest="output_json", action="store_true", help="Emit JSON"
     )
 
     bundle_parser = subparsers.add_parser(
@@ -565,7 +565,7 @@ def register_local_commands(subparsers: Any) -> None:
         help="Optional extraction prompt preset to serialize into the portable bundle",
     )
     bundle_export_parser.add_argument(
-        "--json", dest="output_json", action="store_true", help="JSON output"
+        "--json", dest="output_json", action="store_true", help="Emit JSON"
     )
 
     bundle_show_parser = bundle_subparsers.add_parser(
@@ -573,7 +573,7 @@ def register_local_commands(subparsers: Any) -> None:
     )
     bundle_show_parser.add_argument("bundle", help="Path to bundle JSON file")
     bundle_show_parser.add_argument(
-        "--json", dest="output_json", action="store_true", help="JSON output"
+        "--json", dest="output_json", action="store_true", help="Emit JSON"
     )
 
     serve_http_parser = subparsers.add_parser(

@@ -1,0 +1,2 @@
+- Use "No quarantined items found." instead of "No memories found." for ontology quarantines (though `search` seems to return `No memories found.`, which might be fine depending on context, memory points to the "search" vs "quarantines" messaging).
+- Ensure `--json` arguments uniformly use `help="Emit JSON"` across all CLI parsers.

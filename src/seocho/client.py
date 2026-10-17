@@ -1524,11 +1524,24 @@ class Seocho:
     ) -> List[Dict[str, Any]]:
         """Execute a raw Cypher query against the graph store.
 
-        Only available in local mode.
+        Only available in local mode. Queries must bind returned nodes to
+        ``$workspace_id``. The client supplies this reserved parameter; caller
+        parameters cannot override it.
         """
         if not self._local_mode:
             raise RuntimeError("query() requires local engine mode (ontology + graph_store + llm)")
-        return self.graph_store.query(cypher, params=params, database=database)
+        from .store.graph import enforce_read_workspace_scope
+
+        enforce_read_workspace_scope(cypher, reject_rebinding=True)
+        scoped_params = dict(params or {})
+        scoped_params["workspace_id"] = self.workspace_id
+        return self.graph_store.query(
+            cypher,
+            params=scoped_params,
+            database=database,
+            workspace_id=self.workspace_id,
+            enforce_workspace_filter=True,
+        )
 
     # ------------------------------------------------------------------
     # Agent-level session API

@@ -74,7 +74,7 @@ class Handler(BaseHTTPRequestHandler):
         hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
         host = self.headers.get("Host", "")
         origin = self.headers.get("Origin")
-        if host not in hosts or (origin and origin != f"http://{host}"):
+        if host not in hosts or (origin and origin not in [f"http://{h}" for h in hosts]):
             self.json(
                 {"error": "Only same-origin localhost requests are allowed."}, 403
             )

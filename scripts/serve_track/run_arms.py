@@ -303,7 +303,8 @@ def main() -> None:
     if args.no_refusal_hint:
         print("prompt condition: NO refusal hint (hallucination measurement)")
 
-    rows = [json.loads(line) for line in args.arms.read_text(encoding="utf-8").splitlines() if line.strip()]
+    with args.arms.open("r", encoding="utf-8") as f:
+        rows = [json.loads(line) for line in f if line.strip()]
     items = [r for r in rows if r.get("comparable")]
     if args.limit:
         items = items[: args.limit]

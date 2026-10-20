@@ -483,7 +483,7 @@ def _print_graphs(graphs: Iterable[GraphTarget], output_json: bool) -> None:
         return
 
     if not graph_list:
-        print("No graph targets found.")
+        print("No graph targets configured.")
         return
 
     for graph in graph_list:

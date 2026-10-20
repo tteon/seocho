@@ -1,4 +1,0 @@
-- Learned that CLI messages in src/seocho/cli/ use sentence case and punctuation for empty states.
-- Domain terminology must be respected; empty search results are memories, empty artifact queries are semantic artifacts, and empty quarantine states are quarantined items.
-- empty states should use domain terminology where applicable, traces empty state is "No matching trace spans found." based on other commands in the CLI having a "No <item> found." format.
-- "No graph targets configured." should probably be "No graph targets found." to match the rest of the CLI.

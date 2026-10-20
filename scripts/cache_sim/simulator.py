@@ -212,14 +212,16 @@ def load_contexts(path: Path, *, tokenizer, text_field: str = "context") -> List
     ``token_ids`` / a text field.
     """
     contexts: List[List[int]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        record = json.loads(line)
-        if "token_ids" in record:
-            contexts.append([int(t) for t in record["token_ids"]])
-        elif text_field in record:
-            contexts.append(tokenizer(str(record[text_field])))
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.rstrip("\n")
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            if "token_ids" in record:
+                contexts.append([int(t) for t in record["token_ids"]])
+            elif text_field in record:
+                contexts.append(tokenizer(str(record[text_field])))
     return contexts
 
 

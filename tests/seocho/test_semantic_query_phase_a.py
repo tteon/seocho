@@ -136,6 +136,30 @@ def test_cypher_validator_rejects_unbounded_or_over_budget_generated_plan():
     assert "result_limit_exceeded" in validation["violations"]
 
 
+def test_cypher_validator_requires_node_binding_only_for_anchored_plans():
+    validator = CypherQueryValidator()
+    unanchored = CypherPlan(
+        database="kgnormal",
+        query="MATCH (n:Company) WHERE n.workspace_id = $workspace_id RETURN n.name AS name LIMIT $limit",
+        params={"workspace_id": "default", "limit": 10},
+        strategy="template",
+        anchor_entity="",
+    )
+    assert "missing_node_binding" not in validator.validate(unanchored, {})["violations"]
+    assert "missing_node_binding" in validator.validate(
+        unanchored, {"require_node_binding": True}
+    )["violations"]
+
+    dropped_anchor = CypherPlan(
+        database="kgnormal",
+        query="MATCH (n:Company) RETURN n.name AS name LIMIT $limit",
+        params={"node_id": "1", "limit": 10},
+        strategy="direct",
+        anchor_entity="Apple",
+    )
+    assert "missing_node_binding" in validator.validate(dropped_anchor, {})["violations"]
+
+
 def test_support_validator_and_strategy_chooser_contract():
     support_validator = IntentSupportValidator()
     chooser = ExecutionStrategyChooser()

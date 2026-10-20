@@ -622,7 +622,8 @@ def make_validate_cypher_tool(*, workspace_id: str = "default"):
 
         Args:
             cypher: The Cypher query text.
-            params_json: JSON-encoded parameter dict (must include ``$node_id``).
+            params_json: JSON-encoded parameter dict. When it carries a resolved
+                ``node_id`` anchor, the query must reference ``$node_id``.
             allowed_labels_csv: Comma-separated labels permitted in the query.
             allowed_relationship_types_csv: Comma-separated rel-type allow-list.
             allowed_properties_csv: Comma-separated property allow-list.

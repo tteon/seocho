@@ -1,0 +1,1 @@
+CLI messages for empty states were improved for clarity and consistency. Specifically, `No memories found.` was changed to `No search results found.`, `No graph targets configured.` was changed to `No graph targets found.`, and `No matching spans.` was changed to `No matching trace spans found.`.

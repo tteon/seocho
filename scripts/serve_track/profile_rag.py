@@ -184,11 +184,11 @@ def main() -> None:
         metrics_sampler=vllm_metrics.make_sampler(args.metrics_url or None),
     )
 
-    questions: List[str] = (
-        [q.strip() for q in Path(args.questions).read_text(encoding="utf-8").splitlines() if q.strip()]
-        if args.questions
-        else list(_DEMO_QUESTIONS)
-    )
+    if args.questions:
+        with Path(args.questions).open("r", encoding="utf-8") as f:
+            questions: List[str] = [q.strip() for q in f if q.strip()]
+    else:
+        questions: List[str] = list(_DEMO_QUESTIONS)
 
     client = _build_client(args, args.llm, args.api_key)
 

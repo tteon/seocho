@@ -69,8 +69,8 @@ def main() -> None:
                              "an empty vector arm is not a comparison")
     args = parser.parse_args()
 
-    rows = [json.loads(line) for line in
-            args.annotated.read_text(encoding="utf-8").splitlines() if line.strip()]
+    with args.annotated.open("r", encoding="utf-8") as f:
+        rows = [json.loads(line) for line in f if line.strip()]
 
     pools: Dict[str, List[Dict[str, Any]]] = collections.defaultdict(list)
     dropped_no_edges = dropped_no_corpus = 0

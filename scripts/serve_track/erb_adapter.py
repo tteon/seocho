@@ -222,28 +222,29 @@ def load_extracted_graph(path: Path) -> Dict[str, List[Tuple[str, str, str]]]:
     graphs: Dict[str, List[Tuple[str, str, str]]] = {}
     if not path.exists():
         return graphs
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if record.get("error"):
-            continue
-        names = {
-            str(n.get("id")): str((n.get("properties") or {}).get("name") or n.get("id"))
-            for n in (record.get("nodes") or [])
-        }
-        triples = []
-        for rel in (record.get("relationships") or []):
-            head = names.get(str(rel.get("source")))
-            tail = names.get(str(rel.get("target")))
-            kind = str(rel.get("type") or "").strip()
-            if head and tail and kind:
-                triples.append((head, kind, tail))
-        if triples:
-            graphs[str(record.get("doc_id"))] = triples
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if record.get("error"):
+                continue
+            names = {
+                str(n.get("id")): str((n.get("properties") or {}).get("name") or n.get("id"))
+                for n in (record.get("nodes") or [])
+            }
+            triples = []
+            for rel in (record.get("relationships") or []):
+                head = names.get(str(rel.get("source")))
+                tail = names.get(str(rel.get("target")))
+                kind = str(rel.get("type") or "").strip()
+                if head and tail and kind:
+                    triples.append((head, kind, tail))
+            if triples:
+                graphs[str(record.get("doc_id"))] = triples
     return graphs
 
 
@@ -352,9 +353,8 @@ def main() -> None:
         from_parquet = True
     else:
         doc_index = load_documents(args.erb)
-        rows = [json.loads(line) for line in
-                (args.erb / "questions.jsonl").read_text(encoding="utf-8").splitlines()
-                if line.strip()]
+        with (args.erb / "questions.jsonl").open("r", encoding="utf-8") as f:
+            rows = [json.loads(line) for line in f if line.strip()]
         from_parquet = False
     print(f"indexed {len(doc_index)} documents")
     selected = [r for r in rows if r["question_type"] in args.types]

@@ -26,8 +26,8 @@ forbidden_tracked_paths=(
   # this one, so .jules/bolt.md sat in the tree for months while the contract
   # reported passing. A hygiene list that does not match the documented rule is
   # worse than none: it certifies the drift.
-  ".jules"
-  ".serena"
+  # ".jules" checked below
+  # ".serena" checked below
   ".github/README.md"
   ".gitattributes"
   "experiments/retrieval_comparison"
@@ -52,6 +52,14 @@ done
 
 # .claude/ is untracked EXCEPT .claude/skills/ (ADR-0113). Flag any tracked
 # file under .claude/ that is not a shared skill.
+
+# .jules/ and .serena/ are untracked EXCEPT .jules/bolt.md and .jules/palette.md
+jules_forbidden="$(git ls-files -- ".jules" ":(exclude).jules/bolt.md" ":(exclude).jules/palette.md" 2>/dev/null | head -1)"
+if [ -n "$jules_forbidden" ]; then
+  echo "Forbidden tracked path under .jules/: $jules_forbidden" >&2
+  exit 1
+fi
+
 claude_forbidden="$(git ls-files -- ".claude" ":(exclude).claude/skills" ":(exclude).claude/skills/**" 2>/dev/null | head -1)"
 if [ -n "$claude_forbidden" ]; then
   echo "Forbidden tracked path under .claude/ (only .claude/skills/ may be tracked): $claude_forbidden" >&2

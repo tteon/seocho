@@ -1,0 +1,2 @@
+When modifying CLI output strings related to search empty states, respect the domain terminology of the command. For example, `seocho search` empty states should be "No search results found." instead of generic/incorrect terms like "No memories found.".
+When modifying CLI output strings, respect the standard CLI error casing format ("No <domain item> found."). For example, the `seocho traces` command should output "No matching trace spans found." rather than "No matching spans."

@@ -352,9 +352,8 @@ def main() -> None:
         from_parquet = True
     else:
         doc_index = load_documents(args.erb)
-        rows = [json.loads(line) for line in
-                (args.erb / "questions.jsonl").read_text(encoding="utf-8").splitlines()
-                if line.strip()]
+        with (args.erb / "questions.jsonl").open("r", encoding="utf-8") as f:
+            rows = [json.loads(line) for line in f if line.strip()]
         from_parquet = False
     print(f"indexed {len(doc_index)} documents")
     selected = [r for r in rows if r["question_type"] in args.types]

@@ -1,0 +1,3 @@
+- Use standard sentence casing and punctuation for CLI empty states and errors (e.g. "No <domain item> found.").
+- Respect domain terminology (e.g. "No graph targets found.").
+- Standard help text for `--json` arguments is "Emit JSON".

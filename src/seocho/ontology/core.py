@@ -48,7 +48,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import yaml
 
-from seocho.cypher_ident import IDENT_RE as _LABEL_RE  # canonical identifier regex
+from seocho.cypher_ident import IDENT_RE as _LABEL_RE, quote_identifier  # canonical identifier regex
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -2664,14 +2664,14 @@ class Ontology:
             if soft_delete:
                 plan["cypher_statements"].append({
                     "description": f"Soft-delete :{label} nodes (removed in {_ts})",
-                    "cypher": (f"MATCH (n:{label}) SET n._ontology_soft_deleted_at = '{_ts}', "
+                    "cypher": (f"MATCH (n:{quote_identifier(label)}) SET n._ontology_soft_deleted_at = '{_ts}', "
                                f"n._soft_delete_reason = 'label removed'"),
                     "breaking": True, "data_loss": False,
                 })
             else:
                 plan["cypher_statements"].append({
                     "description": f"Remove all :{label} nodes",
-                    "cypher": f"MATCH (n:{label}) DETACH DELETE n",
+                    "cypher": f"MATCH (n:{quote_identifier(label)}) DETACH DELETE n",
                     "breaking": True, "data_loss": True,
                 })
 
@@ -2689,14 +2689,14 @@ class Ontology:
                     # keep the data; mark the property deprecated (no data loss)
                     plan["cypher_statements"].append({
                         "description": f"Deprecate property {prop} on :{label} (kept)",
-                        "cypher": (f"MATCH (n:{label}) WHERE n.`{prop}` IS NOT NULL "
-                                   f"SET n.`_deprecated_{prop}` = true"),
+                        "cypher": (f"MATCH (n:{quote_identifier(label)}) WHERE n.{quote_identifier(prop)} IS NOT NULL "
+                                   f"SET n.{quote_identifier(f'_deprecated_{prop}')} = true"),
                         "breaking": False, "data_loss": False,
                     })
                 else:
                     plan["cypher_statements"].append({
                         "description": f"Remove property {prop} from :{label}",
-                        "cypher": f"MATCH (n:{label}) REMOVE n.`{prop}`",
+                        "cypher": f"MATCH (n:{quote_identifier(label)}) REMOVE n.{quote_identifier(prop)}",
                         "breaking": False, "data_loss": True,
                     })
 
@@ -2713,14 +2713,14 @@ class Ontology:
             if soft_delete:
                 plan["cypher_statements"].append({
                     "description": f"Soft-delete [{rtype}] relationships (removed in {_ts})",
-                    "cypher": (f"MATCH ()-[r:{rtype}]->() SET r._ontology_soft_deleted_at = '{_ts}', "
+                    "cypher": (f"MATCH ()-[r:{quote_identifier(rtype)}]->() SET r._ontology_soft_deleted_at = '{_ts}', "
                                f"r._soft_delete_reason = 'rel type removed'"),
                     "breaking": True, "data_loss": False,
                 })
             else:
                 plan["cypher_statements"].append({
                     "description": f"Remove all [{rtype}] relationships",
-                    "cypher": f"MATCH ()-[r:{rtype}]->() DELETE r",
+                    "cypher": f"MATCH ()-[r:{quote_identifier(rtype)}]->() DELETE r",
                     "breaking": True, "data_loss": True,
                 })
 

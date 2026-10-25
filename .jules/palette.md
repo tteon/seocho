@@ -1,0 +1,2 @@
+- CLI empty state and error messages in src/seocho/cli/ should use proper sentence case and punctuation, typically following the format 'No <domain item> found.' (e.g., 'No search results found.', 'No graph targets found.').
+- Be careful to respect domain terminology to avoid contextual errors (e.g., use 'No search results found.' for search commands instead of applying generic terms like 'No memories found.' incorrectly).

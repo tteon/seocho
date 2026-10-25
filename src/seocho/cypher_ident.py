@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["IDENT_RE", "is_valid_identifier", "quote_identifier", "label_clause"]
+__all__ = ["IDENT_RE", "is_valid_identifier", "quote_identifier", "label_clause", "quote_string_literal"]
 
 # Neo4j simple identifier: a letter or underscore, then letters/digits/
 # underscores. Anything else must go through ``quote_identifier`` (or be
@@ -59,3 +59,10 @@ def label_clause(label: str) -> str:
     if not label:
         return ""
     return ":" + quote_identifier(label)
+
+
+def quote_string_literal(value: str) -> str:
+    """Return a Cypher string literal safely wrapped in single quotes."""
+    if not isinstance(value, str):
+        raise ValueError(f"Cypher string literal must be a string, got {value!r}")
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"

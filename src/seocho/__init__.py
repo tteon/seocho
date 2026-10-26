@@ -35,10 +35,26 @@ from importlib.metadata import PackageNotFoundError, version
 from types import ModuleType
 from typing import Dict, Iterable, Mapping
 
+
 try:
     __version__ = version("seocho")
 except PackageNotFoundError:
     __version__ = "0.1.0"
+
+# PyYAML performance patch:
+# Globally replace the default pure-Python SafeLoader/SafeDumper with the libyaml C equivalents
+# if available. This drastically bounds overhead for repeated schema / ontology / config loads.
+def _apply_yaml_performance_patch():
+    try:
+        import yaml
+        from yaml import CSafeLoader, CSafeDumper
+        yaml.SafeLoader = CSafeLoader
+        yaml.SafeDumper = CSafeDumper
+    except ImportError:
+        pass
+_apply_yaml_performance_patch()
+del _apply_yaml_performance_patch
+
 
 _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
     ".operating_layer": [

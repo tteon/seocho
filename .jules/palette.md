@@ -1,0 +1,1 @@
+CLI empty states should use the format 'No <domain item> found.' (e.g., 'No search results found.', 'No graph targets found.', 'No matching trace spans found.'), avoiding generic terms like 'memories' or omitting the 'found.' suffix to ensure consistency.

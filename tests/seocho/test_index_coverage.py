@@ -52,7 +52,7 @@ def test_merge_key_is_indexed_for_every_label(ontology):
     statements = ontology.to_cypher_constraints()
     for label in ontology.nodes:
         assert any(
-            f"FOR (n:{label}) ON (n.id)" in s for s in statements
+            f"FOR (n:`{label}`) ON (n.id)" in s for s in statements
         ), f"{label} has no index on the property the writer merges on"
 
 
@@ -62,7 +62,7 @@ def test_tenancy_is_composite_with_the_anchor(ontology):
     becomes O(this tenant's matching entities)."""
     statements = ontology.to_cypher_constraints()
     assert any(
-        "ON (n._workspace_id, n.name)" in s and "(n:Person)" in s
+        "ON (n._workspace_id, n.`name`)" in s and "(n:`Person`)" in s
         for s in statements
     )
     # Tenancy must come FIRST in the composite, or the prefix seek does not help.
@@ -79,7 +79,7 @@ def test_single_identity_key_gets_a_unique_constraint(ontology):
     dedupes on."""
     statements = ontology.to_cypher_constraints()
     assert any(
-        "constraint_Person_identity_unique" in s and "REQUIRE n.name IS UNIQUE" in s
+        "`constraint_Person_identity_unique`" in s and "REQUIRE n.`name` IS UNIQUE" in s
         for s in statements
     )
 
@@ -89,7 +89,7 @@ def test_composite_identity_still_uses_a_tuple_constraint(ontology):
     share one member. The tuple is the identity."""
     statements = ontology.to_cypher_constraints()
     assert any(
-        "REQUIRE (n.name, n.procedure) IS UNIQUE" in s for s in statements
+        "REQUIRE (n.`name`, n.`procedure`) IS UNIQUE" in s for s in statements
     )
 
 
@@ -123,5 +123,5 @@ def test_declared_index_and_unique_still_emitted():
         )},
     )
     statements = onto.to_cypher_constraints()
-    assert any("FOR (n:Co) ON (n.ticker)" in s for s in statements)
-    assert any("REQUIRE n.cik IS UNIQUE" in s for s in statements)
+    assert any("FOR (n:`Co`) ON (n.`ticker`)" in s for s in statements)
+    assert any("REQUIRE n.`cik` IS UNIQUE" in s for s in statements)

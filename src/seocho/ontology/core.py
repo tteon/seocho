@@ -48,7 +48,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import yaml
 
-from seocho.cypher_ident import IDENT_RE as _LABEL_RE  # canonical identifier regex
+from seocho.cypher_ident import IDENT_RE as _LABEL_RE, quote_identifier  # canonical identifier regex
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -1849,30 +1849,30 @@ class Ontology:
                 (only,) = nd.identity_keys
                 if only in nd.properties:
                     if workspace_scoped:
-                        stmts.append(f"CREATE CONSTRAINT constraint_{label}_identity_workspace_unique IF NOT EXISTS FOR (n:{label}) REQUIRE (n._workspace_id, n.{only}) IS UNIQUE")
+                        stmts.append(f"CREATE CONSTRAINT `constraint_{label}_identity_workspace_unique` IF NOT EXISTS FOR (n:{quote_identifier(label)}) REQUIRE (n._workspace_id, n.{quote_identifier(only)}) IS UNIQUE")
                     else:
-                        stmts.append(f"CREATE CONSTRAINT constraint_{label}_identity_unique IF NOT EXISTS FOR (n:{label}) REQUIRE n.{only} IS UNIQUE")
+                        stmts.append(f"CREATE CONSTRAINT `constraint_{label}_identity_unique` IF NOT EXISTS FOR (n:{quote_identifier(label)}) REQUIRE n.{quote_identifier(only)} IS UNIQUE")
             if len(nd.identity_keys) > 1:
-                props = ", ".join(["n._workspace_id", *[f"n.{k}" for k in nd.identity_keys]]) if workspace_scoped else ", ".join(f"n.{k}" for k in nd.identity_keys)
-                cname = f"constraint_{label}_identity_workspace_unique" if workspace_scoped else f"constraint_{label}_identity_unique"
+                props = ", ".join(["n._workspace_id", *[f"n.{quote_identifier(k)}" for k in nd.identity_keys]]) if workspace_scoped else ", ".join(f"n.{quote_identifier(k)}" for k in nd.identity_keys)
+                cname = f"`constraint_{label}_identity_workspace_unique`" if workspace_scoped else f"`constraint_{label}_identity_unique`"
                 stmts.append(
                     f"CREATE CONSTRAINT {cname} IF NOT EXISTS "
-                    f"FOR (n:{label}) REQUIRE ({props}) IS UNIQUE"
+                    f"FOR (n:{quote_identifier(label)}) REQUIRE ({props}) IS UNIQUE"
                 )
             for pname, p in nd.properties.items():
                 if p.unique and pname not in identity:
-                    cname = f"constraint_{label}_{pname}_workspace_unique" if workspace_scoped else f"constraint_{label}_{pname}_unique"
-                    props = f"(n._workspace_id, n.{pname})" if workspace_scoped else f"n.{pname}"
+                    cname = f"`constraint_{label}_{pname}_workspace_unique`" if workspace_scoped else f"`constraint_{label}_{pname}_unique`"
+                    props = f"(n._workspace_id, n.{quote_identifier(pname)})" if workspace_scoped else f"n.{quote_identifier(pname)}"
                     stmts.append(
                         f"CREATE CONSTRAINT {cname} IF NOT EXISTS "
-                        f"FOR (n:{label}) REQUIRE {props} IS UNIQUE"
+                        f"FOR (n:{quote_identifier(label)}) REQUIRE {props} IS UNIQUE"
                     )
             for pname, p in nd.properties.items():
                 if p.index and not p.unique:
-                    iname = f"index_{label}_{pname}"
+                    iname = f"`index_{label}_{pname}`"
                     stmts.append(
                         f"CREATE INDEX {iname} IF NOT EXISTS "
-                        f"FOR (n:{label}) ON (n.{pname})"
+                        f"FOR (n:{quote_identifier(label)}) ON (n.{quote_identifier(pname)})"
                     )
 
             # The three indexes below cover the properties the WRITE and READ
@@ -1888,8 +1888,8 @@ class Ontology:
             #    without this each write is a label scan plus a property filter,
             #    and relationship writes do two. Ingest is quadratic.
             stmts.append(
-                f"CREATE INDEX index_{label}_id IF NOT EXISTS "
-                f"FOR (n:{label}) ON (n.id)"
+                f"CREATE INDEX `index_{label}_id` IF NOT EXISTS "
+                f"FOR (n:{quote_identifier(label)}) ON (n.id)"
             )
 
             # 2. Tenancy first, then the anchor. `_workspace_id` alone is the
@@ -1900,8 +1900,8 @@ class Ontology:
             anchor = (nd.effective_identity_keys or [None])[0]
             if anchor:
                 stmts.append(
-                    f"CREATE INDEX index_{label}_workspace_{anchor} IF NOT EXISTS "
-                    f"FOR (n:{label}) ON (n._workspace_id, n.{anchor})"
+                    f"CREATE INDEX `index_{label}_workspace_{anchor}` IF NOT EXISTS "
+                    f"FOR (n:{quote_identifier(label)}) ON (n._workspace_id, n.{quote_identifier(anchor)})"
                 )
 
         # 3. Entity-name resolution is a fuzzy substring match, which a RANGE
@@ -1918,8 +1918,8 @@ class Ontology:
             if prop in nd.properties or prop == "name"
         })
         if self.nodes and display_props:
-            labels = "|".join(sorted(self.nodes))
-            props = ", ".join(f"n.{p}" for p in display_props)
+            labels = "|".join(quote_identifier(n) for n in sorted(self.nodes))
+            props = ", ".join(f"n.{quote_identifier(p)}" for p in display_props)
             stmts.append(
                 f"CREATE FULLTEXT INDEX entity_fulltext IF NOT EXISTS "
                 f"FOR (n:{labels}) ON EACH [{props}]"
@@ -2664,14 +2664,14 @@ class Ontology:
             if soft_delete:
                 plan["cypher_statements"].append({
                     "description": f"Soft-delete :{label} nodes (removed in {_ts})",
-                    "cypher": (f"MATCH (n:{label}) SET n._ontology_soft_deleted_at = '{_ts}', "
+                    "cypher": (f"MATCH (n:{quote_identifier(label)}) SET n._ontology_soft_deleted_at = '{_ts}', "
                                f"n._soft_delete_reason = 'label removed'"),
                     "breaking": True, "data_loss": False,
                 })
             else:
                 plan["cypher_statements"].append({
                     "description": f"Remove all :{label} nodes",
-                    "cypher": f"MATCH (n:{label}) DETACH DELETE n",
+                    "cypher": f"MATCH (n:{quote_identifier(label)}) DETACH DELETE n",
                     "breaking": True, "data_loss": True,
                 })
 
@@ -2689,14 +2689,14 @@ class Ontology:
                     # keep the data; mark the property deprecated (no data loss)
                     plan["cypher_statements"].append({
                         "description": f"Deprecate property {prop} on :{label} (kept)",
-                        "cypher": (f"MATCH (n:{label}) WHERE n.`{prop}` IS NOT NULL "
+                        "cypher": (f"MATCH (n:{quote_identifier(label)}) WHERE n.{quote_identifier(prop)} IS NOT NULL "
                                    f"SET n.`_deprecated_{prop}` = true"),
                         "breaking": False, "data_loss": False,
                     })
                 else:
                     plan["cypher_statements"].append({
                         "description": f"Remove property {prop} from :{label}",
-                        "cypher": f"MATCH (n:{label}) REMOVE n.`{prop}`",
+                        "cypher": f"MATCH (n:{quote_identifier(label)}) REMOVE n.{quote_identifier(prop)}",
                         "breaking": False, "data_loss": True,
                     })
 
@@ -2713,14 +2713,14 @@ class Ontology:
             if soft_delete:
                 plan["cypher_statements"].append({
                     "description": f"Soft-delete [{rtype}] relationships (removed in {_ts})",
-                    "cypher": (f"MATCH ()-[r:{rtype}]->() SET r._ontology_soft_deleted_at = '{_ts}', "
+                    "cypher": (f"MATCH ()-[r:{quote_identifier(rtype)}]->() SET r._ontology_soft_deleted_at = '{_ts}', "
                                f"r._soft_delete_reason = 'rel type removed'"),
                     "breaking": True, "data_loss": False,
                 })
             else:
                 plan["cypher_statements"].append({
                     "description": f"Remove all [{rtype}] relationships",
-                    "cypher": f"MATCH ()-[r:{rtype}]->() DELETE r",
+                    "cypher": f"MATCH ()-[r:{quote_identifier(rtype)}]->() DELETE r",
                     "breaking": True, "data_loss": True,
                 })
 

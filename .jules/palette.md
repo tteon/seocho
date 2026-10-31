@@ -1,0 +1,1 @@
+- Modified CLI empty state messages in `src/seocho/cli/traces.py` ("No matching spans." -> "No matching trace spans found.") and `src/seocho/cli/__init__.py` ("No graph targets configured." -> "No graph targets found.") to follow the consistent convention 'No <domain item> found.' as mentioned in repo memory.

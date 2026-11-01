@@ -219,7 +219,8 @@ def main() -> None:
     args = parser.parse_args()
 
     count, unit = _make_counter(args.tokenizer)
-    rows = [json.loads(line) for line in args.questions.read_text(encoding="utf-8").splitlines() if line.strip()]
+    with args.questions.open("r", encoding="utf-8") as f:
+        rows = [json.loads(line) for line in f if line.strip()]
 
     built = [build_arms(row, args.budget, count, unit) for row in rows]
     args.out.parent.mkdir(parents=True, exist_ok=True)

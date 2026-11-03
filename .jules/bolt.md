@@ -1,0 +1,2 @@
+
+- To reduce memory overhead when parsing simple JSON or YAML files from disk (e.g., state or receipts), avoid using `json.loads(path.read_text())` or `yaml.safe_load(path.read_text())`, which allocate the entire file as a single string in memory. Instead, stream the parsing directly from the file descriptor using a context manager: `with path.open('r', encoding='utf-8') as f: json.load(f)`.

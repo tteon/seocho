@@ -19,20 +19,28 @@ def import_receipts(
     """
     rows = []
     for path in sorted(root.glob("*/receipt.json")):
-        receipt = json.loads(path.read_text())
+        with path.open("r", encoding="utf-8") as f:
+            receipt = json.load(f)
         run_id = path.parent.name
         for call in receipt.get("llm", []):
             number = int(call["call"])
             response_path = path.parent / "http" / f"{number:02d}-response.json"
             request_path = path.parent / "http" / f"{number:02d}-request.json"
-            response = (
-                json.loads(response_path.read_text()) if response_path.exists() else {}
-            )
+
+            if response_path.exists():
+                with response_path.open("r", encoding="utf-8") as f:
+                    response = json.load(f)
+            else:
+                response = {}
+
             body = response.get("body") or {}
             usage = body.get("usage") or call.get("usage") or {}
-            request = (
-                json.loads(request_path.read_text()) if request_path.exists() else None
-            )
+
+            if request_path.exists():
+                with request_path.open("r", encoding="utf-8") as f:
+                    request = json.load(f)
+            else:
+                request = None
             row = {
                 "request_id": fingerprint(
                     [configuration_id, workload_id, run_id, number]

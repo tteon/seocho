@@ -1,0 +1,1 @@
+- Use domain-specific terminology for empty states in CLI outputs (e.g., "No search results found.", "No graph targets found.") instead of generic terms like "No memories found." or "No graph targets configured."

@@ -468,7 +468,7 @@ def _print_search_results(results: Sequence[SearchResult], output_json: bool) ->
         return
 
     if not results:
-        print("No memories found.")
+        print("No search results found.")
         return
 
     for index, result in enumerate(results, start=1):

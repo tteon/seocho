@@ -1,0 +1,1 @@
+- Replaced `json.loads(path.read_text())` with streaming `with path.open('r') as f: json.load(f)` for file I/O overhead reduction.

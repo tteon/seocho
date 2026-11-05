@@ -22,11 +22,7 @@ forbidden_tracked_paths=(
   # tracked (shared project skills, ADR-0113); everything else under .claude/
   # stays forbidden.
   ".githooks"
-  # .jules and .serena were on CLAUDE.md's non-tracked list and missing from
-  # this one, so .jules/bolt.md sat in the tree for months while the contract
-  # reported passing. A hygiene list that does not match the documented rule is
-  # worse than none: it certifies the drift.
-  ".jules"
+  # ".jules" is checked separately below to allow .jules/bolt.md
   ".serena"
   ".github/README.md"
   ".gitattributes"
@@ -78,3 +74,9 @@ for path in "${required_paths[@]}"; do
 done
 
 echo "Root hierarchy contract checks passed."
+
+jules_forbidden="$(git ls-files -- ".jules" ":(exclude).jules/bolt.md" ":(exclude).jules/palette.md" 2>/dev/null | head -1)"
+if [ -n "$jules_forbidden" ]; then
+  echo "Forbidden tracked path under .jules/ (only .jules/bolt.md and .jules/palette.md may be tracked): $jules_forbidden" >&2
+  exit 1
+fi

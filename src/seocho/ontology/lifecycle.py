@@ -47,7 +47,8 @@ def verify_rdf_bundle(directory: str | Path) -> dict[str, Any]:
     if not manifest_path.is_file():
         return {"ok": False, "error": "manifest.json is missing", "directory": str(root)}
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        with manifest_path.open("r", encoding="utf-8") as f:
+            manifest = json.load(f)
         files = manifest["files"]
     except (OSError, ValueError, KeyError) as exc:
         return {"ok": False, "error": f"invalid manifest: {exc}", "directory": str(root)}
@@ -113,7 +114,8 @@ def load_agent_profile(bundle_dir: str | Path, purpose: str) -> dict[str, Any]:
         raise ValueError("cannot load a profile from an invalid bundle")
     path = Path(bundle_dir) / "agent-profiles" / f"{purpose}.json"
     try:
-        profile = json.loads(path.read_text(encoding="utf-8"))
+        with path.open("r", encoding="utf-8") as f:
+            profile = json.load(f)
     except (OSError, ValueError) as exc:
         raise ValueError(f"agent profile unavailable: {purpose}") from exc
     if profile.get("schema_version") != "seocho.agent_ontology_profile.v1" or profile.get("purpose") != purpose:

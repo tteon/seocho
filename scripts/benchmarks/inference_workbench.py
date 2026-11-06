@@ -26,9 +26,15 @@ def save_report(args: argparse.Namespace, requests: Path, out: Path) -> None:
     if args.cost_ledger:
         rows = apply_cost_ledger(rows, read_jsonl(args.cost_ledger))
     report = summarize(rows)
-    baseline = json.loads(args.baseline.read_text()) if args.baseline else None
+    baseline = None
+    if args.baseline:
+        with args.baseline.open("r", encoding="utf-8") as f:
+            baseline = json.load(f)
     report["alerts"] = alerts(report, baseline)
-    telemetry = json.loads(args.telemetry.read_text()) if args.telemetry else None
+    telemetry = None
+    if args.telemetry:
+        with args.telemetry.open("r", encoding="utf-8") as f:
+            telemetry = json.load(f)
     (out / "summary.json").write_text(json.dumps(report, indent=2) + "\n")
     (out / "alerts.json").write_text(json.dumps(report["alerts"], indent=2) + "\n")
     write_dashboard(out / "index.html", report, telemetry)
@@ -139,7 +145,8 @@ def main() -> int:
             )
         args.telemetry = args.out / "telemetry.json"
         save_report(args, args.out / "requests.jsonl", args.out)
-        summary = json.loads((args.out / "summary.json").read_text())
+        with (args.out / "summary.json").open("r", encoding="utf-8") as f:
+            summary = json.load(f)
         return int(any(r["status"] != "ok" for r in summary["requests"]))
     if args.command == "report":
         args.out.mkdir(parents=True, mode=0o700)

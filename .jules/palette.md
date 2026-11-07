@@ -1,0 +1,1 @@
+- Noticed that 'No memories found.' is often used for empty CLI results incorrectly instead of context specific messages (e.g. 'No search results found.', 'No graph targets found.'). Fixed empty states for CLI to improve CLI clarity and consistency.

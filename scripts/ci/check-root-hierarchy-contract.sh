@@ -22,11 +22,6 @@ forbidden_tracked_paths=(
   # tracked (shared project skills, ADR-0113); everything else under .claude/
   # stays forbidden.
   ".githooks"
-  # .jules and .serena were on CLAUDE.md's non-tracked list and missing from
-  # this one, so .jules/bolt.md sat in the tree for months while the contract
-  # reported passing. A hygiene list that does not match the documented rule is
-  # worse than none: it certifies the drift.
-  ".jules"
   ".serena"
   ".github/README.md"
   ".gitattributes"
@@ -52,6 +47,14 @@ done
 
 # .claude/ is untracked EXCEPT .claude/skills/ (ADR-0113). Flag any tracked
 # file under .claude/ that is not a shared skill.
+# .jules/ is untracked EXCEPT .jules/bolt.md and .jules/palette.md. Flag any tracked
+# file under .jules/ that is not one of these files.
+jules_forbidden="$(git ls-files -- ".jules" ":(exclude).jules/bolt.md" ":(exclude).jules/palette.md" 2>/dev/null | head -1)"
+if [ -n "$jules_forbidden" ]; then
+  echo "Forbidden tracked path under .jules/ (only bolt.md and palette.md may be tracked): $jules_forbidden" >&2
+  exit 1
+fi
+
 claude_forbidden="$(git ls-files -- ".claude" ":(exclude).claude/skills" ":(exclude).claude/skills/**" 2>/dev/null | head -1)"
 if [ -n "$claude_forbidden" ]; then
   echo "Forbidden tracked path under .claude/ (only .claude/skills/ may be tracked): $claude_forbidden" >&2

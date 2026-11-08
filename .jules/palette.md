@@ -1,0 +1,1 @@
+- Use domain-specific terminology for empty states/error copy (e.g., "No search results found.", "No graph targets found.", "No matching trace spans found.") instead of generic terms like "No memories found." or "No matching spans."

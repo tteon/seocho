@@ -90,7 +90,7 @@ def handle(args: argparse.Namespace) -> int:
         return 0
 
     if not spans:
-        print("No matching spans.")
+        print("No matching trace spans found.")
         return 0
 
     for record in spans:

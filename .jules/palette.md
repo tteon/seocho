@@ -1,0 +1,1 @@
+- Use proper domain terminology for CLI empty states (e.g. 'No search results found.', 'No matching trace spans found.') rather than generic or inconsistent phrasing.

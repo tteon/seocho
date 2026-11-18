@@ -7,6 +7,7 @@ interface can be reused across OpenAI, DeepSeek, Kimi, Grok, Qwen, and Z.AI.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import hashlib
 import logging
@@ -495,8 +496,14 @@ class OpenAICompatibleBackend(LLMBackend):
             base_url=base_url,
             timeout=timeout,
         )
-        client = openai.OpenAI(**kwargs)
-        async_client = openai.AsyncOpenAI(**kwargs)
+        # sr-ekq.11 (llm-io-contract H1): seocho's completion loop owns every
+        # resend. The SDK default (2 hidden retries per request) would stack
+        # under the variant ladder, turning one logical call into up to ~12
+        # HTTP requests and replaying 401/402s. Transport retries (408/429/5xx,
+        # connection errors) are done explicitly in ``complete``/``acomplete``.
+        client_kwargs = {**kwargs, "max_retries": 0}
+        client = openai.OpenAI(**client_kwargs)
+        async_client = openai.AsyncOpenAI(**client_kwargs)
 
         self.provider = spec.name
         self.provider_spec = spec
@@ -707,6 +714,93 @@ class OpenAICompatibleBackend(LLMBackend):
         variants.insert(position, boosted)
         return True
 
+    # HTTP statuses that resending cannot fix (llm-io-contract §6): the
+    # ladder stops on the first one instead of replaying every variant.
+    _TERMINAL_STATUS_CODES: Dict[int, str] = {
+        401: "provider.auth",
+        402: "provider.payment_required",
+        403: "provider.auth",
+    }
+    # Transport-level retryable statuses (plus every 5xx and connection or
+    # timeout errors). These resend the SAME variant with backoff, bounded
+    # per logical call, since the SDK's own retries are disabled.
+    _TRANSPORT_RETRY_STATUS_CODES = frozenset({408, 429})
+    _TRANSPORT_RETRY_LIMIT = 2
+    _TRANSPORT_RETRY_BASE_DELAY_S = 1.0
+    # openai SDK default; only used for the Agents SDK client view, which has
+    # no seocho retry loop around it.
+    _AGENTS_SDK_MAX_RETRIES = 2
+    _TRANSPORT_RETRY_MAX_DELAY_S = 30.0
+
+    @staticmethod
+    def _error_status_code(exc: Exception) -> Optional[int]:
+        status = getattr(exc, "status_code", None)
+        try:
+            return int(status) if status is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def _completion_error_disposition(cls, exc: Exception) -> str:
+        """Classify a failed attempt as ``terminal``, ``transport`` or ``ladder``.
+
+        ``ladder`` keeps the historical behaviour: move to the next request
+        variant (payload 400s, JSON-truncation 400s, non-HTTP errors)."""
+        status = cls._error_status_code(exc)
+        if status is not None:
+            if status in cls._TERMINAL_STATUS_CODES:
+                return "terminal"
+            if status in cls._TRANSPORT_RETRY_STATUS_CODES or status >= 500:
+                return "transport"
+            return "ladder"
+        # openai.APIConnectionError / APITimeoutError, matched by name so the
+        # check needs no openai import and works for subclasses.
+        if any(
+            klass.__name__ in ("APIConnectionError", "APITimeoutError")
+            for klass in type(exc).__mro__
+        ):
+            return "transport"
+        return "ladder"
+
+    @classmethod
+    def _transport_retry_delay(cls, exc: Exception, retry_index: int) -> float:
+        """Backoff before transport retry ``retry_index`` (0-based).
+
+        Honors a numeric ``retry-after-ms`` / ``retry-after`` response header,
+        capped; otherwise exponential from the base delay."""
+        headers = getattr(getattr(exc, "response", None), "headers", None)
+        if headers is not None:
+            for header, scale in (("retry-after-ms", 0.001), ("retry-after", 1.0)):
+                try:
+                    raw = headers.get(header)
+                except Exception:
+                    raw = None
+                if raw is None:
+                    continue
+                try:
+                    delay = float(raw) * scale
+                except (TypeError, ValueError):
+                    continue
+                if delay >= 0:
+                    return min(delay, cls._TRANSPORT_RETRY_MAX_DELAY_S)
+        return min(
+            cls._TRANSPORT_RETRY_BASE_DELAY_S * (2 ** retry_index),
+            cls._TRANSPORT_RETRY_MAX_DELAY_S,
+        )
+
+    def _terminal_completion_error(self, exc: Exception, *, model: str) -> Exception:
+        from ..exceptions import SeochoProviderTerminalError
+
+        status = self._error_status_code(exc) or 0
+        error = SeochoProviderTerminalError(
+            status_code=status,
+            code=self._TERMINAL_STATUS_CODES.get(status, "provider.auth"),
+            provider=self.provider,
+            model=model,
+        )
+        error.__cause__ = exc
+        return error
+
     def _completion_retry_variants(self, kwargs: Dict[str, Any]) -> List[Dict[str, Any]]:
         variants = [self._clone_completion_request_kwargs(kwargs)]
         has_provider_overrides = any(
@@ -826,7 +920,12 @@ class OpenAICompatibleBackend(LLMBackend):
         ) as span:
             last_exc: Optional[Exception] = None
             budget_boosted = False
-            for attempt, attempt_kwargs in enumerate(variants, start=1):
+            transport_retries = 0
+            request_count = 0
+            position = 0
+            while position < len(variants):
+                attempt_kwargs = variants[position]
+                request_count += 1
                 try:
                     resp = self._client.chat.completions.create(**attempt_kwargs)
                     result = self._build_response(resp)
@@ -837,7 +936,7 @@ class OpenAICompatibleBackend(LLMBackend):
                             "gen_ai.usage.output_tokens": result.usage.get("completion_tokens", 0),
                             "gen_ai.usage.total_tokens": result.usage.get("total_tokens", 0),
                             "gen_ai.usage.cached_input_tokens": result.usage.get("cached_tokens", 0),
-                            "seocho.llm.attempt_count": attempt,
+                            "seocho.llm.attempt_count": request_count,
                         }
                     )
                     completion = capture_text(result.text)
@@ -876,25 +975,38 @@ class OpenAICompatibleBackend(LLMBackend):
                     return result
                 except Exception as exc:
                     last_exc = exc
-                    if not budget_boosted:
-                        # list.insert during iteration is safe here: the
-                        # boosted variant lands at the position the loop
-                        # visits next.
-                        budget_boosted = self._maybe_boost_json_budget(
-                            exc=exc,
-                            attempt_kwargs=attempt_kwargs,
-                            variants=variants,
-                            position=attempt,
-                        )
-                    if attempt < len(variants):
-                        metrics.add(
-                            "seocho.gen_ai.retry.count",
-                            attributes={
-                                "gen_ai.provider.name": self.provider,
-                                "gen_ai.request.model": resolved_model,
-                                "reason": type(exc).__name__,
-                            },
-                        )
+                    disposition = self._completion_error_disposition(exc)
+                    if disposition == "terminal":
+                        last_exc = self._terminal_completion_error(exc, model=resolved_model)
+                        break
+                    if disposition == "transport":
+                        if transport_retries >= self._TRANSPORT_RETRY_LIMIT:
+                            break
+                        delay = self._transport_retry_delay(exc, transport_retries)
+                        transport_retries += 1
+                    else:
+                        position += 1
+                        if not budget_boosted:
+                            # The boosted variant is inserted at the position
+                            # the loop visits next.
+                            budget_boosted = self._maybe_boost_json_budget(
+                                exc=exc,
+                                attempt_kwargs=attempt_kwargs,
+                                variants=variants,
+                                position=position,
+                            )
+                        if position >= len(variants):
+                            break
+                    metrics.add(
+                        "seocho.gen_ai.retry.count",
+                        attributes={
+                            "gen_ai.provider.name": self.provider,
+                            "gen_ai.request.model": resolved_model,
+                            "reason": type(exc).__name__,
+                        },
+                    )
+                    if disposition == "transport":
+                        time.sleep(delay)
             assert last_exc is not None
             metrics.record(
                 "gen_ai.client.operation.duration",
@@ -968,7 +1080,12 @@ class OpenAICompatibleBackend(LLMBackend):
         ) as span:
             last_exc: Optional[Exception] = None
             budget_boosted = False
-            for attempt, attempt_kwargs in enumerate(variants, start=1):
+            transport_retries = 0
+            request_count = 0
+            position = 0
+            while position < len(variants):
+                attempt_kwargs = variants[position]
+                request_count += 1
                 try:
                     resp = await self._async_client.chat.completions.create(**attempt_kwargs)
                     result = self._build_response(resp)
@@ -979,7 +1096,7 @@ class OpenAICompatibleBackend(LLMBackend):
                             "gen_ai.usage.output_tokens": result.usage.get("completion_tokens", 0),
                             "gen_ai.usage.total_tokens": result.usage.get("total_tokens", 0),
                             "gen_ai.usage.cached_input_tokens": result.usage.get("cached_tokens", 0),
-                            "seocho.llm.attempt_count": attempt,
+                            "seocho.llm.attempt_count": request_count,
                         }
                     )
                     completion = capture_text(result.text)
@@ -1018,25 +1135,38 @@ class OpenAICompatibleBackend(LLMBackend):
                     return result
                 except Exception as exc:
                     last_exc = exc
-                    if not budget_boosted:
-                        # list.insert during iteration is safe here: the
-                        # boosted variant lands at the position the loop
-                        # visits next.
-                        budget_boosted = self._maybe_boost_json_budget(
-                            exc=exc,
-                            attempt_kwargs=attempt_kwargs,
-                            variants=variants,
-                            position=attempt,
-                        )
-                    if attempt < len(variants):
-                        metrics.add(
-                            "seocho.gen_ai.retry.count",
-                            attributes={
-                                "gen_ai.provider.name": self.provider,
-                                "gen_ai.request.model": resolved_model,
-                                "reason": type(exc).__name__,
-                            },
-                        )
+                    disposition = self._completion_error_disposition(exc)
+                    if disposition == "terminal":
+                        last_exc = self._terminal_completion_error(exc, model=resolved_model)
+                        break
+                    if disposition == "transport":
+                        if transport_retries >= self._TRANSPORT_RETRY_LIMIT:
+                            break
+                        delay = self._transport_retry_delay(exc, transport_retries)
+                        transport_retries += 1
+                    else:
+                        position += 1
+                        if not budget_boosted:
+                            # The boosted variant is inserted at the position
+                            # the loop visits next.
+                            budget_boosted = self._maybe_boost_json_budget(
+                                exc=exc,
+                                attempt_kwargs=attempt_kwargs,
+                                variants=variants,
+                                position=position,
+                            )
+                        if position >= len(variants):
+                            break
+                    metrics.add(
+                        "seocho.gen_ai.retry.count",
+                        attributes={
+                            "gen_ai.provider.name": self.provider,
+                            "gen_ai.request.model": resolved_model,
+                            "reason": type(exc).__name__,
+                        },
+                    )
+                    if disposition == "transport":
+                        await asyncio.sleep(delay)
             assert last_exc is not None
             metrics.record(
                 "gen_ai.client.operation.duration",
@@ -1088,9 +1218,18 @@ class OpenAICompatibleBackend(LLMBackend):
                 "Install it with: pip install openai-agents"
             ) from exc
 
+        # The shared client has max_retries=0 because complete()/acomplete()
+        # own resends. The Agents SDK Runner has no such loop, so hand it a
+        # view of the same client with the SDK's default retries restored
+        # (``with_options`` shares the HTTP pool). Clients without
+        # ``with_options`` (test doubles) are passed through unchanged.
+        openai_client = self._async_client
+        with_options = getattr(openai_client, "with_options", None)
+        if callable(with_options):
+            openai_client = with_options(max_retries=self._AGENTS_SDK_MAX_RETRIES)
         return OpenAIChatCompletionsModel(
             model=_strip_text(model) or self.model,
-            openai_client=self._async_client,
+            openai_client=openai_client,
         )
 
     def to_agents_provider(self, *, use_responses: Optional[bool] = None) -> Any:

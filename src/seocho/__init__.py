@@ -136,6 +136,7 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
         "SeochoCredentialError",
         "SeochoError",
         "SeochoHTTPError",
+        "SeochoProviderTerminalError",
     ],
     ".governance": [
         "ArtifactDiff",
@@ -461,6 +462,7 @@ __all__ = [
     "SeochoConnectionError",
     "SeochoCredentialError",
     "SeochoHTTPError",
+    "SeochoProviderTerminalError",
     "OntologyDriftError",
 ]
 

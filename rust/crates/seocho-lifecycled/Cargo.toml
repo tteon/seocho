@@ -1,0 +1,16 @@
+[package]
+name = "seocho-lifecycled"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "SEOCHO lifecycle authority daemon (PR-1: read-only `audit` subcommand only)"
+
+[dependencies]
+seocho-lifecycle = { path = "../seocho-lifecycle" }
+serde_json = "1"
+
+[dev-dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[lints]
+workspace = true

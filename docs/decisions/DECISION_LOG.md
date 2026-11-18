@@ -14,7 +14,7 @@
     (trigger: the sr-xsu fencing-token reuse incident); latency of added IPC hops
     is still measured per plane at the P2 gate
   - single-host SQLite/WAL scope; multi-host needs its own ADR
-  - phased P0-P5 rollout, each phase rollbackable; design in seocho-rust
+  - phased P0-P5 rollout, each phase rollbackable; design in
     `docs/design/rust-lifecycle-authority.md`
 
 ## 2026-09-14

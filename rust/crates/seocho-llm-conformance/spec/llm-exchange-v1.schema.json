@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://seocho.local/schemas/seocho.llm_exchange.v1.schema.json",
+  "title": "seocho.llm_exchange.v1",
+  "description": "One HTTP attempt to an LLM endpoint. Normative text: llm-exchange-v1.md. Structural rules only; semantic rules S1 (rec_id recomputation), S3 (body_sha256 recomputation), S8 pointer allowlist, S11-S13 (including the secret scan) and the committed-tier rules C1-C3 are enforced by the reference validator python/exchange_v1.py (in this crate).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "rec_id", "captured_at", "source", "endpoint", "model", "case", "chain",
+               "request", "response", "timing", "usage", "live_outcome", "oracle_outcome", "redaction"],
+  "properties": {
+    "schema_version": {"const": "seocho.llm_exchange.v1"},
+    "rec_id": {"$ref": "#/$defs/sha_tag"},
+    "captured_at": {"type": ["string", "null"], "description": "UTC, RFC 3339 'YYYY-MM-DDTHH:MM:SSZ'"},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "run_id", "git_sha", "llm_io_version", "wire", "served_from", "origin"],
+      "properties": {
+        "kind": {"enum": ["canary", "sweep", "onboard", "prod-shadow", "import:sk-llm/1", "import:finder-v1",
+                          "import:room-diagnostics", "synthetic", "synthetic-derived"]},
+        "run_id": {"type": "string", "pattern": "^[^|]+$",
+                   "description": "replay scope; non-empty, no '|' (rec_id material delimiter). sk-llm/1 imports: run_id/arm/session_id"},
+        "git_sha": {"type": ["string", "null"]},
+        "llm_io_version": {"type": ["string", "null"]},
+        "wire": {"type": "boolean"},
+        "served_from": {"enum": ["live", "scripted", "replay", "cache", null]},
+        "origin": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["format", "path", "file_sha256"],
+              "properties": {
+                "format": {"type": "string"},
+                "path": {"type": ["string", "null"]},
+                "file_sha256": {"$ref": "#/$defs/sha_tag_or_null"},
+                "line": {"type": ["integer", "null"], "minimum": 1},
+                "source_rec_id": {"$ref": "#/$defs/sha_tag"},
+                "source_run_id": {"type": ["string", "null"]},
+                "arm": {"type": ["string", "null"]},
+                "session_id": {"type": ["string", "null"]},
+                "role": {"type": ["string", "null"]}
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {"if": {"properties": {"kind": {"pattern": "^import:"}}},
+         "then": {"properties": {"origin": {"type": "object", "required": ["path", "file_sha256"],
+                                            "properties": {"path": {"type": "string", "minLength": 1},
+                                                           "file_sha256": {"$ref": "#/$defs/sha_tag"}}}}}},
+        {"if": {"properties": {"served_from": {"enum": ["replay", "cache"]}}, "required": ["served_from"]},
+         "then": {"properties": {"wire": {"const": false}}}}
+      ]
+    },
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "host", "path", "catalog_snapshot"],
+      "properties": {
+        "provider": {"type": "string"},
+        "host": {"type": ["string", "null"]},
+        "path": {"type": "string"},
+        "catalog_snapshot": {"$ref": "#/$defs/sha_tag_or_null"}
+      }
+    },
+    "model": {"type": "string"},
+    "case": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["case_id", "task", "input_class", "contract_sha256", "wire_dialect", "profile_sha256",
+                       "enforcement"],
+          "properties": {
+            "case_id": {"type": ["string", "null"]},
+            "task": {"type": ["string", "null"]},
+            "input_class": {"enum": ["public", "synthetic", "private", null]},
+            "contract_sha256": {"$ref": "#/$defs/hex64_or_null", "description": "reserved, null in M1"},
+            "wire_dialect": {"type": ["string", "null"], "description": "reserved, null allowed in M1"},
+            "profile_sha256": {"$ref": "#/$defs/hex64_or_null", "description": "reserved, null in M1"},
+            "enforcement": {"type": ["string", "null"], "description": "reserved, null in M1"}
+          }
+        }
+      ]
+    },
+    "chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["logical_call_id", "attempt", "next_step_of", "step_kind", "agent"],
+      "properties": {
+        "logical_call_id": {"type": ["string", "null"], "pattern": "^[^|]+$"},
+        "attempt": {"type": "integer", "minimum": 0},
+        "next_step_of": {"$ref": "#/$defs/sha_tag_or_null"},
+        "step_kind": {"enum": ["initial", "retry", "reprompt", "downgrade", "fallback", "sdk_retry"]},
+        "agent": {"type": ["string", "null"], "minLength": 1,
+                  "description": "non-empty or null; part of the import replay key and, when logical_call_id is null, of the rec_id material"}
+      },
+      "allOf": [
+        {"if": {"properties": {"attempt": {"const": 0}}},
+         "then": {"properties": {"step_kind": {"const": "initial"}, "next_step_of": {"type": "null"}}},
+         "else": {"properties": {"step_kind": {"not": {"const": "initial"}}}}}
+      ]
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["body", "body_scope", "messages_sha256", "req_hash", "req_hash_scheme", "occurrence"],
+      "properties": {
+        "body": {
+          "type": ["object", "null"],
+          "propertyNames": {"not": {"pattern": "^(authorization|Authorization|AUTHORIZATION|api_key|api-key|API_KEY)$"}}
+        },
+        "body_scope": {"enum": ["full", "subset", "none"]},
+        "messages_sha256": {"$ref": "#/$defs/hex64_or_null"},
+        "req_hash": {"$ref": "#/$defs/sha_tag_or_null"},
+        "req_hash_scheme": {"enum": ["sk-llm/1", "llm_exchange.v1", null]},
+        "occurrence": {"type": ["integer", "null"], "minimum": 0}
+      },
+      "allOf": [
+        {"if": {"properties": {"body_scope": {"const": "none"}}},
+         "then": {"properties": {"body": {"type": "null"}}},
+         "else": {"properties": {"body": {"type": "object"}}}},
+        {"if": {"properties": {"req_hash": {"type": "null"}}},
+         "then": {"properties": {"req_hash_scheme": {"type": "null"}}},
+         "else": {"properties": {"req_hash_scheme": {"type": "string"}}}}
+      ]
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["http_status", "headers", "body_fidelity", "body_utf8", "body_b64", "body_sha256", "truncated",
+                   "transport_error"],
+      "properties": {
+        "http_status": {"type": ["integer", "null"], "minimum": 100, "maximum": 599},
+        "headers": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "content-type": {"type": "string"},
+            "x-request-id": {"type": "string"}
+          }
+        },
+        "body_fidelity": {"enum": ["raw", "reserialized", null]},
+        "body_utf8": {"type": ["string", "null"]},
+        "body_b64": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9+/]*={0,2}$"},
+        "body_sha256": {"$ref": "#/$defs/sha_tag_or_null"},
+        "truncated": {"type": "boolean"},
+        "transport_error": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["class", "detail"],
+              "properties": {
+                "class": {"enum": ["timeout", "transport_error"]},
+                "detail": {"type": ["string", "null"]}
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {"description": "S2: body_utf8 and body_b64 are mutually exclusive",
+         "not": {"properties": {"body_utf8": {"type": "string"}, "body_b64": {"type": "string"}}}},
+        {"description": "S2: a stored body has a hash and a fidelity; no body has neither",
+         "if": {"anyOf": [{"properties": {"body_utf8": {"type": "string"}}},
+                          {"properties": {"body_b64": {"type": "string"}}}]},
+         "then": {"properties": {"body_sha256": {"type": "string"}, "body_fidelity": {"type": "string"}}},
+         "else": {"properties": {"body_sha256": {"type": "null"}, "body_fidelity": {"type": "null"}}}},
+        {"description": "S4: a transport error has no HTTP status and no body; no status means a transport error",
+         "if": {"properties": {"transport_error": {"type": "object"}}},
+         "then": {"properties": {"http_status": {"type": "null"}, "body_utf8": {"type": "null"},
+                                 "body_b64": {"type": "null"}}},
+         "else": {"properties": {"http_status": {"type": "integer"}}}},
+        {"description": "S5: only re-serialized bodies may be truncated",
+         "if": {"properties": {"truncated": {"const": true}}},
+         "then": {"properties": {"body_fidelity": {"const": "reserialized"}}}}
+      ]
+    },
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["latency_ms", "start_ns"],
+      "properties": {
+        "latency_ms": {"type": ["number", "null"], "minimum": 0},
+        "start_ns": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "usage": {"type": ["object", "null"]},
+    "live_outcome": {"$ref": "#/$defs/outcome"},
+    "oracle_outcome": {"$ref": "#/$defs/outcome"},
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "applied", "replay_class", "replayable"],
+      "properties": {
+        "policy": {"const": "rec-redact/1"},
+        "applied": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "anyOf": [
+              {"enum": ["auth_header_dropped", "headers_filtered", "request_messages_digested",
+                        "body_secret_scrubbed", "body_sensitive_key_redacted", "body_billing_redacted",
+                        "body_truncated"]},
+              {"type": "string", "pattern": "^/", "description": "RFC 6901 pointer into the parsed response body"}
+            ]
+          }
+        },
+        "replay_class": {"enum": ["full", "carrier_intact", "none"]},
+        "replayable": {"type": "boolean"}
+      },
+      "allOf": [
+        {"description": "S7: replayable is exactly replay_class != none",
+         "if": {"properties": {"replay_class": {"const": "none"}}},
+         "then": {"properties": {"replayable": {"const": false}}},
+         "else": {"properties": {"replayable": {"const": true}}}},
+        {"description": "S8: body-altering redaction forces replay_class none",
+         "if": {"properties": {"applied": {"contains": {"type": "string", "pattern": "^body_"}}}},
+         "then": {"properties": {"replay_class": {"const": "none"}}}},
+        {"description": "S8: full lists no pointers; carrier_intact lists at least one",
+         "if": {"properties": {"replay_class": {"const": "full"}}},
+         "then": {"properties": {"applied": {"not": {"contains": {"type": "string", "pattern": "^/"}}}}}},
+        {"if": {"properties": {"replay_class": {"const": "carrier_intact"}}},
+         "then": {"properties": {"applied": {"contains": {"type": "string", "pattern": "^/"}}}}}
+      ]
+    }
+  },
+  "allOf": [
+    {"description": "S5: truncated bodies are marked body_truncated (and therefore replay_class none)",
+     "if": {"properties": {"response": {"properties": {"truncated": {"const": true}}}}},
+     "then": {"properties": {"redaction": {"properties": {"applied": {"contains": {"const": "body_truncated"}}}}}}}
+  ],
+  "$defs": {
+    "sha_tag": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "sha_tag_or_null": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/sha_tag"}]},
+    "hex64_or_null": {"anyOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9a-f]{64}$"}]},
+    "outcome": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["verdict", "codes", "fingerprint"],
+          "properties": {
+            "verdict": {"type": "string"},
+            "codes": {"type": "array", "items": {"type": "string"}},
+            "fingerprint": {"$ref": "#/$defs/sha_tag_or_null"}
+          }
+        }
+      ]
+    }
+  }
+}

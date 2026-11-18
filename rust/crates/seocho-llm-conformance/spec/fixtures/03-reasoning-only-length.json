@@ -1,0 +1,97 @@
+{
+  "captured_at": "2026-10-26T00:00:00Z",
+  "case": {
+    "case_id": "golden/03",
+    "contract_sha256": null,
+    "enforcement": null,
+    "input_class": "synthetic",
+    "profile_sha256": null,
+    "task": "graph_extraction",
+    "wire_dialect": "json_object_prompt"
+  },
+  "chain": {
+    "agent": "G0",
+    "attempt": 0,
+    "logical_call_id": "G0#03",
+    "next_step_of": null,
+    "step_kind": "initial"
+  },
+  "endpoint": {
+    "catalog_snapshot": null,
+    "host": "api.cloud.mara.com",
+    "path": "/v1/chat/completions",
+    "provider": "mara"
+  },
+  "live_outcome": null,
+  "model": "gpt-oss-120b",
+  "oracle_outcome": null,
+  "rec_id": "sha256:c801aaba1d1b7db47650956d936ca1a6a643ba21fb02881b71f9c0d2b9b3e876",
+  "redaction": {
+    "applied": [
+      "auth_header_dropped"
+    ],
+    "policy": "rec-redact/1",
+    "replay_class": "full",
+    "replayable": true
+  },
+  "request": {
+    "body": {
+      "max_tokens": 512,
+      "messages": [
+        {
+          "content": "Extract entities and relationships as JSON with keys \"nodes\" and \"relationships\".",
+          "role": "system"
+        },
+        {
+          "content": "Acme Robotics acquired Beta Sensors in March 2021. Beta Sensors is headquartered in Austin. Acme Robotics reported revenue of 120 million dollars in fiscal 2023.",
+          "role": "user"
+        }
+      ],
+      "model": "gpt-oss-120b",
+      "response_format": {
+        "type": "json_object"
+      },
+      "temperature": 0.0
+    },
+    "body_scope": "full",
+    "messages_sha256": null,
+    "occurrence": 0,
+    "req_hash": "sha256:db91781550da1b472a8032e8018ca442d4477306b0ed8aec35480519ebb4dcc6",
+    "req_hash_scheme": "llm_exchange.v1"
+  },
+  "response": {
+    "body_b64": null,
+    "body_fidelity": "raw",
+    "body_sha256": "sha256:b80989d3b6e50a192aa0a5f1ec404949cdfa9b777360f7543a8b63f2ab4dccae",
+    "body_utf8": "{\"choices\":[{\"finish_reason\":\"length\",\"index\":0,\"logprobs\":null,\"message\":{\"content\":\"\",\"reasoning\":\"We need nodes for Acme Robotics and Beta Sensors. The acquisition happened in 2021. Revenue is a property of Acme. Let us also consider whether Austin is a node or a property; the schema says\",\"role\":\"assistant\"}}],\"created\":1792972800,\"id\":\"chatcmpl-golden\",\"model\":\"gpt-oss-120b\",\"object\":\"chat.completion\",\"system_fingerprint\":\"fastcoe\",\"usage\":{\"completion_tokens\":512,\"completion_tokens_details\":{\"reasoning_tokens\":512},\"prompt_tokens\":180,\"total_tokens\":692}}",
+    "headers": {
+      "content-type": "application/json",
+      "x-request-id": "req-golden-03"
+    },
+    "http_status": 200,
+    "transport_error": null,
+    "truncated": false
+  },
+  "schema_version": "seocho.llm_exchange.v1",
+  "source": {
+    "git_sha": null,
+    "kind": "synthetic",
+    "llm_io_version": null,
+    "origin": null,
+    "run_id": "golden-v1",
+    "served_from": null,
+    "wire": false
+  },
+  "timing": {
+    "latency_ms": 900.0,
+    "start_ns": 1792972800000000000
+  },
+  "usage": {
+    "completion_tokens": 512,
+    "completion_tokens_details": {
+      "reasoning_tokens": 512
+    },
+    "prompt_tokens": 180,
+    "total_tokens": 692
+  }
+}

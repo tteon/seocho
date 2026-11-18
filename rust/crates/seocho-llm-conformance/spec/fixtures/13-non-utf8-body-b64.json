@@ -1,0 +1,89 @@
+{
+  "captured_at": "2026-10-26T00:00:00Z",
+  "case": {
+    "case_id": "golden/13",
+    "contract_sha256": null,
+    "enforcement": null,
+    "input_class": "synthetic",
+    "profile_sha256": null,
+    "task": "graph_extraction",
+    "wire_dialect": null
+  },
+  "chain": {
+    "agent": "G0",
+    "attempt": 0,
+    "logical_call_id": "G0#13",
+    "next_step_of": null,
+    "step_kind": "initial"
+  },
+  "endpoint": {
+    "catalog_snapshot": null,
+    "host": "api.cloud.mara.com",
+    "path": "/v1/chat/completions",
+    "provider": "mara"
+  },
+  "live_outcome": null,
+  "model": "gpt-oss-120b",
+  "oracle_outcome": null,
+  "rec_id": "sha256:f6dafe21fbe57717937e89a3620dc9e94d37849dae231bacbd0de81010a3d401",
+  "redaction": {
+    "applied": [
+      "auth_header_dropped"
+    ],
+    "policy": "rec-redact/1",
+    "replay_class": "full",
+    "replayable": true
+  },
+  "request": {
+    "body": {
+      "max_tokens": 1024,
+      "messages": [
+        {
+          "content": "Extract entities and relationships as JSON with keys \"nodes\" and \"relationships\".",
+          "role": "system"
+        },
+        {
+          "content": "Acme Robotics acquired Beta Sensors in March 2021. Beta Sensors is headquartered in Austin. Acme Robotics reported revenue of 120 million dollars in fiscal 2023.",
+          "role": "user"
+        }
+      ],
+      "model": "gpt-oss-120b",
+      "response_format": {
+        "type": "json_object"
+      },
+      "temperature": 0.0
+    },
+    "body_scope": "full",
+    "messages_sha256": null,
+    "occurrence": 0,
+    "req_hash": "sha256:d22b284ad07470a2051aae7f3a3e10409292a2014a4ce73e6b97cbac102d1bcc",
+    "req_hash_scheme": "llm_exchange.v1"
+  },
+  "response": {
+    "body_b64": "PGh0bWw+PGJvZHk+NTAyIEJhZCBHYXRld2F5IC0gY2Fm6SBwcm94eTwvYm9keT48L2h0bWw+",
+    "body_fidelity": "raw",
+    "body_sha256": "sha256:de73d67207f07d57ba093dbf7317d50ca83b53df3852a365f9b23e3c1e3bfe2d",
+    "body_utf8": null,
+    "headers": {
+      "content-type": "text/html; charset=iso-8859-1"
+    },
+    "http_status": 502,
+    "transport_error": null,
+    "truncated": false
+  },
+  "schema_version": "seocho.llm_exchange.v1",
+  "source": {
+    "git_sha": null,
+    "kind": "synthetic",
+    "llm_io_version": null,
+    "origin": null,
+    "run_id": "golden-v1",
+    "served_from": null,
+    "wire": false
+  },
+  "timing": {
+    "latency_ms": 60.0,
+    "start_ns": 1792972800000000000
+  },
+  "usage": null
+}

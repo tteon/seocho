@@ -1,0 +1,110 @@
+{
+  "fixtures": {
+    "01-content-json.json": {
+      "body_fidelity": "raw",
+      "body_sha256": "sha256:20a0ea84037387d2083a5d54ec29566e8fea8c8e03a8e752ecfe83cb4638237f",
+      "http_status": 200,
+      "rec_id": "sha256:29818556925109315c429b9b342e73ab78ee559b6033b1337e354a7bfe675e8f",
+      "replay_class": "full",
+      "replayable": true
+    },
+    "02-fenced-json-prose-preamble.json": {
+      "body_fidelity": "raw",
+      "body_sha256": "sha256:6f7c90c3b087a4c1f15fb4026b8d5e803dd0594a0f0cb8ef6141fb899d7297c8",
+      "http_status": 200,
+      "rec_id": "sha256:6a4a1652cc34e0fc152255063213f5d2fdf2d86b920a1d446c67e72dae84b3e1",
+      "replay_class": "full",
+      "replayable": true
+    },
+    "03-reasoning-only-length.json": {
+      "body_fidelity": "raw",
+      "body_sha256": "sha256:b80989d3b6e50a192aa0a5f1ec404949cdfa9b777360f7543a8b63f2ab4dccae",
+      "http_status": 200,
+      "rec_id": "sha256:c801aaba1d1b7db47650956d936ca1a6a643ba21fb02881b71f9c0d2b9b3e876",
+      "replay_class": "full",
+      "replayable": true
+    },
+    "04-forced-tool-call-string-args.json": {
+      "body_fidelity": "raw",
+      "body_sha256": "sha256:5f3957ad1763920fdb021c5a7a503da509ac6af30cdbce13ca356c70907e2051",
+      "http_status": 200,
+      "rec_id": "sha256:61f31d8d307fd6c2abe0ebc907cf077377e7491cb2c7873a59b2eab86d42faad",
+      "replay_class": "full",
+      "replayable": true
+    },
+    "05-tool-call-object-args.json": {
+      "body_fidelity": "raw",
+      "body_sha256": "sha256:e2572587221a72dc52f03ed3a6dea2cb47b3b9cf50193f72c9987bd80c030ad5",
+      "http_status": 200,
+      "rec_id": "sha256:e5c0db6e969f254aa639bfa560012af2da92e10c0a125da49538e6afb1096995",
+      "replay_class": "full",
+      "replayable": true
+    },
+    "06-http400-did-not-complete.json": {
+      "body_fidelity": "raw",
+      "body_sha256": "sha256:b1dbe0165d01607b064a4942782ce8006a358ea349aed5f8a5a4a6a7c3bdcf84",
+      "http_status": 400,
+      "rec_id": "sha256:811e3d3c1d9da5b490672689a8848307718a21bf2172620211fdc472dc9bbd14",
+      "replay_class": "full",
+      "replayable": true
+    },
+    "07-http402-secret-scrubbed.json": {
+      "body_fidelity": "raw",
+      "body_sha256": "sha256:9c5cf351e47903f09f7580ed2a94456e6226d0afa393b8a87c56f19f3ce3c5eb",
+      "http_status": 402,
+      "rec_id": "sha256:46a8c6aefb7f227d7aeb19712ba1b0741e1bfb532f169a53c74894f0f77ad4e6",
+      "replay_class": "none",
+      "replayable": false
+    },
+    "08-legacy-502-truncated.json": {
+      "body_fidelity": "reserialized",
+      "body_sha256": "sha256:154aca865725e336a6455b6d77b7ff1b076fa8c2e4d352ea99c7e9ce05e1b30a",
+      "http_status": 502,
+      "rec_id": "sha256:4d8b83447c586c8c850288deda2d4b1ce91356592e073d5525804d973315a79b",
+      "replay_class": "none",
+      "replayable": false
+    },
+    "09-http400-tool-choice-error-model-output.json": {
+      "body_fidelity": "raw",
+      "body_sha256": "sha256:8563d2587042ea474be2eecc39b93e90a357b4ec7bc9abc7d53fead73116c8be",
+      "http_status": 400,
+      "rec_id": "sha256:3e6ca8fdeff96510a758a7ef32d245763cfe74151e76f3a1ab5504865929471f",
+      "replay_class": "full",
+      "replayable": true
+    },
+    "10-http400-json-truncation-downgrade.json": {
+      "body_fidelity": "raw",
+      "body_sha256": "sha256:87ec01cc4468d2f3c984080723031d65dcd74b778d8978727f6972b9cd214b80",
+      "http_status": 400,
+      "rec_id": "sha256:6af8eb846c53b8dd156ec1327ff7206a53ceb93be32bbaf962e60fe88803f4df",
+      "replay_class": "full",
+      "replayable": true
+    },
+    "11-raw-timeout-transport-error.json": {
+      "body_fidelity": null,
+      "body_sha256": null,
+      "http_status": null,
+      "rec_id": "sha256:6a8ad894a7a6e74af50f9e54e273a647c5fd0068f959f900e3796dcc44930dc8",
+      "replay_class": "full",
+      "replayable": true
+    },
+    "12-carrier-intact-reasoning-redacted.json": {
+      "body_fidelity": "raw",
+      "body_sha256": "sha256:b26316e96df8de5f6dc8985641bfb15bc46b9c8c2ddc5739030f35742db8abc0",
+      "http_status": 200,
+      "rec_id": "sha256:381a1015ea26a8c016be60453a2492dce9bfc7021181e5d60b0dd920b175361a",
+      "replay_class": "carrier_intact",
+      "replayable": true
+    },
+    "13-non-utf8-body-b64.json": {
+      "body_fidelity": "raw",
+      "body_sha256": "sha256:de73d67207f07d57ba093dbf7317d50ca83b53df3852a365f9b23e3c1e3bfe2d",
+      "http_status": 502,
+      "rec_id": "sha256:f6dafe21fbe57717937e89a3620dc9e94d37849dae231bacbd0de81010a3d401",
+      "replay_class": "full",
+      "replayable": true
+    }
+  },
+  "generator": "rust/crates/seocho-llm-conformance/python/make_exchange_fixtures.py",
+  "schema_version": "seocho.llm_exchange.v1"
+}

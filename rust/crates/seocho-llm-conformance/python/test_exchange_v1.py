@@ -416,6 +416,46 @@ class SecretScanTests(unittest.TestCase):
         rec['request']['body']['messages'][1]['content'] = '{"k": "\\u0042earer ' + 'Q' * 24 + '"}'
         self.rejected(rec)
 
+    def test_incomplete_json_bodies_are_scanned_decoded(self):
+        """A truncated or invalid JSON body is scanned through its tolerant token view, not skipped."""
+        q = 'Q' * 24
+        cases = (
+            ('{"message":"\\u0073k-' + q + '","unfinished":', 'decoded body'),       # reported case
+            ('{"message":"\\u0042earer ' + q, 'decoded body'),                       # cut inside the token
+            ('{"message":"\\q \\u0073k-' + q + '"}', 'decoded body'),                 # invalid escape nearby
+            ('{"error":{"api_key":"private-provider-key","x":', 'credential-bearing key'),
+            ('{"error":{"api\\u005fkey":["private', 'credential-bearing key'),        # cut inside the value
+            ('{"error":{"api_key":', 'credential-bearing key'),                       # cut after the name
+            ('{"error":"bad key \\u0073k-[redacted]","x":', 'body_secret_scrubbed'),
+            ('{"error":{"api_key":"[redacted]","x":', 'body_sensitive_key_redacted'),
+        )
+        for text, needle in cases:
+            with self.subTest(text):
+                with self.assertRaises(ValueError):
+                    json.loads(text)
+                rec = self.with_body(text)
+                rec['source']['kind'] = 'canary'
+                rec['case']['input_class'] = 'public'
+                rec['rec_id'] = x.compute_rec_id(rec)
+                self.assertTrue(any(needle in e for e in x.validate(rec, tier='committed')),
+                                x.validate(rec, tier='committed'))
+        # truncated billing member: C2 still sees the decoded name
+        rec = self.with_body('{"error":{"billing_\\u0070ortal_url":"https://billing.invalid/x","code":')
+        rec['case']['input_class'] = 'synthetic'
+        rec['rec_id'] = x.compute_rec_id(rec)
+        self.assertTrue(any('C2' in e for e in x.validate(rec, tier='committed')))
+        # prose after a quoted name is not a member value; a clean truncated body stays valid
+        for text in ('missing "api_key": see the docs', '{"choices":[{"message":{"content":"hel'):
+            with self.subTest(text):
+                rec = self.with_body(text)
+                rec['rec_id'] = x.compute_rec_id(rec)
+                self.assertEqual(x.validate(rec), [])
+
+    def test_truncated_embedded_tool_arguments(self):
+        args = '{"note": "\\u0073k-' + 'Q' * 24  # arguments cut by finish_reason length
+        body = json.dumps({'choices': [{'message': {'tool_calls': [{'function': {'arguments': args}}]}}]})
+        self.rejected(self.with_body(body), 'decoded body')
+
     def test_secret_in_utf16_body(self):
         # UTF-16 of ASCII is valid UTF-8 (NUL-interleaved), so it is stored in body_utf8 where the
         # plain string scan cannot see the token; the UTF-16 view and the parsed body do.
@@ -467,6 +507,100 @@ class SecretScanTests(unittest.TestCase):
         rec = fixture('07-http402-secret-scrubbed')
         rec['source']['kind'] = 'canary'
         self.assertTrue(any('C3' in e for e in x.validate(rec, tier='committed')))
+
+
+def _deep(depth: int) -> list:
+    """A list nested ``depth`` levels (built iteratively; deeper than the recursion limit)."""
+    value: list = []
+    for _ in range(depth):
+        value = [value]
+    return value
+
+
+def _mutation_paths(rec: dict):
+    """Every path to an object field (any depth) plus every top-level and second-level field."""
+    out, stack = [], [((), rec)]
+    while stack:
+        path, value = stack.pop()
+        if isinstance(value, dict):
+            if path:
+                out.append(path)
+            for k, child in value.items():
+                if isinstance(child, dict) or len(path) < 2:
+                    stack.append((path + (k,), child))
+        elif len(path) <= 2 and path:
+            out.append(path)
+    return sorted(set(out))
+
+
+class ShapeMutationTests(unittest.TestCase):
+    """validate() never raises on any JSON input: every field replaced by every JSON type."""
+    REPLACEMENTS = ([1, 2], ['x'], [{'k': 'v'}], 'str', '', '\ud800', 7, -1.5, float('nan'), 10 ** 30,
+                    None, True, {}, {'k': [1]}, _deep(1200))
+
+    # one fixture per shape: content, 402 scrubbed, legacy truncated, downgrade chain, transport
+    # error, carrier_intact, body_b64
+    SHAPES = ('01-content-json', '07-http402-secret-scrubbed', '08-legacy-502-truncated',
+              '10-http400-json-truncation-downgrade', '11-raw-timeout-transport-error',
+              '12-carrier-intact-reasoning-redacted', '13-non-utf8-body-b64')
+
+    def validate_both_tiers(self, rec, label, via_check=False):
+        for tier in (None, 'committed'):
+            try:
+                errors = x.validate(rec, tier=tier)
+            except Exception as exc:  # noqa: BLE001 - the property under test
+                self.fail(f'{label} tier={tier}: validate raised {type(exc).__name__}: {exc}')
+            self.assertIsInstance(errors, list, label)
+            self.assertTrue(all(isinstance(e, str) for e in errors), label)
+            self.assertFalse([e for e in errors if 'internal:' in e], f'{label}: guard missing: {errors}')
+            if via_check:
+                try:
+                    x.check(rec, tier=tier)
+                except x.InvalidRecord:
+                    pass
+        return errors
+
+    def test_non_object_records(self):
+        for rec in ([], [{}], 'record', 0, None, True, _deep(1200)):
+            self.assertNotEqual(self.validate_both_tiers(rec, repr(type(rec)), via_check=True), [])
+
+    def test_every_field_with_every_json_type(self):
+        for name in self.SHAPES:
+            path = SPEC / 'fixtures' / f'{name}.json'
+            base = load(path)
+            for field in _mutation_paths(base):
+                parent_path, key = field[:-1], field[-1]
+                # request.body and usage are open objects: their members are not typed
+                was_object = isinstance(base_get(base, field), dict) and field[:2] != ('request', 'body') \
+                    and field[0] != 'usage'
+                for value in self.REPLACEMENTS:
+                    rec = copy.deepcopy(base)
+                    base_get(rec, parent_path)[key] = value
+                    label = f'{path.name}:{".".join(field)}={type(value).__name__}'
+                    errors = self.validate_both_tiers(rec, label)
+                    if was_object and not isinstance(value, dict) and value is not None:
+                        self.assertNotEqual(errors, [], label)
+
+    def test_wrong_typed_redaction_source_request(self):
+        """The reported cases: non-object redaction / source / request in both tiers."""
+        for field in ('redaction', 'source', 'request', 'response', 'chain', 'case', 'timing'):
+            for value in (['body_secret_scrubbed'], 'x', 3):
+                rec = fixture('07-http402-secret-scrubbed')
+                rec[field] = value
+                errors = self.validate_both_tiers(rec, field, via_check=True)
+                self.assertTrue(any(e.startswith(f'$.{field}') for e in errors))
+
+    def test_bad_body_types_are_reported(self):
+        for field, value in (('body_utf8', 5), ('body_b64', 5), ('body_b64', ['QQ==']), ('body_utf8', '\ud800')):
+            rec = fixture('01-content-json')
+            rec['response'][field] = value
+            self.assertNotEqual(self.validate_both_tiers(rec, field), [], field)
+
+
+def base_get(rec, path):
+    for k in path:
+        rec = rec[k]
+    return rec
 
 
 class NegativeTests(unittest.TestCase):

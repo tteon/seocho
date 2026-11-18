@@ -164,7 +164,7 @@ Committed tier (`exchange_v1.validate(record, tier="committed")`, on top of S1-S
 | # | Rule |
 |---|---|
 | C1 | `request.body.messages` present ⇒ `case.input_class` is `public` or `synthetic` (C12; unclassified/private prompts stay private) |
-| C2 | no member whose decoded name is `billing_portal_url` / `balance_units` (any depth, every duplicate) has a value other than `"[redacted]"` in the stored body; a value that cannot be decoded (truncated body) counts as unredacted |
+| C2 | no member whose decoded name is `billing_portal_url` / `balance_units` (any depth, every duplicate, also in a truncated or invalid body) has a value other than `"[redacted]"` in the stored body; a value that cannot be decoded (truncated body) counts as unredacted |
 | C3 | `body_secret_scrubbed` / `body_sensitive_key_redacted` only on `synthetic`/`synthetic-derived` records; such records from real runs stay in the private tier |
 
 Fixture 07 is synthetic and shows only the post-scrub bytes.
@@ -172,6 +172,8 @@ Fixture 07 is synthetic and shows only the post-scrub bytes.
 ## 9. Semantic rules
 
 The JSON Schema encodes shape and the conditionals it can express. The reference validator (`exchange_v1.validate`) enforces all of the following; S1, S3, S8's pointer allowlist, S11, S12 and S13 are validator-only (the schema covers S10's origin requirement).
+
+`validate` returns the violation list for any JSON value and never raises: a field of the wrong JSON type is reported by the structural pass and every semantic check reads fields type-guarded. A record the validator still cannot evaluate is reported as invalid (`$: internal: ...`), never accepted.
 
 | # | Rule |
 |---|---|
@@ -187,7 +189,7 @@ The JSON Schema encodes shape and the conditionals it can express. The reference
 | S10 | `import:*` ⇒ `source.origin` non-null with non-null `path` and `file_sha256`; `served_from` replay/cache ⇒ `wire:false` |
 | S11 | `request.body` null ⇔ `body_scope: none`; `req_hash` null ⇔ `req_hash_scheme` null |
 | S12 | an HTTP response (no `transport_error`) without stored body ⇒ `replay_class: none` |
-| S13 | secret scan, on raw text **and** decoded values: no string anywhere in the record (keys and values, including `body_utf8`, request messages, nested `extra_body`, header values, `usage`, `transport_error.detail`), no text view of the stored body (UTF-8/latin-1, plus UTF-16/UTF-32 when JSON encoding detection finds it), no decoded key or string value of the parsed response body (any depth, every duplicate key; so JSON `\uXXXX` escapes cannot hide a credential), and no decoded string of a JSON document embedded in such a string (tool-call `arguments`, stringified payloads; up to 3 levels) matches the recorder's `sk-` / Bearer regexes. No `SENSITIVE` member (decoded name, any depth, every duplicate) of `request.body`, `usage` or the parsed response body holds a value that can carry material: only `"[redacted]"`, `""`, `null`, a boolean, `[]` or `{}` are allowed; any other string, a number, or a non-empty array/object is rejected. Visible scrub footprints in the body (`Bearer [redacted]` / `sk-[redacted]` in raw text or a decoded string, a `SENSITIVE` member = `"[redacted]"`, a billing member = `"[redacted]"`, names and values decoded) require the matching `body_*` token in `applied` (and so, by S8, `replay_class: none`) |
+| S13 | secret scan, on raw text **and** decoded values: no string anywhere in the record (keys and values, including `body_utf8`, request messages, nested `extra_body`, header values, `usage`, `transport_error.detail`), no text view of the stored body (UTF-8/latin-1, plus UTF-16/UTF-32 when JSON encoding detection finds it), no decoded key or string value of the parsed response body (any depth, every duplicate key; so JSON `\uXXXX` escapes cannot hide a credential), and no decoded string of a JSON document embedded in such a string (tool-call `arguments`, stringified payloads; up to 3 levels) matches the recorder's `sk-` / Bearer regexes. No `SENSITIVE` member (decoded name, any depth, every duplicate) of `request.body`, `usage` or the parsed response body holds a value that can carry material: only `"[redacted]"`, `""`, `null`, a boolean, `[]` or `{}` are allowed; any other string, a number, or a non-empty array/object is rejected. Visible scrub footprints in the body (`Bearer [redacted]` / `sk-[redacted]` in raw text or a decoded string, a `SENSITIVE` member = `"[redacted]"`, a billing member = `"[redacted]"`, names and values decoded) require the matching `body_*` token in `applied` (and so, by S8, `replay_class: none`). A body (or embedded document) that is not complete JSON (truncated or invalid) is scanned through its tolerant token view instead of being skipped: every complete JSON string token and the unterminated last one are decoded (invalid escapes kept, so they cannot hide a neighbour) and scanned; every `"name": value` member is checked with its value decoded, and a `SENSITIVE` member whose JSON value is cut off and cannot be decoded is rejected; prose after a quoted name (`missing "api_key": see docs`) is not a member |
 
 ## 10. Converting `sk-llm/1`
 

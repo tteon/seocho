@@ -23,7 +23,6 @@ Public API:
 from __future__ import annotations
 
 import base64
-import binascii
 import hashlib
 import json
 import re
@@ -82,9 +81,12 @@ SCRUB_MARKS = ('Bearer [redacted]', 'sk-[redacted]')
 BILLING_FIELDS = ('billing_portal_url', 'balance_units')
 REDACTED = '[redacted]'
 REDACTED_JSON = '"[redacted]"'
-_JSON_STRING = re.compile(r'"(?:[^"\\]|\\.)*"')
+_JSON_STRING = re.compile(r'"(?:[^"\\]|\\.)*"', re.S)
+# a complete string token, or the unterminated last one of a truncated body (group 2 empty)
+_JSON_TOKEN = re.compile(r'"((?:[^"\\]|\\.)*)("|\\?\Z)', re.S)
+_JSON_ESCAPE = re.compile(r'\\(?:u([0-9a-fA-F]{4})|(["\\/bfnrt]))')
+_JSON_SIMPLE_ESCAPES = {'"': '"', '\\': '\\', '/': '/', 'b': '\b', 'f': '\f', 'n': '\n', 'r': '\r', 't': '\t'}
 _KEY_SEP = re.compile(r'\s*:\s*')
-_JSON_DECODER = json.JSONDecoder()
 
 SHA_TAG = re.compile(r'^sha256:[0-9a-f]{64}$')
 # rec_id material joins with "||" (spec §4): identity strings must not contain "|" and
@@ -147,11 +149,16 @@ def rec_id_material(run_id: Any, logical_call_id: Any, attempt: Any, body_sha256
     return '||'.join(parts).encode('utf-8')
 
 
+def _d(value: Any) -> dict:
+    """``value`` when it is a JSON object, else ``{}``: downstream checks read fields through this so a
+    wrongly typed object (already reported by the structural pass) never raises."""
+    return value if isinstance(value, dict) else {}
+
+
 def compute_rec_id(record: dict) -> str:
-    src = record.get('source') or {}
-    chain = record.get('chain') or {}
-    req = record.get('request') or {}
-    resp = record.get('response') or {}
+    record = _d(record)
+    src, chain = _d(record.get('source')), _d(record.get('chain'))
+    req, resp = _d(record.get('request')), _d(record.get('response'))
     return sha256_tag(rec_id_material(src.get('run_id'), chain.get('logical_call_id'),
                                       chain.get('attempt'), resp.get('body_sha256'),
                                       req.get('req_hash'), req.get('occurrence'), chain.get('agent')))
@@ -183,10 +190,16 @@ def body_store_path(body_sha256: str) -> str:
 
 
 def body_bytes(record: dict) -> Optional[bytes]:
-    resp = record.get('response') or {}
+    """Stored response bytes, ``None`` when no body is stored.  Raises ``ValueError`` for a body field
+    of the wrong type or invalid base64 (``binascii.Error`` is a ``ValueError``)."""
+    resp = _d(_d(record).get('response'))
     if resp.get('body_utf8') is not None:
-        return resp['body_utf8'].encode('utf-8')
+        if not isinstance(resp['body_utf8'], str):
+            raise ValueError('body_utf8 is not a string')
+        return resp['body_utf8'].encode('utf-8')  # lone surrogates raise UnicodeEncodeError (a ValueError)
     if resp.get('body_b64') is not None:
+        if not isinstance(resp['body_b64'], str):
+            raise ValueError('body_b64 is not a string')
         return base64.b64decode(resp['body_b64'], validate=True)
     return None
 
@@ -219,6 +232,15 @@ _TRANSPORT = {'class': True, 'detail': True}
 _TIMING = {'latency_ms': True, 'start_ns': True}
 _OUTCOME = {'verdict': True, 'codes': True, 'fingerprint': True}
 _REDACTION = {'policy': True, 'applied': True, 'replay_class': True, 'replayable': True}
+
+
+def _brief(value: Any) -> str:
+    """Error-message rendering of an offending value: containers by type (``repr`` of a deeply
+    nested input would recurse), long strings cut."""
+    if isinstance(value, (list, dict)):
+        return f'<{type(value).__name__}>'
+    text = repr(value)
+    return text if len(text) <= 80 else text[:77] + '...'
 
 
 class _V:
@@ -256,14 +278,14 @@ class _V:
     def enum(self, value: Any, path: str, allowed: tuple, nullable: bool = False) -> None:
         if value is None and nullable:
             return
-        if value not in allowed:
-            self.err(path, f'{value!r} not in {list(allowed)}')
+        if isinstance(value, (list, dict)) or value not in allowed:
+            self.err(path, f'{_brief(value)} not in {list(allowed)}')
 
     def pattern(self, value: Any, path: str, rx: re.Pattern, nullable: bool = True) -> None:
         if value is None and nullable:
             return
         if not isinstance(value, str) or not rx.match(value):
-            self.err(path, f'{value!r} does not match {rx.pattern}')
+            self.err(path, f'{_brief(value)} does not match {rx.pattern}')
 
     def int_min(self, value: Any, path: str, lo: int, nullable: bool = False) -> None:
         if self.typ(value, path, (int,), nullable) and value < lo:
@@ -277,8 +299,18 @@ def validate(record: Any, tier: Optional[str] = None) -> List[str]:
     if tier not in (None, 'committed'):
         raise ValueError(f'unknown tier {tier!r}')
     v = _V()
+    try:
+        _validate(v, record, tier)
+    except Exception as exc:  # noqa: BLE001 - fail closed: never raise on any JSON input
+        # Backstop only: every access below is type-guarded and the shape-mutation tests assert
+        # this line is never reached.  A record the validator cannot evaluate is invalid.
+        v.err('$', f'internal: validator could not evaluate the record ({type(exc).__name__})')
+    return v.errors
+
+
+def _validate(v: _V, record: Any, tier: Optional[str]) -> None:
     if not v.obj(record, '$', _TOP):
-        return v.errors
+        return
     g = record.get
     if g('schema_version') != SCHEMA_VERSION:
         v.err('$.schema_version', f'must be {SCHEMA_VERSION!r}')
@@ -308,7 +340,7 @@ def validate(record: Any, tier: Optional[str] = None) -> List[str]:
                 if k in origin:
                     v.typ(origin[k], f'$.source.origin.{k}', (str,), nullable=True)
         # S10: imports name their origin file; a served_from replay/cache row is never a wire observation
-        if str(src.get('kind', '')).startswith('import:'):
+        if isinstance(src.get('kind'), str) and src['kind'].startswith('import:'):
             if not isinstance(origin, dict):
                 v.err('$.source.origin', 'S10: import:* records must carry source.origin')
             elif origin.get('path') is None or origin.get('file_sha256') is None:
@@ -406,8 +438,7 @@ def validate(record: Any, tier: Optional[str] = None) -> List[str]:
             v.err('$.rec_id', f'S1: cannot recompute ({exc})')
         else:
             if g('rec_id') != want:
-                v.err('$.rec_id', f'S1: {g("rec_id")!r} != recomputed {want!r}')
-    return v.errors
+                v.err('$.rec_id', f'S1: {_brief(g("rec_id"))} != recomputed {want!r}')
 
 
 def _validate_response(v: _V, resp: dict) -> None:
@@ -441,10 +472,10 @@ def _validate_response(v: _V, resp: dict) -> None:
         v.err('$.response.body_fidelity', 'S2: body_fidelity is set exactly when a body is stored')
     if has_body and resp.get('body_sha256') is not None:  # S3
         try:
-            data = (resp['body_utf8'].encode('utf-8') if has_utf8
-                    else base64.b64decode(resp['body_b64'], validate=True))
-        except (binascii.Error, ValueError, AttributeError) as exc:
-            v.err('$.response.body_b64', f'S3: not valid base64 ({exc})')
+            data = body_bytes({'response': resp})
+        except ValueError as exc:
+            v.err('$.response.body_utf8' if has_utf8 else '$.response.body_b64',
+                  f'S3: stored body cannot be decoded ({exc})')
         else:
             if sha256_tag(data) != resp['body_sha256']:
                 v.err('$.response.body_sha256', 'S3: does not match the stored body bytes')
@@ -520,44 +551,108 @@ class _Obj(list):
 _NOT_JSON = object()
 
 
+_UNDECODABLE = object()  # member value of a truncated/invalid body that cannot be decoded
+_PAIRS_DECODER = json.JSONDecoder(object_pairs_hook=_Obj)
+
+
 def parse_body_members(data: bytes) -> Any:
     """Stored body parsed with every member kept (``_Obj``), or ``_NOT_JSON``.
 
     Parses the bytes, so ``json`` detects UTF-8 (with or without BOM), UTF-16 and UTF-32."""
     try:
         return json.loads(data, object_pairs_hook=_Obj)
-    except (ValueError, UnicodeDecodeError, RecursionError):
+    except (ValueError, RecursionError):  # UnicodeDecodeError is a ValueError
         return _NOT_JSON
 
 
+def json_unescape(inner: str) -> str:
+    """Decode the JSON escapes of a string token's inner text leniently: ``\\uXXXX`` and the simple
+    escapes are decoded, an invalid escape is kept as is (it must not hide its neighbours)."""
+    return _JSON_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)) if m.group(1) else _JSON_SIMPLE_ESCAPES[m.group(2)],
+                            inner)
+
+
+def parse_tolerant(text: str) -> list:
+    """Decoded view of a body that is not a complete JSON document (truncated or invalid).
+
+    Returns ``[members, strings]``: ``members`` (an ``_Obj``) holds every ``"name": value`` pair whose
+    name is a complete string token followed by ``:``, with the value decoded by ``raw_decode`` (any
+    type) or ``_UNDECODABLE``; ``strings`` holds every decoded string token, including the
+    unterminated last one.  Tokens are matched left to right, so text inside a string is never
+    taken for a token.  The secret, SENSITIVE and footprint scans run on this view unchanged."""
+    members, strings = _Obj(), []
+    for m in _JSON_TOKEN.finditer(text):
+        token = json_unescape(m.group(1))
+        strings.append(token)
+        sep = _KEY_SEP.match(text, m.end()) if m.group(2) else None
+        if sep is None:
+            continue
+        try:
+            val, _ = _PAIRS_DECODER.raw_decode(text, sep.end())
+        except (ValueError, RecursionError):
+            if not _starts_json_value(text[sep.end():]):
+                continue  # prose such as 'missing "api_key": see docs' carries no member value
+            val = _UNDECODABLE  # a (truncated) JSON value whose content cannot be established
+        members.append((token, val))
+    return [members, strings]
+
+
+def _starts_json_value(rest: str) -> bool:
+    """True when ``rest`` is empty (cut right after ``:``), starts a JSON string, object, array or
+    number, or is a prefix of ``true``/``false``/``null`` cut at the end of the body."""
+    if rest == '' or rest[0] in '"{[-0123456789':
+        return True
+    return any(lit.startswith(rest) for lit in ('true', 'false', 'null'))
+
+
+def parse_body_view(data: bytes) -> Any:
+    """Decoded view every body scan uses: the full parse when the body is JSON, else the tolerant
+    view of each text view (``body_texts``)."""
+    parsed = parse_body_members(data)
+    if parsed is not _NOT_JSON:
+        return parsed
+    return [parse_tolerant(text) for text in body_texts(data)]
+
+
 def _members(value: Any, path: str):
-    """Yield ``(path, key, value)`` for every object member at any depth (duplicate keys kept)."""
-    if isinstance(value, _Obj):
-        items = iter(value)
-    elif isinstance(value, dict):
-        items = iter(value.items())
-    elif isinstance(value, list):
-        for i, item in enumerate(value):
-            yield from _members(item, f'{path}[{i}]')
-        return
-    else:
-        return
-    for k, val in items:
-        yield f'{path}.{k}', k, val
-        yield from _members(val, f'{path}.{k}')
+    """Yield ``(path, key, value)`` for every object member at any depth (duplicate keys kept).
+    Iterative, so nesting depth cannot exhaust the interpreter stack."""
+    stack = [(value, path)]
+    while stack:
+        val, p = stack.pop()
+        if isinstance(val, _Obj):
+            items = list(val)
+        elif isinstance(val, dict):
+            items = list(val.items())
+        elif isinstance(val, list):
+            stack.extend(reversed([(item, f'{p}[{i}]') for i, item in enumerate(val)]))
+            continue
+        else:
+            continue
+        children = []
+        for k, child in items:
+            kp = f'{p}.{k}'
+            yield kp, k, child
+            children.append((child, kp))
+        stack.extend(reversed(children))
 
 
 def _walk_strings(value: Any, path: str):
-    """Yield (path, string) for every decoded key and string value in a JSON value, any depth."""
-    if isinstance(value, str):
-        yield path, value
-    elif isinstance(value, (_Obj, dict)):
-        for k, val in (value if isinstance(value, _Obj) else value.items()):
-            yield f'{path}.{k}', str(k)
-            yield from _walk_strings(val, f'{path}.{k}')
-    elif isinstance(value, list):
-        for i, item in enumerate(value):
-            yield from _walk_strings(item, f'{path}[{i}]')
+    """Yield (path, string) for every decoded key and string value in a JSON value, any depth.
+    Iterative, like ``_members``."""
+    stack = [(value, path)]
+    while stack:
+        val, p = stack.pop()
+        if isinstance(val, str):
+            yield p, val
+        elif isinstance(val, (_Obj, dict)):
+            children = []
+            for k, child in (val if isinstance(val, _Obj) else val.items()):
+                yield f'{p}.{k}', str(k)
+                children.append((child, f'{p}.{k}'))
+            stack.extend(reversed(children))
+        elif isinstance(val, list):
+            stack.extend(reversed([(item, f'{p}[{i}]') for i, item in enumerate(val)]))
 
 
 EMBEDDED_JSON_DEPTH = 3
@@ -573,7 +668,7 @@ def _scan_strings(value: Any, path: str, skip: Tuple[str, ...] = (), depth: int 
             try:
                 inner = json.loads(s, object_pairs_hook=_Obj)
             except (ValueError, RecursionError):
-                continue
+                inner = parse_tolerant(s)  # e.g. tool-call arguments cut by finish_reason length
             yield from _scan_strings(inner, f'{p}<json>', skip, depth + 1)
 
 
@@ -633,16 +728,13 @@ def _billing_spans(text: str) -> List[Tuple[int, int, Any, bool]]:
         sep = _KEY_SEP.match(text, pos)
         if sep is None:
             continue
-        try:
-            key = json.loads(m.group())
-        except ValueError:
-            continue
+        key = json_unescape(m.group()[1:-1])
         if key not in BILLING_FIELDS:
             continue
         start = sep.end()
         try:
-            val, end = _JSON_DECODER.raw_decode(text, start)
-        except ValueError:
+            val, end = _PAIRS_DECODER.raw_decode(text, start)
+        except (ValueError, RecursionError):
             out.append((start, start, None, False))
             continue
         out.append((start, end, val, True))
@@ -661,9 +753,7 @@ def body_redaction_marks(data: bytes) -> List[str]:
     found = set()
     if any(m in text for text in body_texts(data) for m in SCRUB_MARKS):
         found.add('body_secret_scrubbed')
-    parsed = parse_body_members(data)
-    if parsed is not _NOT_JSON:
-        _detect_cleaned(parsed, found)
+    _detect_cleaned(parse_body_view(data), found)
     if any(ok and val == REDACTED for val, ok in _billing_values(data)):
         found.add('body_billing_redacted')
     return sorted(found)
@@ -681,7 +771,7 @@ def _validate_secrets(v: _V, record: dict) -> None:
         return
     try:
         data = body_bytes(record)
-    except (binascii.Error, ValueError, AttributeError, TypeError):
+    except ValueError:
         return  # S3 already reports undecodable bodies
     if data is None:
         return
@@ -690,17 +780,17 @@ def _validate_secrets(v: _V, record: dict) -> None:
         if SK_RE.search(text) or BEARER_RE.search(text):
             v.err('$.response.body', 'S13: credential-shaped string (sk- / Bearer token) in body')
     # JSON escapes (a backslash-u sequence spelling "s" or "B") hide a credential from the raw-text
-    # scan: every decoded key and string value of the parsed body, at any depth and including
-    # duplicate keys, is scanned with the same patterns.  request.body and usage are stored as
-    # parsed objects, so the record walk above already sees them decoded.
-    parsed = parse_body_members(data)
-    if parsed is not _NOT_JSON:
-        for path, s in _scan_strings(parsed, '$.response.body'):
-            if SK_RE.search(s) or BEARER_RE.search(s):
-                v.err(path, 'S13: credential-shaped string (sk- / Bearer token) in decoded body')
-        for path in _sensitive_values(parsed, '$.response.body'):
-            v.err(path, 'S13: credential-bearing key with an unredacted value')
-    applied = (record.get('redaction') or {}).get('applied')
+    # scan: every decoded key and string value of the body, at any depth and including duplicate
+    # keys, is scanned with the same patterns.  A truncated or invalid body is scanned through its
+    # tolerant token view, never skipped.  request.body and usage are stored as parsed objects, so
+    # the record walk above already sees them decoded.
+    view = parse_body_view(data)
+    for path, s in _scan_strings(view, '$.response.body'):
+        if SK_RE.search(s) or BEARER_RE.search(s):
+            v.err(path, 'S13: credential-shaped string (sk- / Bearer token) in decoded body')
+    for path in _sensitive_values(view, '$.response.body'):
+        v.err(path, 'S13: credential-bearing key with an unredacted (or undecodable) value')
+    applied = _d(record.get('redaction')).get('applied')
     applied = applied if isinstance(applied, list) else []
     for token in body_redaction_marks(data):
         if token not in applied:
@@ -709,19 +799,18 @@ def _validate_secrets(v: _V, record: dict) -> None:
 
 def _validate_committed(v: _V, record: dict) -> None:
     """Spec §8 committed tier (C1-C3)."""
-    case = record.get('case') or {}
-    req = record.get('request') or {}
-    src = record.get('source') or {}
+    case, req, src = _d(record.get('case')), _d(record.get('request')), _d(record.get('source'))
     body = req.get('body')
     if isinstance(body, dict) and 'messages' in body and case.get('input_class') not in ('public', 'synthetic'):
         v.err('$.request.body.messages', 'C1: prompts are committed only for input_class public/synthetic')
     try:
         data = body_bytes(record)
-    except (binascii.Error, ValueError, AttributeError, TypeError):
+    except ValueError:
         data = None
     if data is not None and any(not ok or val != REDACTED for val, ok in _billing_values(data)):
         v.err('$.response.body', 'C2: billing_portal_url / balance_units must be redacted')
-    applied = (record.get('redaction') or {}).get('applied') or []
+    applied = _d(record.get('redaction')).get('applied')
+    applied = applied if isinstance(applied, list) else []
     if src.get('kind') not in ('synthetic', 'synthetic-derived'):
         bad = [t for t in applied if t in ('body_secret_scrubbed', 'body_sensitive_key_redacted')]
         if bad:

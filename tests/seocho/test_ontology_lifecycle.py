@@ -225,3 +225,86 @@ def test_expired_lease_token_is_not_reissued_even_if_row_is_pruned(tmp_path, mon
         conn.execute("DELETE FROM ontology_lease")
     newest = store.acquire("ws", "demo", purpose="projection", owner="c", ttl_seconds=30)
     assert newest.fencing_token > new.fencing_token
+
+
+def _migrated_db_with_live_lease(tmp_path):
+    store = _active_store(tmp_path, pointer_token=3)
+    lease = store.acquire("ws", "demo", purpose="projection", owner="a", ttl_seconds=300)
+    # Raising the pointer above the high-water is the normal post-activate state
+    # and must not by itself force a write on the next open.
+    assert store.activate("ws", "demo", tmp_path / "bundle", fencing_token=50, expected=(0, 0))[0]
+    return tmp_path / "state.sqlite", lease
+
+
+def test_open_of_migrated_db_takes_no_write_lock(tmp_path):
+    import sqlite3
+    import time as _time
+
+    db, lease = _migrated_db_with_live_lease(tmp_path)
+    blocker = sqlite3.connect(db, isolation_level=None)
+    blocker.execute("BEGIN IMMEDIATE")  # hold the write lock
+    try:
+        started = _time.monotonic()
+        store = OntologyLifecycleStore(db)
+        assert store.admission(lease.lease_id)["fencing_token"] == lease.fencing_token
+        assert _time.monotonic() - started < 2.0
+    finally:
+        blocker.execute("ROLLBACK")
+        blocker.close()
+
+
+def test_migrated_db_opens_read_only_via_uri(tmp_path):
+    db, lease = _migrated_db_with_live_lease(tmp_path)
+    ro = OntologyLifecycleStore(f"file:{db}?mode=ro")
+    status = ro.status("ws", "demo")
+    assert status["active"]["fencing_token"] == 50
+    assert [row["lease_id"] for row in status["live_leases"]] == [lease.lease_id]
+    assert ro.admission(lease.lease_id)["fencing_token"] == lease.fencing_token
+
+
+def test_migrated_db_opens_when_file_is_not_writable(tmp_path):
+    import os
+    import stat
+
+    import pytest
+
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("root ignores file permissions")
+    db, lease = _migrated_db_with_live_lease(tmp_path)
+    OntologyLifecycleStore(db)  # checkpoint so the main file is complete
+    mode = db.stat().st_mode
+    db.chmod(stat.S_IRUSR | stat.S_IRGRP)
+    try:
+        ro = OntologyLifecycleStore(db)
+        assert ro.status("ws", "demo")["live_leases"][0]["lease_id"] == lease.lease_id
+        assert ro.admission(lease.lease_id)["fencing_token"] == lease.fencing_token
+    finally:
+        db.chmod(mode)
+
+
+def test_open_migrates_lease_minted_by_pre_upgrade_code(tmp_path):
+    # Table already exists, but an old-code acquire inserted a lease row without
+    # touching the high-water: the cheap check must detect and fold it in.
+    import sqlite3
+
+    db, lease = _migrated_db_with_live_lease(tmp_path)
+    with sqlite3.connect(db) as conn:
+        conn.execute("UPDATE ontology_lease SET fencing_token=90 WHERE lease_id=?", (lease.lease_id,))
+    store = OntologyLifecycleStore(db)
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT high_water FROM ontology_fence_high_water WHERE package_id='demo'").fetchone()[0] == 90
+    assert store.release(lease.lease_id, owner="a")
+    assert store.acquire("ws", "demo", purpose="projection", owner="b", ttl_seconds=30).fencing_token == 91
+
+
+def test_acquire_is_safe_without_open_time_migration(tmp_path, monkeypatch):
+    # Even if the open-time migration is skipped, acquire() still mints above
+    # every live lease and the pointer.
+    import sqlite3
+
+    db, lease = _migrated_db_with_live_lease(tmp_path)
+    with sqlite3.connect(db) as conn:
+        conn.execute("UPDATE ontology_lease SET fencing_token=90 WHERE lease_id=?", (lease.lease_id,))
+    monkeypatch.setattr(OntologyLifecycleStore, "_migrate_fence_high_water", staticmethod(lambda conn: None))
+    store = OntologyLifecycleStore(db)
+    assert store.acquire("ws", "demo", purpose="query", owner="q", ttl_seconds=30).fencing_token == 91

@@ -54,12 +54,13 @@ class ActiveOntologyPointer:
 
     def __init__(self, path: str | Path) -> None:
         self.path = str(path)
-        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        if not self.path.startswith("file:"):  # sqlite URI (e.g. ?mode=ro): no mkdir
+            Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()   # in-process guard; BEGIN IMMEDIATE = cross-process
         self._init_schema()
 
     def _conn(self) -> sqlite3.Connection:
-        c = sqlite3.connect(self.path, isolation_level=None, timeout=10.0)
+        c = sqlite3.connect(self.path, isolation_level=None, timeout=10.0, uri=True)
         c.execute("PRAGMA journal_mode=WAL")
         c.execute("PRAGMA busy_timeout=10000")
         return c

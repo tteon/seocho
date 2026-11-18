@@ -341,6 +341,33 @@ direct path when the Rust socket is not configured. Therefore it is a
 **shadow/enforcement-ready slice**, not yet a repository-wide mandatory
 governed-write policy.
 
+### Lease fencing tokens and upgrade order (sr-xsu)
+
+- Lease fencing tokens come from a durable per-`(workspace_id, package_id)`
+  counter (`ontology_fence_high_water` in the lifecycle control DB) that is
+  never deleted. `acquire()` mints `max(high_water, live lease tokens,
+  pointer token) + 1` inside `BEGIN IMMEDIATE`, so a released or pruned
+  lease's token is never reissued. Tokens are comparable only within one
+  scope; `seochod` stamps the raw admitted lease `fencing_token` on graph items
+  with `_fence_scope = package_id`.
+- `seochod` admits only leases with `purpose='projection'`. Query and index
+  leases draw from the same counter but cannot authorise a canonical write.
+- Opening an already-migrated control DB is read-only (a cheap check that no
+  live lease sits above its scope's high-water), so status/admission readers
+  may open it read-only (`file:/path/state.sqlite?mode=ro` or a non-writable
+  file). The open-time migration runs only when the table is new or drift is
+  found; `acquire()` correctness does not depend on it.
+- **Migration limit.** The first open by upgraded code seeds the high-water
+  from lease rows that still exist and from the active pointer. Tokens that
+  pre-upgrade code issued *and released* are not recoverable. This is harmless
+  only because pre-upgrade `seochod` never stamped `_fencing_token` on graph
+  items, so nothing persisted can compare against a lost token.
+- **Upgrade order.** Upgrade the Python lifecycle store in *all* processes
+  that open the control DB first, then deploy a `seochod` that stamps fencing
+  tokens. Do not run pre-upgrade `acquire()` processes alongside upgraded
+  ones: old code ignores the high-water, so a token it mints and releases
+  after the migration is lost again.
+
 ### Operational modes
 
 | Mode | Intended use | Required result |

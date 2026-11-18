@@ -2,7 +2,7 @@
 
 ## 2026-10-23
 
-- [Proposed] `ADR-0239-rust-lifecycle-authority.md` (amends ADR-0163, ADR-0155)
+- [Proposed] `ADR-0239-rust-lifecycle-authority.md` (amends ADR-0163)
   - policy stays in Python; the lifecycle invariant kernel (lease state machine,
     monotonic fencing-token mint, active-pointer CAS, projection idempotency
     state machine, control-DB schema ownership) moves to the Rust authority

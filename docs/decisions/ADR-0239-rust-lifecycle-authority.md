@@ -3,9 +3,10 @@
 - Status: proposed
 - Date: 2026-10-23
 - Amends: ADR-0163 (the "control plane stays in Python" rule and the
-  "control-plane XOR data-plane" PR rule); ADR-0155 (adds a correctness
-  exception to its measurement gate)
-- Related: ADR-0219 (`seochod` projection daemon), ADR-0151 (fenced leases),
+  "control-plane XOR data-plane" PR rule, and adds a correctness exception to
+  its `server_share` gate)
+- Related: ADR-0155 (Rust cache-layer data plane; not amended), ADR-0219
+  (`seochod` projection daemon), ADR-0151 (fenced leases),
   `docs/reference/SEMANTIC_CONTROL_PLANE.md` ("Plane Boundary And Admission
   Policy"), and the in-flight single-host co-located appliance ADR (not yet on
   this branch's base; cite it by number once it lands)
@@ -13,12 +14,13 @@
   (direction 2, `seocho-lifecycled`). That document holds the full design:
   API, schema v2, triggers, invariants I1-I13, failure modes and per-phase
   exit criteria. This ADR records the decision only.
-- Tickets: sr-xsu (incident, closed), sr-x9x (merge the sr-xsu fix),
-  sr-5e6 (mixed old/new minters), sr-5zg (seocho-rust remote)
+- Tickets (seocho-rust beads issues, not this repository's tracker): sr-xsu
+  (fencing-token reuse defect, closed), sr-x9x (merge the sr-xsu fix), sr-5e6
+  (mixed old/new minters), sr-5zg (seocho-rust remote)
 
 ## Context
 
-### The sr-xsu incident
+### The sr-xsu defect
 
 ADR-0163 placed every control-plane concern in Python, including the ontology
 lifecycle store (`src/seocho/ontology/lifecycle.py`, `active_pointer.py`).
@@ -31,7 +33,10 @@ On `main`, `acquire()` derives the next token from the lease rows that still
 exist: `max(active.fencing_token + 1, MAX(ontology_lease.fencing_token) + 1)`.
 `release()` deletes the row. A released token can therefore be minted again.
 When a token is reused, a stale writer passes the fence or a correct writer is
-fenced out. `seochod` states the contract only as a comment ("the store issues
+fenced out. This is a latent defect with a known mechanism, caught in
+development review of `seochod`'s `assign_storage_fence`, not a field
+failure: reuse was harmless so far because pre-upgrade `seochod` never
+stamped `_fencing_token`. `seochod` states the contract only as a comment ("the store issues
 these strictly increasing and never reused per (workspace, package)"). Neither
 the type system nor any test can see it.
 
@@ -47,7 +52,9 @@ records that mixed old/new minters can still issue duplicate tokens.
 The lifecycle invariants are spread across two languages and several callers:
 
 - Callers choose the activation token. The CLI accepts `--fencing-token`,
-  calibration scripts publish `pointer + 1`, and `publish` accepts an equal
+  benchmark fixture scripts publish `pointer + 1` (for example
+  `scripts/benchmarks/prepare_governed_text2cypher_fixture.py`,
+  `token = ... int(current["fencing_token"]) + 1`), and `publish` accepts an equal
   token. Any caller can fence every lease by publishing a large token.
 - `renew` runs without a transaction, TTL bound or purpose check.
 - Python `admission()` checks liveness only. Only `seochod` checks purpose and
@@ -69,9 +76,12 @@ that can open the SQLite file can break them.
   execute approved work but **may not decide what is active**.
 - ADR-0163 says the control plane "stays in Python". Read literally, that rule
   forbids moving any lifecycle code to Rust.
-- ADR-0155 says "no Rust on speculation". Rust work must first pass a
-  measurement gate (`server_share`). That gate is about performance and does
-  not apply to a correctness defect.
+- ADR-0163 gates further Rust on its plane "per ADR-0155's discipline — no
+  Rust on speculation", using a measured `server_share`. That gate is about
+  performance and does not fit a correctness defect. ADR-0155 itself does not
+  block this work: its `server_share` gate (Decision 2) covers only rewriting
+  the Python SDK's Bolt path, and its Decision 1 already makes the cache-layer
+  data plane Rust from day one.
 
 ## Decision
 
@@ -109,14 +119,18 @@ keep the invariants for any caller in any language.
 ### 2. Authority is not the writer
 
 The kernel runs in a **new Rust process, `seocho-lifecycled`**, distinct from
-the DozerDB writer `seochod`:
+the DozerDB writer `seochod`. The properties below are the **target state**,
+reached at the phase exits in Rollout (the opener and linkage properties at
+the P3 exit, Python write-path removal at P4). During P1-P2 `seochod` still
+opens the control DB directly and writes `projection_idempotency`, and Python
+remains a read-write opener when `SEOCHO_LIFECYCLED_SOCKET` is unset.
 
-- `seocho-lifecycled` is the only read-write opener of the control DB and the
-  only minter. It holds no Bolt credentials and never writes to DozerDB.
+- `seocho-lifecycled` becomes the only read-write opener of the control DB and the
+  only minter (from P3 for `seochod`, P4 for Python). It holds no Bolt credentials and never writes to DozerDB.
 - `seochod` stays the DozerDB writer and becomes a **verifier-only client** of
-  the authority. It links only the wire/proto crate, so it cannot mint, and
-  CI enforces that through a `cargo tree` check and a `compile_fail` test.
-  It re-checks capabilities just before commit through the authority.
+  the authority (P3). It will link only the wire/proto crate, so it cannot
+  mint, and CI will enforce that through a `cargo tree` check and a `compile_fail` test.
+  It will re-check capabilities just before commit through the authority.
 - Python callers keep the `OntologyLifecycleStore` API and the admission dict
   shape `{lease_id, fingerprint, generation, epoch, fencing_token}`. They
   delegate mutating operations to the authority over a local socket when
@@ -132,16 +146,18 @@ library into each Python process through PyO3 was also rejected. It would give
 every Python process full authority, it could not keep the sr-xsu rollback
 path, and it would load two SQLite builds into one process.
 
-### 3. Correctness exception to ADR-0155's measurement gate
+### 3. Correctness exception to ADR-0163's measurement gate
 
-ADR-0155's gate ("no Rust on speculation", gated on measured `server_share`)
-applies to Rust adopted **for performance**. It does not apply when Rust is
-adopted **to enforce a correctness or safety invariant** that has already
-failed in the field. The sr-xsu fencing-token reuse is such a failure.
+ADR-0163's gate ("per ADR-0155's discipline — no Rust on speculation", gated
+on measured `server_share`) applies to Rust adopted **for performance**. It
+does not apply when Rust is adopted **to enforce a correctness or safety
+invariant** that has a documented defect with a known mechanism. The sr-xsu
+fencing-token reuse, caught in development review, is such a defect. ADR-0155
+is not amended: its gate covers only the Python SDK Bolt-path rewrite.
 
 Under this exception:
 
-- The entry evidence is the documented defect (incident, failing invariant and
+- The entry evidence is the documented defect (defect record, failing invariant and
   reproduction), not a latency or throughput number.
 - Performance stays gated, not assumed. The new IPC hops on the admission and
   projection paths must be measured per plane (extending ADR-0163's

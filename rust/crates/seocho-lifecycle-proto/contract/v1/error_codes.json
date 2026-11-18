@@ -1,0 +1,1 @@
+["lease_absent", "lease_expired", "lease_held", "owner_mismatch", "not_projection_purpose", "stale_pointer", "fenced", "cas_mismatch", "ttl_out_of_range", "schema_mismatch", "schema_tampered", "busy", "internal", "invalid_request", "no_active"]

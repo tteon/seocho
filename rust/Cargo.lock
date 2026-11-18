@@ -1195,6 +1195,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "seocho-lifecycle"
+version = "0.1.0"
+dependencies = [
+ "getrandom 0.2.17",
+ "hex",
+ "rusqlite",
+ "seocho-lifecycle-proto",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "seocho-lifecycle-proto"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "seocho-lifecycled"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+ "seocho-lifecycle",
+ "serde_json",
+]
+
+[[package]]
 name = "seocho-oxigraph-read-model"
 version = "0.1.0"
 dependencies = [

@@ -10,7 +10,7 @@
   `docs/reference/SEMANTIC_CONTROL_PLANE.md` ("Plane Boundary And Admission
   Policy"), and the in-flight single-host co-located appliance ADR (not yet on
   this branch's base; cite it by number once it lands)
-- Design: seocho-rust `docs/design/rust-lifecycle-authority.md`
+- Design: [`docs/design/rust-lifecycle-authority.md`](../design/rust-lifecycle-authority.md)
   (direction 2, `seocho-lifecycled`). That document holds the full design:
   API, schema v2, triggers, invariants I1-I13, failure modes and per-phase
   exit criteria. This ADR records the decision only.

@@ -54,6 +54,11 @@ With a control DB every projection needs an `idempotency_key`, claimed in the
   holder is presumed dead and the key is re-claimed atomically. A holder whose
   claim was taken over cannot record its outcome afterwards.
 
+Request checks that need no control DB (bookmarks, `SEOCHOD_WRITE_MODE`) run
+before the key is claimed, so such a rejection leaves no `pending` claim and a
+corrected retry with the same key proceeds at once. A rejection found after the
+claim (an invalid item, for example) is recorded as `failed`.
+
 A key bound to a different workspace or bundle fingerprint is always rejected.
 If the outcome cannot be recorded, the response is turned into `ok=false` with
 an `error` and the failure is logged to stderr.
@@ -139,9 +144,12 @@ grouped. `merge_conflicts` are reported in request order.
 pre-batching shapes); the live suite checks both modes produce the same graph
 and responses. Batching pays off once each label has an `(id)` index (the
 Python ontology creates one); without an index a batch is planned as a label
-scan per row. Measured against DozerDB 5.26 through the daemon (1000 nodes +
-1000 relationships, `(id)` index, daemon-side ms): create 825-1626 per item vs
-265-350 batched, re-merge 565-1055 vs 113-137.
+scan per row. Batching replaces one round trip and statement per item with
+one `UNWIND` statement per group; latency measurements will be published in a
+live-run evidence report with the full execution context (service versions,
+dataset, concurrency, hardware/container limits, warmup, skipped components)
+before any numbers are quoted here. The ignored `bench` test below produces the
+raw per-item vs UNWIND timings.
 
 A relationship without `source_label`/`target_label` takes the label of the
 request's own node with that id, when the request gives that id exactly one
@@ -164,6 +172,24 @@ are stored as floats; empty lists are fine), and nested lists or objects are
 rejected. A JSON `null` property removes the stored property (`SET n +=`), as
 in the Python writer, and is not reported as a conflict. JSON carries no
 temporal types: dates stay strings.
+
+### Reserved properties
+
+seochod owns these node and relationship properties and stamps them itself:
+
+| Property | Set from |
+| --- | --- |
+| `_source_id`, `_writer_agent` | request `source_id` |
+| `_workspace_id` | request `workspace_id` |
+| `_writer_ts` | request `writer_ts` (or the daemon clock) |
+| `_rdf_bundle_sha256`, `_rdf_data_graph_sha256`, `_agent_profile_sha256`, `_projection_receipt_sha256` | `semantic_receipt`, when given |
+| `_fencing_token`, `_fence_scope` | the admitted lease (governed writes only) |
+
+An item whose `properties` contain any of them is rejected in every mode,
+including `SEOCHOD_ALLOW_UNGOVERNED=1`, with an `invalid_request` error naming
+the item and the keys, and the whole request writes nothing. A caller cannot
+plant a storage fence or forge receipt provenance this way. Other
+underscore-prefixed properties are stored as given.
 
 ## Bolt connection
 

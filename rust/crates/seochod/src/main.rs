@@ -181,6 +181,25 @@ fn scalar_send(value: &Value) -> Result<ValueSend, String> {
     }
 }
 
+/// Properties only the daemon writes: provenance, the semantic receipt and
+/// the storage fence. A caller-supplied value is rejected in every mode
+/// (governed or `SEOCHOD_ALLOW_UNGOVERNED=1`), before admission-derived
+/// metadata is added: otherwise an ungoverned write could plant an arbitrary
+/// `_fencing_token`/`_fence_scope` that later fences out legitimate writers,
+/// or a receipt-less write could forge receipt provenance.
+const RESERVED_PROPERTIES: [&str; 10] = [
+    "_source_id",
+    "_workspace_id",
+    "_writer_agent",
+    "_writer_ts",
+    "_rdf_bundle_sha256",
+    "_rdf_data_graph_sha256",
+    "_agent_profile_sha256",
+    "_projection_receipt_sha256",
+    "_fencing_token",
+    "_fence_scope",
+];
+
 fn props_send(
     mut props: HashMap<String, Value>,
     workspace_id: &str,
@@ -188,6 +207,18 @@ fn props_send(
     writer_ts: f64,
     receipt: Option<&SemanticReceipt>,
 ) -> Result<HashMap<String, ValueSend>, String> {
+    let mut reserved: Vec<&str> = RESERVED_PROPERTIES
+        .iter()
+        .copied()
+        .filter(|key| props.contains_key(*key))
+        .collect();
+    if !reserved.is_empty() {
+        reserved.sort_unstable();
+        return Err(format!(
+            "reserved properties are set by seochod, not the caller: {}",
+            reserved.join(", ")
+        ));
+    }
     props.insert("_source_id".into(), Value::String(source_id.into()));
     props.insert("_workspace_id".into(), Value::String(workspace_id.into()));
     props.insert(
@@ -933,7 +964,30 @@ fn transaction_timeout_ms(
     (remaining > 0).then_some(remaining)
 }
 
+/// Request-level checks that need no control DB. They run before the
+/// idempotency key is claimed, so a rejected request never leaves a pending
+/// claim behind (which would block a corrected retry with the same key until
+/// the reclaim window passes).
+fn validate_bookmarks(bookmarks: Option<Vec<String>>) -> Result<Vec<String>, String> {
+    let bookmarks = bookmarks.unwrap_or_default();
+    if bookmarks.len() > MAX_BOOKMARKS
+        || bookmarks
+            .iter()
+            .any(|b| b.is_empty() || b.len() > MAX_BOOKMARK_BYTES)
+    {
+        return Err("invalid bookmarks".into());
+    }
+    Ok(bookmarks)
+}
+
 fn project(driver: &Driver, request: Request) -> Response {
+    let control_db = std::env::var("SEOCHOD_CONTROL_DB")
+        .ok()
+        .filter(|v| !v.is_empty());
+    project_with(driver, request, control_db)
+}
+
+fn project_with(driver: &Driver, request: Request, control_db: Option<String>) -> Response {
     let started = Instant::now();
     let request_id = request.request_id.clone();
     let idempotency_key = request.idempotency_key.clone();
@@ -971,9 +1025,16 @@ fn project(driver: &Driver, request: Request) -> Response {
             return failure("invalid semantic governance receipt".into());
         }
     }
-    let control_db = std::env::var("SEOCHOD_CONTROL_DB")
-        .ok()
-        .filter(|v| !v.is_empty());
+    // Everything that can reject the request without the control DB is
+    // checked before the idempotency key is claimed below.
+    let bookmarks = match validate_bookmarks(request.bookmarks) {
+        Ok(bookmarks) => bookmarks,
+        Err(error) => return failure(error),
+    };
+    let mode = match WriteMode::from_env() {
+        Ok(mode) => mode,
+        Err(error) => return failure(error),
+    };
     let reclaim_after_ms = env_ms("SEOCHOD_PENDING_RECLAIM_MS", DEFAULT_PENDING_RECLAIM_MS, 1);
     let mut claim: Option<(&str, &str, i64)> = None;
     // Only an admitted lease gets a storage fence; an ungoverned write
@@ -1019,18 +1080,6 @@ fn project(driver: &Driver, request: Request) -> Response {
             Ok(None) => claim = Some((control_db.as_str(), key, claimed_at_ms)),
             Err(error) => return failure_kind("idempotency", error),
         }
-    }
-    let mode = match WriteMode::from_env() {
-        Ok(mode) => mode,
-        Err(error) => return failure(error),
-    };
-    let bookmarks = request.bookmarks.unwrap_or_default();
-    if bookmarks.len() > MAX_BOOKMARKS
-        || bookmarks
-            .iter()
-            .any(|b| b.is_empty() || b.len() > MAX_BOOKMARK_BYTES)
-    {
-        return failure("invalid bookmarks".into());
     }
     let mut response = success();
     let writes = plan_writes(
@@ -2067,6 +2116,111 @@ mod tests {
             serde_json::to_value(failure("bad".into()))?["error_kind"],
             serde_json::json!("invalid_request")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn reserved_properties_are_rejected_on_nodes_and_relationships_in_all_modes(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        for key in RESERVED_PROPERTIES {
+            // Governed (fence 7) and ungoverned (no fence) alike.
+            for fence in [Some(7), None] {
+                let (writes, errors) = planned(
+                    fence,
+                    serde_json::json!([{"id": "a", "label": "Person", "properties": {key: 1}}]),
+                    serde_json::json!([]),
+                )?;
+                assert!(writes.is_empty(), "{key} on a node must not plan a write");
+                assert_eq!(errors.len(), 1);
+                assert!(errors[0].starts_with("node a: reserved properties"), "{}", errors[0]);
+                assert!(errors[0].contains(key));
+
+                let (writes, errors) = planned(
+                    fence,
+                    serde_json::json!([]),
+                    serde_json::json!([{"source": "a", "target": "b", "type": "KNOWS", "properties": {key: "x"}}]),
+                )?;
+                assert!(writes.is_empty(), "{key} on a relationship must not plan a write");
+                assert_eq!(errors.len(), 1);
+                assert!(errors[0].contains("reserved properties"), "{}", errors[0]);
+                assert!(errors[0].contains(key));
+            }
+        }
+        // The ungoverned fence-planting case from review: a maximal token
+        // scoped to a real package is refused, not stored.
+        let (writes, errors) = planned(
+            None,
+            serde_json::json!([{"id": "a", "label": "Person",
+                "properties": {"_fencing_token": i64::MAX, "_fence_scope": "pkg"}}]),
+            serde_json::json!([]),
+        )?;
+        assert!(writes.is_empty());
+        assert!(errors[0].ends_with("_fence_scope, _fencing_token"), "{}", errors[0]);
+        // Other underscore properties are the caller's own.
+        let (writes, errors) = planned(
+            None,
+            serde_json::json!([{"id": "a", "label": "Person", "properties": {"_note": "ok"}}]),
+            serde_json::json!([]),
+        )?;
+        assert!(errors.is_empty());
+        let props = writes.first().and_then(props_of).ok_or("props must be a map")?;
+        assert_eq!(props.get("_note"), Some(&ValueSend::String("ok".into())));
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_bookmarks_are_rejected_before_the_idempotency_key_is_claimed(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        use neo4j::address::Address;
+        use neo4j::driver::{ConnectionConfig, DriverConfig};
+        let (path, db, digest) = lifecycle_db(&[("B", "pkg", "projection", 5, LIVE)])?;
+        // Never contacted: every request below is rejected before Bolt I/O.
+        let driver = Driver::new(
+            ConnectionConfig::new(Address::from(("127.0.0.1", 1))).with_routing(false),
+            DriverConfig::new(),
+        );
+        let request = |bookmarks: Value| -> Result<Request, serde_json::Error> {
+            serde_json::from_value(serde_json::json!({
+                "op": "project",
+                "idempotency_key": "key",
+                "workspace_id": "ws",
+                "semantic_receipt": {
+                    "schema_version": "seocho.canonical_projection_receipt.v1",
+                    "rdf_bundle_sha256": digest,
+                    "rdf_data_graph_sha256": "b".repeat(64),
+                    "agent_profile_sha256": "c".repeat(64),
+                    "projection_receipt_sha256": "d".repeat(64),
+                },
+                "admission": {"lease_id": "B", "fingerprint": digest, "generation": 0, "epoch": 0, "fencing_token": 5},
+                "bookmarks": bookmarks,
+            }))
+        };
+        let claims = || -> Result<i64, rusqlite::Error> {
+            Connection::open(&path)?.query_row(
+                "SELECT count(*) FROM projection_idempotency",
+                [],
+                |r| r.get(0),
+            )
+        };
+        let invalid = [
+            serde_json::json!([""]),
+            serde_json::json!(["x".repeat(MAX_BOOKMARK_BYTES + 1)]),
+            serde_json::json!(vec!["FB:x"; MAX_BOOKMARKS + 1]),
+        ];
+        for bookmarks in invalid {
+            let response = project_with(&driver, request(bookmarks)?, Some(db.clone()));
+            assert!(!response.ok);
+            assert_eq!(response.error.as_deref(), Some("invalid bookmarks"));
+            assert_eq!(response.error_kind.as_deref(), Some("invalid_request"));
+            // No pending claim is left behind.
+            assert_eq!(claims()?, 0);
+        }
+        // A corrected retry with the same key claims it at once, without
+        // waiting out the reclaim window.
+        assert!(validate_bookmarks(request(serde_json::json!(["FB:x"]))?.bookmarks).is_ok());
+        assert!(claim_idempotency(&db, "key", "ws", &digest, now_ms(), RECLAIM)?.is_none());
+        assert_eq!(claims()?, 1);
+        std::fs::remove_file(path)?;
         Ok(())
     }
 }

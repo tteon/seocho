@@ -57,7 +57,7 @@ Every key below MUST be present (use `null` where allowed). Objects marked *clos
 | `chain.attempt` | int ≥ 0 | 0-based HTTP attempt within the logical call |
 | `chain.next_step_of` | `sha256:` \| null | `rec_id` of the attempt whose planned next step this attempt is; null for attempt 0 and when unknown (imports) |
 | `chain.step_kind` | enum | `initial`, `retry`, `reprompt`, `downgrade`, `fallback`, `sdk_retry` (C15: an SDK-internal retry observed at the transport) |
-| `chain.agent` | string \| null | harness agent; part of the import replay key (§5) |
+| `chain.agent` | non-empty string \| null | harness agent; part of the import replay key (§5) and, when `logical_call_id` is null, of the `rec_id` material (§4) |
 | `request` | closed object | |
 | `request.body` | object \| null | sanitized request body (no credentials; `Authorization` is a header and is never stored) |
 | `request.body_scope` | `full`\|`subset`\|`none` | `subset` = only some keys kept (sk-llm/1 keeps the hashed fields; legacy rows replace `messages` with a digest) |
@@ -94,18 +94,26 @@ Rules of use:
 rec_id = "sha256:" + hex( sha256( utf8( run_id "||" logical_call_id "||" attempt "||" body_sha256 ) ) )
 ```
 
-- `run_id` = `source.run_id`, `logical_call_id` = `chain.logical_call_id`, `attempt` = `chain.attempt` in decimal, `body_sha256` = `response.body_sha256` **including its `sha256:` prefix**.
+When `chain.logical_call_id` is null (imports only), the fallback observation identity of §5 is appended:
+
+```
+rec_id = "sha256:" + hex( sha256( utf8( run_id "||" "" "||" attempt "||" body_sha256
+                                        "||" req_hash "||" occurrence "||" agent ) ) )
+```
+
+- `run_id` = `source.run_id`, `logical_call_id` = `chain.logical_call_id`, `attempt` = `chain.attempt` in decimal, `body_sha256` = `response.body_sha256` **including its `sha256:` prefix**; in the fallback form `req_hash` = `request.req_hash` (with prefix), `occurrence` = `request.occurrence` in decimal, `agent` = `chain.agent`.
+- Records with a `logical_call_id` use the four-part form only; the fallback parts are never appended to them.
 - A null component is the empty string. A transport error (no body) therefore ends in `"||"`.
-- The join is injective because `source.run_id` and `chain.logical_call_id` MUST be non-empty and MUST NOT contain `|` (schema pattern `^[^|]+$`); `attempt` is a decimal integer and `body_sha256` a fixed-shape tag. `logical_call_id` null (imports only) and the forbidden `""` therefore never meet.
-- `rec_id` is unique per observation **because** `(run_id, logical_call_id)` names one logical call (§5). A writer whose logical-call counters restart per arm, session or agent MUST put that scope into `source.run_id`; it MUST NOT reuse one `run_id` across them. Repeating the same request in another run, or the same body at another attempt, yields a different `rec_id`. Two records with the same `rec_id` in one corpus are a writer/importer defect: the import is rejected and the scope fixed, never resolved by dropping one of two genuine observations (§6).
-- The raw-generation sk-llm/1 recorder (`rec_id()`) evaluates this expression with the sk-llm/1 run scope of §10 as `run_id`, so `convert_sk_llm1` preserves the `rec_id` of every row it writes (live, scripted, replay and cache rows, including rows served from a pre-raw source; verified against that recorder), unless the converter itself alters the stored body (402 billing redaction, §8).
-- Converters MUST recompute `rec_id` from the v1 fields. When a source row carried its own `rec_id` it is kept as `source.origin.source_rec_id`; for raw sk-llm/1 rows the two are equal.
+- The join is injective because `source.run_id` and `chain.logical_call_id` MUST be non-empty and MUST NOT contain `|` (schema pattern `^[^|]+$`); `attempt` and `occurrence` are decimal integers and `body_sha256`/`req_hash` fixed-shape tags. `logical_call_id` null (imports only) and the forbidden `""` therefore never meet, so the four-part and fallback forms cannot collide. `agent` is the only component that may contain `|`; it is last, so it cannot shift the other boundaries, and it MUST be non-empty when present (null and `""` would otherwise both be the empty string).
+- `rec_id` is unique per observation **because** `(run_id, logical_call_id)` names one logical call (§5), and, for records without `logical_call_id`, because its material contains the whole fallback replay key `(run_id, agent, req_hash, occurrence)`: two records with distinct replay keys always have distinct `rec_id`s. A writer whose logical-call counters restart per arm, session or agent MUST put that scope into `source.run_id`; it MUST NOT reuse one `run_id` across them. Repeating the same request in another run, or the same body at another attempt, yields a different `rec_id`. Two records with the same `rec_id` in one corpus are a writer/importer defect: the import is rejected and the scope fixed, never resolved by dropping one of two genuine observations (§6).
+- The raw-generation sk-llm/1 recorder (`rec_id()`) evaluates this expression with the sk-llm/1 run scope of §10 as `run_id`, so `convert_sk_llm1` preserves the `rec_id` of every row it writes with a `logical_call_id` (live, scripted, replay and cache rows, including rows served from a pre-raw source; verified against that recorder), unless the converter itself alters the stored body (402 billing redaction, §8). Rows without `logical_call_id` get the fallback form, so their v1 `rec_id` differs from the row's own.
+- Converters MUST recompute `rec_id` from the v1 fields. When a source row carried its own `rec_id` it is kept as `source.origin.source_rec_id`; for raw sk-llm/1 rows with a `logical_call_id` the two are equal.
 
 ## 5. Replay key (run-scoped)
 
 - The replay key is **`(source.run_id, chain.logical_call_id, chain.attempt)`**. Lookup is scoped to one run; a replay MUST NOT be served from another run. Within a corpus the key MUST be unique (one record per key); importers reject a file that violates this.
 - `source.run_id` is the replay scope, not necessarily the harness's run label. sk-llm/1 shows why: one `run_id` covers the `iso`, `shared` and `single` arms (and coordinator/preflight sessions), and `logical_call_id` is a per-agent counter (`A3#1`) that repeats in every arm. In the 1,230 recorded rows this spec was developed against (not published here), the bare `(run_id, logical_call_id, attempt)` has 412 duplicates, 348 of them with different bodies; replaying by it would serve another arm's response. The import scope `run_id/arm/session_id` makes all 1,230 keys and `rec_id`s unique.
-- Only records without `logical_call_id` (imports) use the fallback key **`(source.run_id, chain.agent, request.req_hash, request.occurrence)`**, the RRTransport in-run rule.
+- Only records without `logical_call_id` (imports) use the fallback key **`(source.run_id, chain.agent, request.req_hash, request.occurrence)`**, the RRTransport in-run rule. The same components are part of their `rec_id` material (§4), so `rec_id` is unique whenever this key is.
 - Global keys such as `(model, req_hash, 0)` across runs MUST NOT be used.
 - A missing key is `ReplayMiss`, fail closed (C11). A hit whose `redaction.replayable` is `false` is `NotReplayable`, also fail closed. Lenient lookup is forbidden in tests.
 - `replay_class: carrier_intact` hits replay with the fingerprint narrowed to the `tool_calls`/`content` carriers, finish and HTTP class (§8).
@@ -167,7 +175,7 @@ The JSON Schema encodes shape and the conditionals it can express. The reference
 
 | # | Rule |
 |---|---|
-| S1 | `rec_id` equals the §4 recomputation |
+| S1 | `rec_id` equals the §4 recomputation (four-part form, or the fallback form when `logical_call_id` is null) |
 | S2 | at most one of `body_utf8`/`body_b64`; `body_sha256` and `body_fidelity` non-null exactly when a body is stored; valid UTF-8 MUST use `body_utf8` |
 | S3 | `body_sha256` equals sha256 of the stored bytes; `body_b64` is valid base64 |
 | S4 | `transport_error` ⇒ `http_status` null and no body; `http_status` null ⇒ `transport_error` |
@@ -179,7 +187,7 @@ The JSON Schema encodes shape and the conditionals it can express. The reference
 | S10 | `import:*` ⇒ `source.origin` non-null with non-null `path` and `file_sha256`; `served_from` replay/cache ⇒ `wire:false` |
 | S11 | `request.body` null ⇔ `body_scope: none`; `req_hash` null ⇔ `req_hash_scheme` null |
 | S12 | an HTTP response (no `transport_error`) without stored body ⇒ `replay_class: none` |
-| S13 | secret scan: no string anywhere in the record (keys and values, including `body_utf8`, request messages, nested `extra_body`, header values, `usage`, `transport_error.detail`) nor the base64-decoded body matches the recorder's `sk-` / Bearer regexes; no `SENSITIVE` key at any depth of `request.body` or the parsed response body carries a value other than `"[redacted]"`/`""`; visible scrub footprints in the body (`Bearer [redacted]` / `sk-[redacted]`, a `SENSITIVE` key = `"[redacted]"`, a billing field = `"[redacted]"`) require the matching `body_*` token in `applied` (and so, by S8, `replay_class: none`) |
+| S13 | secret scan: no string anywhere in the record (keys and values, including `body_utf8`, request messages, nested `extra_body`, header values, `usage`, `transport_error.detail`) nor the base64-decoded body, nor any decoded key or string value (any depth) of the parsed response body (so JSON `\uXXXX` escapes cannot hide a credential), matches the recorder's `sk-` / Bearer regexes; no `SENSITIVE` key at any depth of `request.body` or the parsed response body carries a value other than `"[redacted]"`/`""`; visible scrub footprints in the body (`Bearer [redacted]` / `sk-[redacted]`, a `SENSITIVE` key = `"[redacted]"`, a billing field = `"[redacted]"`) require the matching `body_*` token in `applied` (and so, by S8, `replay_class: none`) |
 
 ## 10. Converting `sk-llm/1`
 
@@ -189,7 +197,7 @@ The JSON Schema encodes shape and the conditionals it can express. The reference
 
 | sk-llm/1 row | v1 result |
 |---|---|
-| raw-generation row with `body_utf8`/`body_b64` | bytes copied verbatim, `body_fidelity` as recorded (`raw`, or `reserialized` for a replay/cache row served from a pre-raw source), headers as recorded, `redaction` as recorded. `rec_id` identical to the row's |
+| raw-generation row with `body_utf8`/`body_b64` | bytes copied verbatim, `body_fidelity` as recorded (`raw`, or `reserialized` for a replay/cache row served from a pre-raw source), headers as recorded, `redaction` as recorded. `rec_id` identical to the row's when it has a `logical_call_id` |
 | raw-generation replay/cache row served from a pre-raw source and written before the writer stored those bytes (`body_sha256` set, `body_utf8`/`body_b64` null) | `body_utf8 = json.dumps(body)`, the bytes RRTransport served and hashed (checked against `body_sha256`), `reserialized`. `rec_id` identical to the row's |
 | raw-generation row whose body had a sensitive-key diff (no stored bytes) | no body, `replay_class: none` (S12) |
 | legacy row, parsed `body` dict | `body_utf8 = json.dumps(body)` (Python defaults, the exact bytes RRTransport serves when replaying a pre-raw row), `body_fidelity: reserialized`, `truncated: false` |
@@ -200,7 +208,7 @@ The JSON Schema encodes shape and the conditionals it can express. The reference
 | any stored body with `billing_portal_url` / `balance_units` | values replaced by `"[redacted]"` at the byte level (fidelity kept), `body_billing_redacted`, `replay_class: none`; `rec_id` then differs from the row's |
 | response headers outside the allowlist | dropped, `headers_filtered` |
 
-Other mappings: `source.kind = import:sk-llm/1`, `source.wire = (served_from == "live")`, `endpoint` = MARA `api.cloud.mara.com/v1/chat/completions`, `case.task = task_hint`, `chain.step_kind = initial` for attempt 0 else `retry` (sk-llm/1 does not distinguish further), `chain.next_step_of = null`, `request.body` = the stored subset (`body_scope: subset`), `request_messages_digested` when `messages_sha256` replaced `messages`, `auth_header_dropped` for legacy live rows, `captured_at` from `start_ns`, `usage` = `response.usage`.
+Other mappings: `source.kind = import:sk-llm/1`, `source.wire = (served_from == "live")`, `endpoint` = MARA `api.cloud.mara.com/v1/chat/completions`, `case.task = task_hint`, `chain.step_kind = initial` for attempt 0 else `retry` (sk-llm/1 does not distinguish further), `chain.next_step_of = null`, `request.body` = the stored subset (`body_scope: subset`), `request_messages_digested` when `messages_sha256` replaced `messages`, `auth_header_dropped` for legacy live rows, `captured_at` from `start_ns`, `usage` = `response.usage`, `chain.agent` = `agent` with `""` mapped to null.
 
 ## 11. Golden fixtures
 

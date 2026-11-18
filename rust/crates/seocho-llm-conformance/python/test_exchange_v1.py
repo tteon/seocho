@@ -165,6 +165,41 @@ class RecIdTests(unittest.TestCase):
         self.assertEqual(x.replay_key(rec), ('occ', 'golden-v1', 'G0', rec['request']['req_hash'], 0))
         self.assertEqual(x.body_store_path('sha256:ab' + '0' * 62), 'bodies/ab/ab' + '0' * 62)
 
+    def test_null_logical_call_id_uses_fallback_identity(self):
+        """Imports without logical_call_id: rec_id carries the §5 fallback identity, so two
+        observations that differ only in request.occurrence get distinct rec_ids."""
+        recs = []
+        for occ in (0, 1):
+            row = mk.legacy_502_row()
+            row.update({'logical_call_id': None, 'occurrence': occ})
+            recs.append(x.convert_sk_llm1(row, ORIGIN))
+        a, b = recs
+        self.assertEqual(a['response']['body_sha256'], b['response']['body_sha256'])
+        self.assertNotEqual(x.replay_key(a), x.replay_key(b))
+        self.assertNotEqual(a['rec_id'], b['rec_id'])
+        material = '||'.join(['golden-legacy/iso/iso', '', '1', a['response']['body_sha256'],
+                              a['request']['req_hash'], '0', 'A1']).encode()
+        self.assertEqual(a['rec_id'], x.sha256_tag(material))
+        # repeated transport errors (no body, null body_sha256) stay distinct as well
+        recs = []
+        for occ in (0, 1):
+            row = mk.legacy_502_row()
+            row.update({'logical_call_id': None, 'occurrence': occ})
+            row['response'].update({'http_status': None, 'error_class': 'timeout', 'body': None})
+            recs.append(x.convert_sk_llm1(row, ORIGIN))
+        self.assertNotEqual(recs[0]['rec_id'], recs[1]['rec_id'])
+        self.assertEqual([x.validate(r) for r in recs], [[], []])
+
+    def test_null_logical_call_id_agent_must_be_non_empty(self):
+        row = mk.legacy_502_row()
+        row.update({'logical_call_id': None, 'agent': ''})
+        rec = x.convert_sk_llm1(row, ORIGIN)
+        self.assertIsNone(rec['chain']['agent'])  # converter normalizes "" to null
+        rec['chain']['agent'] = ''
+        rec['rec_id'] = x.compute_rec_id(rec)
+        self.assertTrue(any(e.startswith('$.chain.agent') for e in x.validate(rec)))
+        self.assertNotEqual(schema_errors(rec), []) if SCHEMA_VALIDATOR else None
+
     def test_sk_llm1_run_scope(self):
         self.assertEqual(x.sk_llm1_run_scope({'run_id': 'r', 'arm': 'iso', 'session_id': 'r:iso:A1'}), 'r/iso/r:iso:A1')
         self.assertEqual(x.sk_llm1_run_scope({'run_id': 'r', 'arm': None, 'session_id': ''}), 'r')
@@ -285,6 +320,19 @@ class SecretScanTests(unittest.TestCase):
     def test_secret_in_replayable_body(self):
         self.rejected(self.with_body('{"note": "' + self.FAKE_SK + '"}'))
         self.rejected(self.with_body('{"note": "' + self.FAKE_BEARER + '"}'))
+
+    def test_secret_hidden_by_json_unicode_escapes(self):
+        # JSON escape u0073 decodes to "s", u0042 to "B": the raw text holds no sk-/Bearer match
+        sk = '{"message":"\\u0073k-QQQQQQQQQQQQQQQQQQQQQQQQ"}'
+        bearer = '{"message":"\\u0042earer QQQQQQQQQQQQQQQQQQQQQQQQ"}'
+        key = '{"\\u0073k-QQQQQQQQQQQQQQQQQQQQQQQQ":1}'
+        nested = '{"error":{"details":[{"note":"\\u0073k-QQQQQQQQQQQQQQQQQQQQQQQQ"}]}}'
+        for text in (sk, bearer, key, nested):
+            with self.subTest(text):
+                self.assertIsNone(x.SK_RE.search(text))
+                self.assertIsNone(x.BEARER_RE.search(text))
+                self.rejected(self.with_body(text), 'decoded body')
+        self.assertEqual(json.loads(sk), {'message': 'sk' + '-' + 'Q' * 24})
 
     def test_secret_in_b64_body(self):
         rec = fixture('13-non-utf8-body-b64')

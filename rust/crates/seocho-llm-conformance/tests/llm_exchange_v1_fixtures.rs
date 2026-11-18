@@ -1,8 +1,9 @@
 //! `seocho.llm_exchange.v1` golden fixtures are consumable from Rust.
 //!
 //! Parses every fixture under `spec/fixtures/`, recomputes `response.body_sha256` from the
-//! stored bytes and `rec_id` from `run_id||logical_call_id||attempt||body_sha256` (spec §4),
-//! and checks both against the fixture and `expected.json`. Uses only dev-dependencies that
+//! stored bytes and `rec_id` from `run_id||logical_call_id||attempt||body_sha256` (spec §4;
+//! records without `logical_call_id` append `||req_hash||occurrence||agent`), and checks both
+//! against the fixture and `expected.json`. Uses only dev-dependencies that
 //! are already in the workspace lockfile (`serde_json`, `sha2`, `hex`).
 
 use serde_json::Value;
@@ -70,13 +71,23 @@ fn body_bytes(resp: &Value) -> Result<Option<Vec<u8>>, String> {
     }
 }
 
+/// Spec §4. A null `logical_call_id` (imports only) appends the §5 fallback observation identity
+/// `req_hash||occurrence||agent`, so `rec_id` is unique whenever the fallback replay key is.
 fn rec_id(rec: &Value) -> Result<String, String> {
-    let parts = [
+    let mut parts = vec![
         part(rec.pointer("/source/run_id"))?,
         part(rec.pointer("/chain/logical_call_id"))?,
         part(rec.pointer("/chain/attempt"))?,
         part(rec.pointer("/response/body_sha256"))?,
     ];
+    if matches!(
+        rec.pointer("/chain/logical_call_id"),
+        None | Some(Value::Null)
+    ) {
+        parts.push(part(rec.pointer("/request/req_hash"))?);
+        parts.push(part(rec.pointer("/request/occurrence"))?);
+        parts.push(part(rec.pointer("/chain/agent"))?);
+    }
     Ok(sha256_tag(parts.join("||").as_bytes()))
 }
 
@@ -158,6 +169,37 @@ fn every_fixture_parses_and_hashes_recompute() -> TestResult {
         .ok_or("fixtures map")?
         .len();
     assert_eq!(listed, paths.len(), "expected.json lists every fixture");
+    Ok(())
+}
+
+#[test]
+fn null_logical_call_id_rec_id_includes_fallback_identity() -> TestResult {
+    // Two imported observations without logical_call_id that differ only in request.occurrence
+    // (same run, attempt, agent, req_hash and body) have distinct fallback replay keys, so they
+    // must have distinct rec_ids.
+    let mut a: Value = serde_json::from_str(&std::fs::read_to_string(
+        spec_dir().join("fixtures/08-legacy-502-truncated.json"),
+    )?)?;
+    a["chain"]["logical_call_id"] = Value::Null;
+    a["request"]["occurrence"] = 0.into();
+    let mut b = a.clone();
+    b["request"]["occurrence"] = 1.into();
+    let (id_a, id_b) = (rec_id(&a)?, rec_id(&b)?);
+    assert_ne!(id_a, id_b);
+    let material = format!(
+        "{}||||{}||{}||{}||0||{}",
+        a["source"]["run_id"].as_str().ok_or("run_id")?,
+        a["chain"]["attempt"],
+        a["response"]["body_sha256"].as_str().ok_or("body_sha256")?,
+        a["request"]["req_hash"].as_str().ok_or("req_hash")?,
+        a["chain"]["agent"].as_str().ok_or("agent")?,
+    );
+    assert_eq!(id_a, sha256_tag(material.as_bytes()));
+    // with a logical_call_id the four-part form is unchanged (fallback parts are not appended)
+    let fixed: Value = serde_json::from_str(&std::fs::read_to_string(
+        spec_dir().join("fixtures/08-legacy-502-truncated.json"),
+    )?)?;
+    assert_eq!(fixed["rec_id"].as_str(), Some(rec_id(&fixed)?.as_str()));
     Ok(())
 }
 

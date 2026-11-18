@@ -96,7 +96,8 @@
         "attempt": {"type": "integer", "minimum": 0},
         "next_step_of": {"$ref": "#/$defs/sha_tag_or_null"},
         "step_kind": {"enum": ["initial", "retry", "reprompt", "downgrade", "fallback", "sdk_retry"]},
-        "agent": {"type": ["string", "null"]}
+        "agent": {"type": ["string", "null"], "minLength": 1,
+                  "description": "non-empty or null; part of the import replay key and, when logical_call_id is null, of the rec_id material"}
       },
       "allOf": [
         {"if": {"properties": {"attempt": {"const": 0}}},

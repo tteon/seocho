@@ -125,21 +125,33 @@ def compute_req_hash(body: dict, scheme: str = 'llm_exchange.v1') -> str:
     return sha256_tag(text.encode('utf-8'))
 
 
-def rec_id_material(run_id: Any, logical_call_id: Any, attempt: Any, body_sha256: Any) -> bytes:
+def rec_id_material(run_id: Any, logical_call_id: Any, attempt: Any, body_sha256: Any,
+                    req_hash: Any = None, occurrence: Any = None, agent: Any = None) -> bytes:
     """Spec §4: ``run_id||logical_call_id||attempt||body_sha256``, null -> "", UTF-8.
 
-    Byte-identical to the raw-generation sk-llm/1 recorder (``RRTransport``) for every row it writes:
-    there an absent key is ``""`` and ``body_sha256`` keeps its ``sha256:`` prefix."""
-    parts = ['' if v is None else str(v) for v in (run_id, logical_call_id, attempt, body_sha256)]
+    When ``logical_call_id`` is null (imports only) the §5 fallback observation identity is
+    appended: ``run_id||""||attempt||body_sha256||req_hash||occurrence||agent``, so ``rec_id`` is
+    unique whenever the fallback replay key is.  ``agent`` is last because it is the only
+    component that may contain ``|``; every earlier one cannot, so the join stays injective.
+
+    Byte-identical to the raw-generation sk-llm/1 recorder (``RRTransport``) for every row it writes
+    with a ``logical_call_id``: there an absent key is ``""`` and ``body_sha256`` keeps its
+    ``sha256:`` prefix."""
+    fields = [run_id, logical_call_id, attempt, body_sha256]
+    if logical_call_id is None:
+        fields += [req_hash, occurrence, agent]
+    parts = ['' if v is None else str(v) for v in fields]
     return '||'.join(parts).encode('utf-8')
 
 
 def compute_rec_id(record: dict) -> str:
     src = record.get('source') or {}
     chain = record.get('chain') or {}
+    req = record.get('request') or {}
     resp = record.get('response') or {}
     return sha256_tag(rec_id_material(src.get('run_id'), chain.get('logical_call_id'),
-                                      chain.get('attempt'), resp.get('body_sha256')))
+                                      chain.get('attempt'), resp.get('body_sha256'),
+                                      req.get('req_hash'), req.get('occurrence'), chain.get('agent')))
 
 
 def sk_llm1_run_scope(row: dict) -> str:
@@ -326,7 +338,8 @@ def validate(record: Any, tier: Optional[str] = None) -> List[str]:
         v.int_min(chain.get('attempt'), '$.chain.attempt', 0)
         v.pattern(chain.get('next_step_of'), '$.chain.next_step_of', SHA_TAG)
         v.enum(chain.get('step_kind'), '$.chain.step_kind', STEP_KIND)
-        v.typ(chain.get('agent'), '$.chain.agent', (str,), nullable=True)
+        if v.typ(chain.get('agent'), '$.chain.agent', (str,), nullable=True) and chain['agent'] == '':
+            v.err('$.chain.agent', 'must be non-empty or null (spec §4)')
         # S9: attempt 0 is the initial attempt; later attempts are never "initial"
         if chain.get('attempt') == 0 and (chain.get('step_kind') != 'initial' or chain.get('next_step_of')):
             v.err('$.chain', 'S9: attempt 0 must be step_kind initial with next_step_of null')
@@ -568,6 +581,12 @@ def _validate_secrets(v: _V, record: dict) -> None:
         parsed = json.loads(text)
     except ValueError:
         parsed = None
+    # JSON escapes (e.g. "sk-...") hide a credential from the raw-text scan above: scan every
+    # decoded key and string value of the parsed body, at any depth, with the same patterns.
+    # (request.body is stored as a parsed object, so the record walk above already sees it decoded.)
+    for path, s in _walk_strings(parsed, '$.response.body'):
+        if SK_RE.search(s) or BEARER_RE.search(s):
+            v.err(path, 'S13: credential-shaped string (sk- / Bearer token) in decoded body')
     for path in _sensitive_values(parsed, '$.response.body'):
         v.err(path, 'S13: credential-bearing key with an unredacted value')
     applied = (record.get('redaction') or {}).get('applied')
@@ -785,7 +804,7 @@ def convert_sk_llm1(row: dict, origin: Optional[dict], input_class: Optional[str
                  'enforcement': None},
         'chain': {'logical_call_id': row.get('logical_call_id'), 'attempt': attempt,
                   'next_step_of': None, 'step_kind': 'initial' if attempt == 0 else 'retry',
-                  'agent': row.get('agent')},
+                  'agent': row.get('agent') or None},
         'request': _request_block(row),
         'response': {'http_status': None if error_class else resp.get('http_status'),
                      'headers': headers, 'body_fidelity': fidelity,

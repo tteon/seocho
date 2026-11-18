@@ -38,6 +38,13 @@ jobs:
         with:
           components: clippy
 
+      # seocho-core links Python through pyo3 0.23, which supports CPython
+      # up to 3.13; the runner image's default python3 is newer.
+      - name: Set up Python for pyo3
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Cache cargo registry and target
         uses: Swatinem/rust-cache@v2
         with:

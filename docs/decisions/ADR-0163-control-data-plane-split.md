@@ -2,6 +2,13 @@
 
 Date: 2026-08-15 · Status: accepted (architecture) · relates to ADR-0155, ADR-0144
 
+> **Amended by ADR-0239 (proposed).** "Control plane stays in Python" now covers
+> control-plane *policy*. The lifecycle invariant kernel (lease state machine,
+> fencing-token mint, active-pointer CAS, projection idempotency, control-DB
+> schema) moves to the Rust authority `seocho-lifecycled`, which is a separate
+> process from the DozerDB writer `seochod`. The `server_share` gate below
+> still governs data-plane driver swaps.
+
 ## Context
 
 SEOCHO is being assembled as an agent OS (ADR-0157; unified surface PR #510).

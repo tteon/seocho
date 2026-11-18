@@ -1,5 +1,22 @@
 # Decision Log
 
+## 2026-10-23
+
+- [Proposed] `ADR-0239-rust-lifecycle-authority.md` (amends ADR-0163, ADR-0155)
+  - policy stays in Python; the lifecycle invariant kernel (lease state machine,
+    monotonic fencing-token mint, active-pointer CAS, projection idempotency
+    state machine, control-DB schema ownership) moves to the Rust authority
+    process `seocho-lifecycled`
+  - authority != writer: `seochod` stays the DozerDB writer as a verifier-only
+    client that cannot mint; three per-op-set sockets separate operator,
+    client and writer privileges
+  - ADR-0155's measurement gate gains an explicit correctness exception
+    (trigger: the sr-xsu fencing-token reuse incident); latency of added IPC hops
+    is still measured per plane at the P2 gate
+  - single-host SQLite/WAL scope; multi-host needs its own ADR
+  - phased P0-P5 rollout, each phase rollbackable; design in seocho-rust
+    `docs/design/rust-lifecycle-authority.md`
+
 ## 2026-09-14
 
 - [Accepted] [ADR-0235](ADR-0235-local-experiment-dashboard.md):

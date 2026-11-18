@@ -150,7 +150,7 @@ When a body has none of the three extra keys both schemes give the same hash. Im
 | `request_messages_digested` | `request.messages` replaced by `request.messages_sha256` | no |
 | `body_secret_scrubbed` | Bearer / `sk-` regex (`exchange_v1.BEARER_RE` / `SK_RE`) replaced inside the body | **yes** |
 | `body_sensitive_key_redacted` | a `SENSITIVE` key's value replaced in the parsed body | **yes** |
-| `body_billing_redacted` | `billing_portal_url` / `balance_units` (402 billing errors) replaced by `"[redacted]"` at the byte level; `convert_sk_llm1` applies it to both sk-llm/1 generations | **yes** |
+| `body_billing_redacted` | the value (any JSON type) of every member whose **decoded** name is `billing_portal_url` / `balance_units` (402 billing errors), at any depth and including duplicate keys, replaced by `"[redacted]"` at the byte level (the key's own spelling, e.g. a `\uXXXX` escape, is kept); `convert_sk_llm1` applies it to both sk-llm/1 generations | **yes** |
 | `body_truncated` | body cut by the recorder (sk-llm/1 `unparsed_body[:4000]`) | **yes** |
 
 | `replay_class` | `replayable` | Condition |
@@ -164,7 +164,7 @@ Committed tier (`exchange_v1.validate(record, tier="committed")`, on top of S1-S
 | # | Rule |
 |---|---|
 | C1 | `request.body.messages` present ⇒ `case.input_class` is `public` or `synthetic` (C12; unclassified/private prompts stay private) |
-| C2 | no unredacted `billing_portal_url` / `balance_units` in the stored body |
+| C2 | no member whose decoded name is `billing_portal_url` / `balance_units` (any depth, every duplicate) has a value other than `"[redacted]"` in the stored body; a value that cannot be decoded (truncated body) counts as unredacted |
 | C3 | `body_secret_scrubbed` / `body_sensitive_key_redacted` only on `synthetic`/`synthetic-derived` records; such records from real runs stay in the private tier |
 
 Fixture 07 is synthetic and shows only the post-scrub bytes.
@@ -187,7 +187,7 @@ The JSON Schema encodes shape and the conditionals it can express. The reference
 | S10 | `import:*` ⇒ `source.origin` non-null with non-null `path` and `file_sha256`; `served_from` replay/cache ⇒ `wire:false` |
 | S11 | `request.body` null ⇔ `body_scope: none`; `req_hash` null ⇔ `req_hash_scheme` null |
 | S12 | an HTTP response (no `transport_error`) without stored body ⇒ `replay_class: none` |
-| S13 | secret scan: no string anywhere in the record (keys and values, including `body_utf8`, request messages, nested `extra_body`, header values, `usage`, `transport_error.detail`) nor the base64-decoded body, nor any decoded key or string value (any depth) of the parsed response body (so JSON `\uXXXX` escapes cannot hide a credential), matches the recorder's `sk-` / Bearer regexes; no `SENSITIVE` key at any depth of `request.body` or the parsed response body carries a value other than `"[redacted]"`/`""`; visible scrub footprints in the body (`Bearer [redacted]` / `sk-[redacted]`, a `SENSITIVE` key = `"[redacted]"`, a billing field = `"[redacted]"`) require the matching `body_*` token in `applied` (and so, by S8, `replay_class: none`) |
+| S13 | secret scan, on raw text **and** decoded values: no string anywhere in the record (keys and values, including `body_utf8`, request messages, nested `extra_body`, header values, `usage`, `transport_error.detail`), no text view of the stored body (UTF-8/latin-1, plus UTF-16/UTF-32 when JSON encoding detection finds it), no decoded key or string value of the parsed response body (any depth, every duplicate key; so JSON `\uXXXX` escapes cannot hide a credential), and no decoded string of a JSON document embedded in such a string (tool-call `arguments`, stringified payloads; up to 3 levels) matches the recorder's `sk-` / Bearer regexes. No `SENSITIVE` member (decoded name, any depth, every duplicate) of `request.body`, `usage` or the parsed response body holds a value that can carry material: only `"[redacted]"`, `""`, `null`, a boolean, `[]` or `{}` are allowed; any other string, a number, or a non-empty array/object is rejected. Visible scrub footprints in the body (`Bearer [redacted]` / `sk-[redacted]` in raw text or a decoded string, a `SENSITIVE` member = `"[redacted]"`, a billing member = `"[redacted]"`, names and values decoded) require the matching `body_*` token in `applied` (and so, by S8, `replay_class: none`) |
 
 ## 10. Converting `sk-llm/1`
 
@@ -205,7 +205,7 @@ The JSON Schema encodes shape and the conditionals it can express. The reference
 | legacy row, `body = {"unparsed_body": text}` | `body_utf8 = text` (the stored prefix, not a JSON wrapper the wire never carried), `reserialized`; if `len(text) ≥ 4000`: `truncated: true`, `body_truncated`, `replay_class: none`. Transport classification only |
 | `error_class` timeout / transport_error (either generation) | `http_status: null`, no body, `transport_error: {class, detail}` with `detail` = the legacy `{"error": "<ExceptionName>"}` value |
 | any stored body containing `Bearer [redacted]` / `sk-[redacted]` / a `SENSITIVE` key = `"[redacted]"` | `body_secret_scrubbed` / `body_sensitive_key_redacted`, `replay_class: none` (S13) |
-| any stored body with `billing_portal_url` / `balance_units` | values replaced by `"[redacted]"` at the byte level (fidelity kept), `body_billing_redacted`, `replay_class: none`; `rec_id` then differs from the row's |
+| any stored body with a member whose decoded name is `billing_portal_url` / `balance_units` | values (any JSON type) replaced by `"[redacted]"` at the byte level (fidelity kept), `body_billing_redacted`, `replay_class: none`; `rec_id` then differs from the row's |
 | response headers outside the allowlist | dropped, `headers_filtered` |
 
 Other mappings: `source.kind = import:sk-llm/1`, `source.wire = (served_from == "live")`, `endpoint` = MARA `api.cloud.mara.com/v1/chat/completions`, `case.task = task_hint`, `chain.step_kind = initial` for attempt 0 else `retry` (sk-llm/1 does not distinguish further), `chain.next_step_of = null`, `request.body` = the stored subset (`body_scope: subset`), `request_messages_digested` when `messages_sha256` replaced `messages`, `auth_header_dropped` for legacy live rows, `captured_at` from `start_ns`, `usage` = `response.usage`, `chain.agent` = `agent` with `""` mapped to null.

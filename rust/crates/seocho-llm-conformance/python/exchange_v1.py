@@ -77,11 +77,14 @@ BEARER_RE = re.compile(r"Bearer\s+[A-Za-z0-9._\-]{8,}")
 SK_RE = re.compile(r"\bsk-[A-Za-z0-9]{16,}")
 SCRUB_MARKS = ('Bearer [redacted]', 'sk-[redacted]')
 
-# 402 billing fields (rec-redact/1 body_billing_redacted): JSON string/number/literal value.
-BILLING_FIELD_RE = re.compile(
-    r'("(?:billing_portal_url|balance_units)"\s*:\s*)'
-    r'("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)')
+# 402 billing fields (rec-redact/1 body_billing_redacted), matched on the DECODED member name at
+# any depth (a provider may escape characters of the key, e.g. "billing_\\u0070ortal_url").
+BILLING_FIELDS = ('billing_portal_url', 'balance_units')
+REDACTED = '[redacted]'
 REDACTED_JSON = '"[redacted]"'
+_JSON_STRING = re.compile(r'"(?:[^"\\]|\\.)*"')
+_KEY_SEP = re.compile(r'\s*:\s*')
+_JSON_DECODER = json.JSONDecoder()
 
 SHA_TAG = re.compile(r'^sha256:[0-9a-f]{64}$')
 # rec_id material joins with "||" (spec §4): identity strings must not contain "|" and
@@ -375,7 +378,9 @@ def validate(record: Any, tier: Optional[str] = None) -> List[str]:
                 and timing['latency_ms'] < 0:
             v.err('$.timing.latency_ms', 'must be >= 0')
         v.int_min(timing.get('start_ns'), '$.timing.start_ns', 0, nullable=True)
-    v.typ(g('usage'), '$.usage', (dict,), nullable=True)
+    if v.typ(g('usage'), '$.usage', (dict,), nullable=True):
+        for path in _sensitive_values(g('usage'), '$.usage'):
+            v.err(path, 'S13: credential-bearing key with an unredacted value')
     for name in ('live_outcome', 'oracle_outcome'):
         out = g(name)
         if v.obj(out, f'$.{name}', _OUTCOME, nullable=True):
@@ -505,12 +510,49 @@ def _validate_redaction(v: _V, red: dict, resp: dict) -> None:
         v.err('$.redaction', 'S12: an HTTP response without stored body cannot be replayable')
 
 
+class _Obj(list):
+    """A parsed JSON object kept as its ``(key, value)`` members in document order.
+
+    Secret and redaction scans parse stored bodies with ``object_pairs_hook=_Obj`` so a duplicate
+    key cannot hide an earlier member (``json.loads`` keeps only the last one)."""
+
+
+_NOT_JSON = object()
+
+
+def parse_body_members(data: bytes) -> Any:
+    """Stored body parsed with every member kept (``_Obj``), or ``_NOT_JSON``.
+
+    Parses the bytes, so ``json`` detects UTF-8 (with or without BOM), UTF-16 and UTF-32."""
+    try:
+        return json.loads(data, object_pairs_hook=_Obj)
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        return _NOT_JSON
+
+
+def _members(value: Any, path: str):
+    """Yield ``(path, key, value)`` for every object member at any depth (duplicate keys kept)."""
+    if isinstance(value, _Obj):
+        items = iter(value)
+    elif isinstance(value, dict):
+        items = iter(value.items())
+    elif isinstance(value, list):
+        for i, item in enumerate(value):
+            yield from _members(item, f'{path}[{i}]')
+        return
+    else:
+        return
+    for k, val in items:
+        yield f'{path}.{k}', k, val
+        yield from _members(val, f'{path}.{k}')
+
+
 def _walk_strings(value: Any, path: str):
-    """Yield (path, string) for every key and string value in a JSON value."""
+    """Yield (path, string) for every decoded key and string value in a JSON value, any depth."""
     if isinstance(value, str):
         yield path, value
-    elif isinstance(value, dict):
-        for k, val in value.items():
+    elif isinstance(value, (_Obj, dict)):
+        for k, val in (value if isinstance(value, _Obj) else value.items()):
             yield f'{path}.{k}', str(k)
             yield from _walk_strings(val, f'{path}.{k}')
     elif isinstance(value, list):
@@ -518,19 +560,40 @@ def _walk_strings(value: Any, path: str):
             yield from _walk_strings(item, f'{path}[{i}]')
 
 
+EMBEDDED_JSON_DEPTH = 3
+
+
+def _scan_strings(value: Any, path: str, skip: Tuple[str, ...] = (), depth: int = 0):
+    """``_walk_strings`` plus the strings of JSON documents embedded in string values (tool-call
+    ``arguments``, stringified error payloads), up to ``EMBEDDED_JSON_DEPTH`` levels, so an escape
+    inside an embedded document is decoded too.  ``skip`` paths are yielded but not expanded."""
+    for p, s in _walk_strings(value, path):
+        yield p, s
+        if depth < EMBEDDED_JSON_DEPTH and p not in skip and s.lstrip()[:1] in ('{', '['):
+            try:
+                inner = json.loads(s, object_pairs_hook=_Obj)
+            except (ValueError, RecursionError):
+                continue
+            yield from _scan_strings(inner, f'{p}<json>', skip, depth + 1)
+
+
+def _carries_value(val: Any) -> bool:
+    """True when a value under a SENSITIVE key could hold credential material: anything except
+    ``"[redacted]"``, ``""``, ``null``, a boolean, or an empty array/object (rec-redact/1, S13).
+    Numbers, non-empty arrays and non-empty objects count, not only strings."""
+    if val is None or isinstance(val, bool):
+        return False
+    if isinstance(val, str):
+        return val not in ('', REDACTED)
+    if isinstance(val, (list, dict)):  # _Obj is a list
+        return len(val) > 0
+    return True  # numbers
+
+
 def _sensitive_values(value: Any, path: str) -> List[str]:
-    """Paths of SENSITIVE keys (any depth) whose value is a non-empty string other than "[redacted]"."""
-    out: List[str] = []
-    if isinstance(value, dict):
-        for k, val in value.items():
-            if SENSITIVE.search(str(k)) and isinstance(val, str) and val not in ('', '[redacted]'):
-                out.append(f'{path}.{k}')
-            else:
-                out.extend(_sensitive_values(val, f'{path}.{k}'))
-    elif isinstance(value, list):
-        for i, item in enumerate(value):
-            out.extend(_sensitive_values(item, f'{path}[{i}]'))
-    return out
+    """Paths of SENSITIVE keys (decoded names, any depth) whose value may carry a credential."""
+    return [p for p, k, val in _members(value, path)
+            if SENSITIVE.search(str(k)) and _carries_value(val)]
 
 
 def body_text(data: bytes) -> str:
@@ -541,28 +604,76 @@ def body_text(data: bytes) -> str:
         return data.decode('latin-1')
 
 
+def body_texts(data: bytes) -> List[str]:
+    """Every text view the raw-text scans run on: ``body_text`` plus, when JSON encoding detection
+    finds UTF-16/UTF-32, that decoding (a latin-1 view interleaves NULs and hides every token)."""
+    views = [body_text(data)]
+    enc = json.detect_encoding(data)
+    if enc not in ('utf-8', 'utf-8-sig'):
+        try:
+            views.append(data.decode(enc))
+        except UnicodeDecodeError:
+            pass
+    return views
+
+
+def _billing_spans(text: str) -> List[Tuple[int, int, Any, bool]]:
+    """Every billing member of a JSON (or truncated-JSON) text as ``(start, end, value, decoded)``.
+
+    Walks the string tokens left to right (so text inside a string value is never taken for a key),
+    decodes each member name, and for a billing name decodes the value of any JSON type with
+    ``raw_decode``; ``decoded`` is False when the value cannot be decoded (truncated body)."""
+    out: List[Tuple[int, int, Any, bool]] = []
+    pos = 0
+    while True:
+        m = _JSON_STRING.search(text, pos)
+        if m is None:
+            return out
+        pos = m.end()
+        sep = _KEY_SEP.match(text, pos)
+        if sep is None:
+            continue
+        try:
+            key = json.loads(m.group())
+        except ValueError:
+            continue
+        if key not in BILLING_FIELDS:
+            continue
+        start = sep.end()
+        try:
+            val, end = _JSON_DECODER.raw_decode(text, start)
+        except ValueError:
+            out.append((start, start, None, False))
+            continue
+        out.append((start, end, val, True))
+        pos = end
+
+
+def _billing_values(data: bytes) -> List[Tuple[Any, bool]]:
+    """``(value, decoded)`` of every billing member of the stored body, from every text view."""
+    return [(val, ok) for text in body_texts(data) for _, _, val, ok in _billing_spans(text)]
+
+
 def body_redaction_marks(data: bytes) -> List[str]:
-    """rec-redact/1 body tokens whose footprints are visible in stored bytes (spec S13)."""
-    text = body_text(data)
+    """rec-redact/1 body tokens whose footprints are visible in stored bytes (spec S13).
+
+    Raw text views and the decoded members are both checked, so JSON escapes do not hide one."""
     found = set()
-    if any(m in text for m in SCRUB_MARKS):
+    if any(m in text for text in body_texts(data) for m in SCRUB_MARKS):
         found.add('body_secret_scrubbed')
-    try:
-        parsed = json.loads(text)
-    except ValueError:
-        parsed = None
-    if parsed is not None:
+    parsed = parse_body_members(data)
+    if parsed is not _NOT_JSON:
         _detect_cleaned(parsed, found)
-    for m in BILLING_FIELD_RE.finditer(text):
-        if m.group(2) == REDACTED_JSON:
-            found.add('body_billing_redacted')
+    if any(ok and val == REDACTED for val, ok in _billing_values(data)):
+        found.add('body_billing_redacted')
     return sorted(found)
 
 
 def _validate_secrets(v: _V, record: dict) -> None:
     """S13: no credential-shaped string anywhere in the record or its stored body, and visible
     scrub footprints in the body are declared in redaction.applied."""
-    for path, s in _walk_strings(record, '$'):
+    # body_utf8 is scanned as raw text here and decoded (parsed) below
+    for path, s in _scan_strings(record, '$', skip=('$.response.body_utf8',)):
         if SK_RE.search(s) or BEARER_RE.search(s):
             v.err(path, 'S13: credential-shaped string (sk- / Bearer token)')
     resp = record.get('response')
@@ -574,21 +685,21 @@ def _validate_secrets(v: _V, record: dict) -> None:
         return  # S3 already reports undecodable bodies
     if data is None:
         return
-    text = body_text(data)
-    if resp.get('body_b64') is not None and (SK_RE.search(text) or BEARER_RE.search(text)):
-        v.err('$.response.body_b64', 'S13: credential-shaped string (sk- / Bearer token) in body')
-    try:
-        parsed = json.loads(text)
-    except ValueError:
-        parsed = None
-    # JSON escapes (e.g. "sk-...") hide a credential from the raw-text scan above: scan every
-    # decoded key and string value of the parsed body, at any depth, with the same patterns.
-    # (request.body is stored as a parsed object, so the record walk above already sees it decoded.)
-    for path, s in _walk_strings(parsed, '$.response.body'):
-        if SK_RE.search(s) or BEARER_RE.search(s):
-            v.err(path, 'S13: credential-shaped string (sk- / Bearer token) in decoded body')
-    for path in _sensitive_values(parsed, '$.response.body'):
-        v.err(path, 'S13: credential-bearing key with an unredacted value')
+    # body_utf8 is already scanned as a record string above; body_b64 and UTF-16/32 views here
+    for text in body_texts(data)[(0 if resp.get('body_b64') is not None else 1):]:
+        if SK_RE.search(text) or BEARER_RE.search(text):
+            v.err('$.response.body', 'S13: credential-shaped string (sk- / Bearer token) in body')
+    # JSON escapes (a backslash-u sequence spelling "s" or "B") hide a credential from the raw-text
+    # scan: every decoded key and string value of the parsed body, at any depth and including
+    # duplicate keys, is scanned with the same patterns.  request.body and usage are stored as
+    # parsed objects, so the record walk above already sees them decoded.
+    parsed = parse_body_members(data)
+    if parsed is not _NOT_JSON:
+        for path, s in _scan_strings(parsed, '$.response.body'):
+            if SK_RE.search(s) or BEARER_RE.search(s):
+                v.err(path, 'S13: credential-shaped string (sk- / Bearer token) in decoded body')
+        for path in _sensitive_values(parsed, '$.response.body'):
+            v.err(path, 'S13: credential-bearing key with an unredacted value')
     applied = (record.get('redaction') or {}).get('applied')
     applied = applied if isinstance(applied, list) else []
     for token in body_redaction_marks(data):
@@ -608,7 +719,7 @@ def _validate_committed(v: _V, record: dict) -> None:
         data = body_bytes(record)
     except (binascii.Error, ValueError, AttributeError, TypeError):
         data = None
-    if data is not None and any(m.group(2) != REDACTED_JSON for m in BILLING_FIELD_RE.finditer(body_text(data))):
+    if data is not None and any(not ok or val != REDACTED for val, ok in _billing_values(data)):
         v.err('$.response.body', 'C2: billing_portal_url / balance_units must be redacted')
     applied = (record.get('redaction') or {}).get('applied') or []
     if src.get('kind') not in ('synthetic', 'synthetic-derived'):
@@ -634,28 +745,29 @@ def _iso(start_ns: Any) -> Optional[str]:
 
 
 def _detect_cleaned(value: Any, found: set) -> None:
-    """Find sk-llm/1 recorder ``clean()`` footprints in a parsed (already cleaned) sk-llm/1 body."""
-    if isinstance(value, dict):
-        for k, val in value.items():
-            if SENSITIVE.search(str(k)) and val == '[redacted]':
-                found.add('body_sensitive_key_redacted')
-            else:
-                _detect_cleaned(val, found)
-    elif isinstance(value, list):
-        for item in value:
-            _detect_cleaned(item, found)
-    elif isinstance(value, str) and any(m in value for m in SCRUB_MARKS):
+    """Find sk-llm/1 recorder ``clean()`` footprints in a parsed (already cleaned) body: a decoded
+    SENSITIVE member name with value ``"[redacted]"``, or a decoded key/string with a scrub mark."""
+    if any(SENSITIVE.search(str(k)) and val == REDACTED for _, k, val in _members(value, '$')):
+        found.add('body_sensitive_key_redacted')
+    if any(m in s for _, s in _walk_strings(value, '$') for m in SCRUB_MARKS):
         found.add('body_secret_scrubbed')
 
 
 def redact_billing(data: bytes) -> Tuple[bytes, bool]:
-    """rec-redact/1 ``body_billing_redacted``: replace the JSON values of ``billing_portal_url`` and
-    ``balance_units`` by ``"[redacted]"`` at the byte level (key order and every other byte kept)."""
+    """rec-redact/1 ``body_billing_redacted``: replace the JSON value (any type) of every member whose
+    decoded name is ``billing_portal_url`` or ``balance_units`` by ``"[redacted]"`` at the byte level
+    (key spelling, key order and every other byte kept).  A value that cannot be decoded (truncated
+    body) is left as is; C2 then keeps the record out of the committed tier."""
     try:
         text, enc = data.decode('utf-8'), 'utf-8'
     except UnicodeDecodeError:
         text, enc = data.decode('latin-1'), 'latin-1'
-    out = BILLING_FIELD_RE.sub(lambda m: m.group(1) + REDACTED_JSON, text)
+    parts, last = [], 0
+    for start, end, val, ok in _billing_spans(text):
+        if ok and val != REDACTED:
+            parts += [text[last:start], REDACTED_JSON]
+            last = end
+    out = ''.join(parts) + text[last:]
     return out.encode(enc), out != text
 
 

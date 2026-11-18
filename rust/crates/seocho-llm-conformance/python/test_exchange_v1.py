@@ -371,6 +371,87 @@ class SecretScanTests(unittest.TestCase):
         rec = self.with_body('{"error": {"api_key": "live-looking-value"}}')
         self.rejected(rec)
 
+    def test_sensitive_key_with_non_string_value(self):
+        """S13: any value that can carry material under a SENSITIVE key is rejected, not only strings."""
+        for body in ('{"error":{"api_key":["private-provider-key"]}}',
+                     '{"error":{"api_key":{"value":"private-provider-key"}}}',
+                     '{"error":{"api_key":12345678}}',
+                     '{"error":{"client_secret":[{"k":"v"}]}}'):
+            with self.subTest(body):
+                self.rejected(self.with_body(body), 'credential-bearing key')
+        for value in ({'v': 'private-provider-key'}, ['private-provider-key'], 12345678):
+            with self.subTest(value=value):
+                rec = fixture('01-content-json')
+                rec['request']['body']['extra_body'] = {'api_key': value}
+                self.rejected(rec, 'credential-bearing key')
+        rec = fixture('01-content-json')
+        rec['usage']['client_secret'] = 'private-provider-key'  # usage is an open object too
+        self.rejected(rec, 'credential-bearing key')
+        # values that cannot carry a credential stay valid
+        for body in ('{"error":{"api_key":null}}', '{"error":{"password_required":true}}',
+                     '{"error":{"api_key":""}}', '{"error":{"api_key":[]}}', '{"error":{"api_key":{}}}'):
+            with self.subTest(body):
+                rec = self.with_body(body)
+                rec['rec_id'] = x.compute_rec_id(rec)
+                self.assertEqual(x.validate(rec), [])
+
+    def test_decoded_names_and_duplicate_keys(self):
+        """Escaped member names and duplicate keys cannot hide a credential or a scrub footprint."""
+        esc_sk = '\\u0073k-' + 'Q' * 24
+        self.rejected(self.with_body('{"error":{"api\\u005fkey":"private-provider-key"}}'), 'credential-bearing key')
+        self.rejected(self.with_body('{"api_key":"private-provider-key","api_key":"[redacted]"}'),
+                      'credential-bearing key')
+        self.rejected(self.with_body('{"message":"' + esc_sk + '","message":"ok"}'), 'decoded body')
+        self.rejected(self.with_body('{"error":"bad key \\u0073k-[redacted]"}'), 'body_secret_scrubbed')
+        self.rejected(self.with_body('{"error":{"api\\u005fkey":"[redacted]"}}'), 'body_sensitive_key_redacted')
+
+    def test_secret_escaped_inside_embedded_json(self):
+        """A tool-call ``arguments`` string is itself JSON; an escape inside it is decoded too."""
+        args = '{"note": "\\u0073k-' + 'Q' * 24 + '"}'  # JSON text with an escape; json.dumps(body) escapes it again
+        body = json.dumps({'choices': [{'message': {'tool_calls': [{'function': {'arguments': args}}]}}]})
+        self.assertIsNone(x.SK_RE.search(json.loads(body)['choices'][0]['message']['tool_calls'][0]
+                                         ['function']['arguments']))
+        self.rejected(self.with_body(body), 'decoded body')
+        rec = fixture('01-content-json')
+        rec['request']['body']['messages'][1]['content'] = '{"k": "\\u0042earer ' + 'Q' * 24 + '"}'
+        self.rejected(rec)
+
+    def test_secret_in_utf16_body(self):
+        # UTF-16 of ASCII is valid UTF-8 (NUL-interleaved), so it is stored in body_utf8 where the
+        # plain string scan cannot see the token; the UTF-16 view and the parsed body do.
+        for raw in (('{"message":"' + self.FAKE_SK + '"}').encode('utf-16-le'),
+                    ('{"message":"' + self.FAKE_BEARER + '"}').encode('utf-16-be')):
+            with self.subTest(raw[:4]):
+                self.assertIsNone(x.SK_RE.search(raw.decode('utf-8')))
+                rec = self.with_body(raw.decode('utf-8'))
+                rec['rec_id'] = x.compute_rec_id(rec)
+                errors = x.validate(rec)
+                self.assertIn('$.response.body: S13: credential-shaped string (sk- / Bearer token) in body', errors)
+                self.assertTrue(any('decoded body' in e for e in errors), errors)
+
+    def test_billing_names_are_decoded(self):
+        """C2 / body_billing_redacted match the decoded member name, any value type, any depth."""
+        esc = '{"error":{"billing_\\u0070ortal_url":"https://billing.invalid/private-session","code":"X"}}'
+        out, changed = x.redact_billing(esc.encode())
+        self.assertTrue(changed)
+        self.assertEqual(out, b'{"error":{"billing_\\u0070ortal_url":"[redacted]","code":"X"}}')
+        nested = '{"error":{"balance_units":{"amount":5,"unit":"usd"},"note":"x"}}'
+        out, _ = x.redact_billing(nested.encode())
+        self.assertEqual(out, b'{"error":{"balance_units":"[redacted]","note":"x"}}')
+        # text inside a string value is never taken for a member
+        quoted = '{"message":"see \\"balance_units\\": 5"}'
+        self.assertEqual(x.redact_billing(quoted.encode()), (quoted.encode(), False))
+        for body in (esc, nested, '{"balance_units":5,"balance_units":"[redacted]"}',
+                     '{"error":{"balance_units":[1,2]}}'):
+            with self.subTest(body):
+                rec = self.with_body(body)
+                rec['case']['input_class'] = 'synthetic'
+                rec['rec_id'] = x.compute_rec_id(rec)
+                self.assertTrue(any('C2' in e for e in x.validate(rec, tier='committed')),
+                                x.validate(rec, tier='committed'))
+        # an escaped "[redacted]" value is a footprint that needs body_billing_redacted
+        self.rejected(self.with_body('{"error":{"balance_units":"\\u005bredacted]"}}'), 'body_billing_redacted')
+
     def test_committed_tier(self):
         rec = fixture('01-content-json')
         rec['case']['input_class'] = 'private'

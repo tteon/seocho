@@ -133,6 +133,70 @@ def test_agents_sdk_client_keeps_sdk_default_retries(monkeypatch: pytest.MonkeyP
     assert backend._async_client.max_retries == 0
 
 
+_EMBED_OK_BODY = {
+    "object": "list",
+    "data": [{"object": "embedding", "index": 0, "embedding": [0.1, 0.2]}],
+    "model": "text-embedding-3-small",
+    "usage": {"prompt_tokens": 1, "total_tokens": 1},
+}
+
+
+def _embed_backend(handler) -> OpenAICompatibleBackend:
+    backend = OpenAICompatibleBackend(provider="openai", model="gpt-4o-mini", api_key="k")
+    # Keep the constructed client's max_retries (0); embed() must restore
+    # bounded SDK retries itself, since no seocho loop wraps embeddings.
+    backend._client = backend._client.with_options(
+        http_client=httpx.Client(transport=httpx.MockTransport(handler))
+    )
+    return backend
+
+
+def test_llm_backend_embed_retries_transport_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The SDK sleeps between its own retries; skip the wait.
+    monkeypatch.setattr(openai._base_client.time, "sleep", lambda _s: None)
+    requests: List[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return _error(429)
+
+    backend = _embed_backend(handler)
+    with pytest.raises(openai.RateLimitError):
+        backend.embed(["hello"])
+
+    # 1 initial + 2 bounded SDK retries (same as before sr-ekq.11).
+    assert len(requests) == 3
+    assert backend._client.max_retries == 0
+
+
+def test_llm_backend_embed_recovers_after_5xx(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(openai._base_client.time, "sleep", lambda _s: None)
+    script = [_error(503), httpx.Response(200, json=_EMBED_OK_BODY)]
+    requests: List[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return script.pop(0)
+
+    backend = _embed_backend(handler)
+    assert backend.embed(["hello"]) == [[0.1, 0.2]]
+    assert len(requests) == 2
+
+
+def test_llm_backend_embed_does_not_retry_auth(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(openai._base_client.time, "sleep", lambda _s: None)
+    requests: List[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return _error(401)
+
+    backend = _embed_backend(handler)
+    with pytest.raises(openai.AuthenticationError):
+        backend.embed(["hello"])
+    assert len(requests) == 1
+
+
 @pytest.mark.parametrize("use_async", [False, True])
 def test_variant_ladder_shape_is_four_requests_on_payload_400s(sleeps, use_async) -> None:
     recorder = _Recorder([], default=lambda: _error(400, "unsupported parameter"))
@@ -165,8 +229,29 @@ def test_auth_and_payment_errors_are_terminal(sleeps, use_async, status, code) -
     assert err.code == code
     assert err.provider == "deepseek"
     assert err.model == "deepseek-chat"
-    assert isinstance(err.__cause__, openai.APIStatusError)
+    assert isinstance(err.provider_error, openai.APIStatusError)
     assert f"HTTP {status}" in str(err) and "not retrying" in str(err)
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+def test_terminal_402_body_is_not_chained_into_tracebacks(sleeps, use_async) -> None:
+    import traceback
+
+    secret_body = "billing_portal_url=https://pay.example/acct balance_units=-3"
+    recorder = _Recorder([], default=lambda: _error(402, secret_body))
+    backend = _backend(recorder)
+
+    with pytest.raises(SeochoProviderTerminalError) as info:
+        _complete(backend, use_async)
+
+    err = info.value
+    assert err.__cause__ is None
+    assert err.__suppress_context__ is True
+    rendered = "".join(traceback.format_exception(type(err), err, err.__traceback__))
+    assert "billing_portal_url" not in rendered
+    assert "balance_units" not in rendered
+    # Still reachable programmatically for callers that need the details.
+    assert "billing_portal_url" in str(err.provider_error)
 
 
 @pytest.mark.parametrize("use_async", [False, True])

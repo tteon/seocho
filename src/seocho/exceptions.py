@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 
 class SeochoError(Exception):
@@ -35,11 +35,17 @@ class SeochoProviderTerminalError(SeochoError):
 
     HTTP 401/403 (credentials or permissions) and 402 (payment required)
     cannot be fixed by resending, so the completion retry ladder stops on
-    the first one instead of replaying every request variant. The original
-    provider exception is kept as ``__cause__``.
+    the first one instead of replaying every request variant.
+
+    The original provider exception is available as ``provider_error`` but
+    is deliberately NOT chained (``__cause__``/``__context__`` suppressed):
+    its message embeds the raw response body, which for 402 includes billing
+    fields that must not leak into logged tracebacks.
     """
 
     def __init__(self, *, status_code: int, code: str, provider: str, model: str) -> None:
+        self.provider_error: Optional[BaseException] = None
+        self.request_id: Optional[str] = None
         self.status_code = status_code
         self.code = code
         self.provider = provider

@@ -730,6 +730,10 @@ class OpenAICompatibleBackend(LLMBackend):
     # openai SDK default; only used for the Agents SDK client view, which has
     # no seocho retry loop around it.
     _AGENTS_SDK_MAX_RETRIES = 2
+    # Same reasoning for embeddings: ``embed`` has no seocho retry loop, so
+    # it uses a client view with the SDK default (bounded) retries for
+    # 408/429/5xx instead of the max_retries=0 completion client.
+    _EMBED_SDK_MAX_RETRIES = 2
     _TRANSPORT_RETRY_MAX_DELAY_S = 30.0
 
     @staticmethod
@@ -798,7 +802,15 @@ class OpenAICompatibleBackend(LLMBackend):
             provider=self.provider,
             model=model,
         )
-        error.__cause__ = exc
+        # Do not chain the provider exception: its str() carries the full
+        # response body (402 bodies include billing_portal_url /
+        # balance_units, which llm-io-contract §7 redacts), and a chained
+        # cause is printed by every logged traceback. Keep it reachable
+        # programmatically instead.
+        error.provider_error = exc
+        error.request_id = getattr(exc, "request_id", None)
+        error.__cause__ = None
+        error.__suppress_context__ = True
         return error
 
     def _completion_retry_variants(self, kwargs: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -1192,7 +1204,23 @@ class OpenAICompatibleBackend(LLMBackend):
                 f"Provider '{self.provider}' does not define a default embedding model. "
                 "Pass an explicit embedding model or use a dedicated embedding backend."
             )
-        return _embed_in_batches(self._client, resolved_model, texts)
+        return _embed_in_batches(
+            self._with_sdk_retries(self._client, self._EMBED_SDK_MAX_RETRIES),
+            resolved_model,
+            texts,
+        )
+
+    @staticmethod
+    def _with_sdk_retries(client: Any, max_retries: int) -> Any:
+        """Return a view of ``client`` with SDK retries restored.
+
+        ``with_options`` shares the underlying HTTP pool. Clients without it
+        (test doubles) are returned unchanged.
+        """
+        with_options = getattr(client, "with_options", None)
+        if callable(with_options):
+            return with_options(max_retries=max_retries)
+        return client
 
     def to_embedding_backend(
         self,
@@ -1223,10 +1251,7 @@ class OpenAICompatibleBackend(LLMBackend):
         # view of the same client with the SDK's default retries restored
         # (``with_options`` shares the HTTP pool). Clients without
         # ``with_options`` (test doubles) are passed through unchanged.
-        openai_client = self._async_client
-        with_options = getattr(openai_client, "with_options", None)
-        if callable(with_options):
-            openai_client = with_options(max_retries=self._AGENTS_SDK_MAX_RETRIES)
+        openai_client = self._with_sdk_retries(self._async_client, self._AGENTS_SDK_MAX_RETRIES)
         return OpenAIChatCompletionsModel(
             model=_strip_text(model) or self.model,
             openai_client=openai_client,

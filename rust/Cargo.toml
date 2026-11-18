@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/seocho-core",
     "crates/seochod",
     "crates/oxigraph_read_model",
 ]

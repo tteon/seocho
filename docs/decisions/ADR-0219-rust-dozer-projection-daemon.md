@@ -12,7 +12,7 @@ high-throughput Bolt ownership without exposing arbitrary Cypher to a proxy.
 
 ## Decision
 
-Add `dataplane/seochod`, a local Rust Unix-domain-socket daemon using the Rust
+Add `seochod` (now `rust/crates/seochod`), a local Rust Unix-domain-socket daemon using the Rust
 `neo4j` driver. It accepts only typed, approved LPG projections and preserves
 `workspace_id` and provenance stamps. `SEOCHO_RUST_PROJECTOR_SOCKET` opts the
 existing graph adapter into this path and fails closed. Python continues to own

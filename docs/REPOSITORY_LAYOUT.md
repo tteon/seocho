@@ -84,7 +84,7 @@ and must not be tracked as part of the public GitHub surface.
 | Path | Status | Notes |
 |---|---|---|
 | `seocho-core/` | Optional accelerator workspace | Rust/Python hybrid support code, not the first stop for normal app changes. |
-| `dataplane/` | Optional native runtime components | Rust sidecars/proxies that sit below the Python control plane; the first component is the Oxigraph ontology read model. |
+| `rust/` | Optional native runtime components | Cargo workspace (`rust/Cargo.toml`) for Rust daemons that sit below the Python control plane: `crates/seochod` (DozerDB projection daemon) and `crates/oxigraph_read_model` (Oxigraph ontology read model). Patched third-party crates live in `rust/vendor/`. Build and test with `cargo test --manifest-path rust/Cargo.toml --workspace`. |
 
 For isolated coding tasks, see [Agent Workflow](AGENT_WORKFLOW.md). Task
 checkouts live under the common repository’s ignored `.seocho/worktrees/` and

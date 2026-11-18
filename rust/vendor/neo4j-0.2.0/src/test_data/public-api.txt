@@ -1,0 +1,2336 @@
+pub mod neo4j
+pub mod neo4j::address
+pub struct neo4j::address::Address
+impl neo4j::address::Address
+pub fn neo4j::address::Address::host(&self) -> &str
+pub fn neo4j::address::Address::port(&self) -> u16
+pub fn neo4j::address::Address::unresolved_host(&self) -> &str
+impl core::clone::Clone for neo4j::address::Address
+pub fn neo4j::address::Address::clone(&self) -> neo4j::address::Address
+impl core::cmp::Eq for neo4j::address::Address
+impl core::cmp::PartialEq for neo4j::address::Address
+pub fn neo4j::address::Address::eq(&self, other: &Self) -> bool
+impl core::convert::From<&str> for neo4j::address::Address
+pub fn neo4j::address::Address::from(host: &str) -> Self
+impl core::convert::From<(&str, u16)> for neo4j::address::Address
+pub fn neo4j::address::Address::from((host, port): (&str, u16)) -> Self
+impl core::convert::From<(alloc::string::String, u16)> for neo4j::address::Address
+pub fn neo4j::address::Address::from((host, port): (alloc::string::String, u16)) -> Self
+impl core::convert::From<core::net::socket_addr::SocketAddr> for neo4j::address::Address
+pub fn neo4j::address::Address::from(addr: core::net::socket_addr::SocketAddr) -> Self
+impl core::fmt::Debug for neo4j::address::Address
+pub fn neo4j::address::Address::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::address::Address
+pub fn neo4j::address::Address::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for neo4j::address::Address
+pub fn neo4j::address::Address::hash<H: core::hash::Hasher>(&self, state: &mut H)
+impl std::net::socket_addr::ToSocketAddrs for neo4j::address::Address
+pub type neo4j::address::Address::Iter = alloc::vec::into_iter::IntoIter<core::net::socket_addr::SocketAddr>
+pub fn neo4j::address::Address::to_socket_addrs(&self) -> std::io::error::Result<Self::Iter>
+impl core::marker::Freeze for neo4j::address::Address
+impl core::marker::Send for neo4j::address::Address
+impl core::marker::Sync for neo4j::address::Address
+impl core::marker::Unpin for neo4j::address::Address
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::address::Address
+impl core::panic::unwind_safe::UnwindSafe for neo4j::address::Address
+pub trait neo4j::address::AddressResolver: core::fmt::Debug + core::marker::Send + core::marker::Sync
+pub fn neo4j::address::AddressResolver::resolve(&self, address: &neo4j::address::Address) -> neo4j::address::AddressResolverReturn
+pub type neo4j::address::AddressResolverReturn = core::result::Result<alloc::vec::Vec<neo4j::address::Address>, alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>>
+pub mod neo4j::bookmarks
+pub mod neo4j::bookmarks::bookmark_managers
+pub const neo4j::bookmarks::bookmark_managers::NONE_CONSUMER: core::option::Option<fn(alloc::sync::Arc<neo4j::bookmarks::Bookmarks>) -> core::result::Result<(), alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>>>
+pub const neo4j::bookmarks::bookmark_managers::NONE_SUPPLIER: core::option::Option<fn() -> core::result::Result<alloc::sync::Arc<neo4j::bookmarks::Bookmarks>, alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>>>
+pub fn neo4j::bookmarks::bookmark_managers::simple(initial_bookmarks: core::option::Option<alloc::sync::Arc<neo4j::bookmarks::Bookmarks>>) -> impl neo4j::bookmarks::BookmarkManager
+pub fn neo4j::bookmarks::bookmark_managers::with_callbacks<SF, CF>(initial_bookmarks: core::option::Option<alloc::sync::Arc<neo4j::bookmarks::Bookmarks>>, supplier: core::option::Option<SF>, consumer: core::option::Option<CF>) -> impl neo4j::bookmarks::BookmarkManager where SF: core::ops::function::Fn() -> core::result::Result<alloc::sync::Arc<neo4j::bookmarks::Bookmarks>, alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>> + core::marker::Send + core::marker::Sync + 'static, CF: core::ops::function::Fn(alloc::sync::Arc<neo4j::bookmarks::Bookmarks>) -> core::result::Result<(), alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>> + core::marker::Send + core::marker::Sync + 'static
+pub struct neo4j::bookmarks::Bookmarks
+impl neo4j::bookmarks::Bookmarks
+pub fn neo4j::bookmarks::Bookmarks::from_raw(raw: impl core::iter::traits::collect::IntoIterator<Item = alloc::string::String>) -> Self
+pub fn neo4j::bookmarks::Bookmarks::into_raw(self) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String>
+pub fn neo4j::bookmarks::Bookmarks::is_empty(&self) -> bool
+pub fn neo4j::bookmarks::Bookmarks::len(&self) -> usize
+pub fn neo4j::bookmarks::Bookmarks::raw(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str>
+impl core::clone::Clone for neo4j::bookmarks::Bookmarks
+pub fn neo4j::bookmarks::Bookmarks::clone(&self) -> neo4j::bookmarks::Bookmarks
+impl core::default::Default for neo4j::bookmarks::Bookmarks
+pub fn neo4j::bookmarks::Bookmarks::default() -> neo4j::bookmarks::Bookmarks
+impl core::fmt::Debug for neo4j::bookmarks::Bookmarks
+pub fn neo4j::bookmarks::Bookmarks::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::ops::arith::Add for neo4j::bookmarks::Bookmarks
+pub type neo4j::bookmarks::Bookmarks::Output = neo4j::bookmarks::Bookmarks
+pub fn neo4j::bookmarks::Bookmarks::add(self, rhs: Self) -> Self::Output
+impl core::ops::arith::Add<&neo4j::bookmarks::Bookmarks> for &neo4j::bookmarks::Bookmarks
+pub type &neo4j::bookmarks::Bookmarks::Output = neo4j::bookmarks::Bookmarks
+pub fn &neo4j::bookmarks::Bookmarks::add(self, rhs: &neo4j::bookmarks::Bookmarks) -> Self::Output
+impl core::ops::arith::Add<&neo4j::bookmarks::Bookmarks> for neo4j::bookmarks::Bookmarks
+pub type neo4j::bookmarks::Bookmarks::Output = neo4j::bookmarks::Bookmarks
+pub fn neo4j::bookmarks::Bookmarks::add(self, rhs: &neo4j::bookmarks::Bookmarks) -> Self::Output
+impl core::ops::arith::Add<neo4j::bookmarks::Bookmarks> for &neo4j::bookmarks::Bookmarks
+pub type &neo4j::bookmarks::Bookmarks::Output = neo4j::bookmarks::Bookmarks
+pub fn &neo4j::bookmarks::Bookmarks::add(self, rhs: neo4j::bookmarks::Bookmarks) -> Self::Output
+impl core::ops::arith::AddAssign for neo4j::bookmarks::Bookmarks
+pub fn neo4j::bookmarks::Bookmarks::add_assign(&mut self, rhs: neo4j::bookmarks::Bookmarks)
+impl core::ops::arith::AddAssign<&neo4j::bookmarks::Bookmarks> for neo4j::bookmarks::Bookmarks
+pub fn neo4j::bookmarks::Bookmarks::add_assign(&mut self, rhs: &neo4j::bookmarks::Bookmarks)
+impl core::ops::arith::Sub for neo4j::bookmarks::Bookmarks
+pub type neo4j::bookmarks::Bookmarks::Output = neo4j::bookmarks::Bookmarks
+pub fn neo4j::bookmarks::Bookmarks::sub(self, rhs: Self) -> Self::Output
+impl core::ops::arith::Sub<&neo4j::bookmarks::Bookmarks> for &neo4j::bookmarks::Bookmarks
+pub type &neo4j::bookmarks::Bookmarks::Output = neo4j::bookmarks::Bookmarks
+pub fn &neo4j::bookmarks::Bookmarks::sub(self, rhs: &neo4j::bookmarks::Bookmarks) -> Self::Output
+impl core::ops::arith::Sub<&neo4j::bookmarks::Bookmarks> for neo4j::bookmarks::Bookmarks
+pub type neo4j::bookmarks::Bookmarks::Output = neo4j::bookmarks::Bookmarks
+pub fn neo4j::bookmarks::Bookmarks::sub(self, rhs: &neo4j::bookmarks::Bookmarks) -> Self::Output
+impl core::ops::arith::Sub<neo4j::bookmarks::Bookmarks> for &neo4j::bookmarks::Bookmarks
+pub type &neo4j::bookmarks::Bookmarks::Output = neo4j::bookmarks::Bookmarks
+pub fn &neo4j::bookmarks::Bookmarks::sub(self, rhs: neo4j::bookmarks::Bookmarks) -> Self::Output
+impl core::ops::arith::SubAssign for neo4j::bookmarks::Bookmarks
+pub fn neo4j::bookmarks::Bookmarks::sub_assign(&mut self, rhs: neo4j::bookmarks::Bookmarks)
+impl core::ops::arith::SubAssign<&neo4j::bookmarks::Bookmarks> for neo4j::bookmarks::Bookmarks
+pub fn neo4j::bookmarks::Bookmarks::sub_assign(&mut self, rhs: &neo4j::bookmarks::Bookmarks)
+impl core::marker::Freeze for neo4j::bookmarks::Bookmarks
+impl core::marker::Send for neo4j::bookmarks::Bookmarks
+impl core::marker::Sync for neo4j::bookmarks::Bookmarks
+impl core::marker::Unpin for neo4j::bookmarks::Bookmarks
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::bookmarks::Bookmarks
+impl core::panic::unwind_safe::UnwindSafe for neo4j::bookmarks::Bookmarks
+pub trait neo4j::bookmarks::BookmarkManager: core::fmt::Debug + core::marker::Send + core::marker::Sync
+pub fn neo4j::bookmarks::BookmarkManager::get_bookmarks(&self) -> core::result::Result<alloc::sync::Arc<neo4j::bookmarks::Bookmarks>, alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>>
+pub fn neo4j::bookmarks::BookmarkManager::update_bookmarks(&self, previous: alloc::sync::Arc<neo4j::bookmarks::Bookmarks>, new: alloc::sync::Arc<neo4j::bookmarks::Bookmarks>) -> core::result::Result<(), alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>>
+pub mod neo4j::driver
+pub mod neo4j::driver::auth
+pub mod neo4j::driver::auth::auth_managers
+pub fn neo4j::driver::auth::auth_managers::new_basic<P: core::ops::function::Fn() -> neo4j::driver::auth::BasicProviderReturn + core::marker::Sync + core::marker::Send>(provider: P) -> impl neo4j::driver::auth::AuthManager
+pub fn neo4j::driver::auth::auth_managers::new_bearer<P: core::ops::function::Fn() -> neo4j::driver::auth::BearerProviderReturn + core::marker::Send + core::marker::Sync>(provider: P) -> impl neo4j::driver::auth::AuthManager
+pub fn neo4j::driver::auth::auth_managers::new_static(auth: neo4j::driver::auth::AuthToken) -> impl neo4j::driver::auth::AuthManager
+pub struct neo4j::driver::auth::AuthToken
+impl neo4j::driver::auth::AuthToken
+pub fn neo4j::driver::auth::AuthToken::data(&self) -> &std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>
+pub fn neo4j::driver::auth::AuthToken::eq_data(&self, other: &Self) -> bool
+pub fn neo4j::driver::auth::AuthToken::new_basic_auth(username: impl core::convert::Into<alloc::string::String>, password: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn neo4j::driver::auth::AuthToken::new_basic_auth_with_realm(username: impl core::convert::Into<alloc::string::String>, password: impl core::convert::Into<alloc::string::String>, realm: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn neo4j::driver::auth::AuthToken::new_bearer_auth(base64_encoded_token: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn neo4j::driver::auth::AuthToken::new_custom_auth(principal: core::option::Option<alloc::string::String>, credentials: core::option::Option<alloc::string::String>, realm: core::option::Option<alloc::string::String>, scheme: core::option::Option<alloc::string::String>, parameters: core::option::Option<std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>>) -> Self
+pub fn neo4j::driver::auth::AuthToken::new_kerberos_auth(base64_encoded_ticket: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn neo4j::driver::auth::AuthToken::new_none_auth() -> Self
+impl core::clone::Clone for neo4j::driver::auth::AuthToken
+pub fn neo4j::driver::auth::AuthToken::clone(&self) -> neo4j::driver::auth::AuthToken
+impl core::cmp::PartialEq for neo4j::driver::auth::AuthToken
+pub fn neo4j::driver::auth::AuthToken::eq(&self, other: &neo4j::driver::auth::AuthToken) -> bool
+impl core::default::Default for neo4j::driver::auth::AuthToken
+pub fn neo4j::driver::auth::AuthToken::default() -> Self
+impl core::fmt::Debug for neo4j::driver::auth::AuthToken
+pub fn neo4j::driver::auth::AuthToken::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for neo4j::driver::auth::AuthToken
+impl core::marker::Freeze for neo4j::driver::auth::AuthToken
+impl core::marker::Send for neo4j::driver::auth::AuthToken
+impl core::marker::Sync for neo4j::driver::auth::AuthToken
+impl core::marker::Unpin for neo4j::driver::auth::AuthToken
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::auth::AuthToken
+impl core::panic::unwind_safe::UnwindSafe for neo4j::driver::auth::AuthToken
+pub trait neo4j::driver::auth::AuthManager: core::marker::Send + core::marker::Sync + core::fmt::Debug
+pub fn neo4j::driver::auth::AuthManager::get_auth(&self) -> neo4j::driver::auth::ManagerGetAuthReturn
+pub fn neo4j::driver::auth::AuthManager::handle_security_error(&self, _auth: &alloc::sync::Arc<neo4j::driver::auth::AuthToken>, _error: &neo4j::error::ServerError) -> neo4j::driver::auth::ManagerHandleErrReturn
+pub type neo4j::driver::auth::BasicProviderReturn = core::result::Result<neo4j::driver::auth::AuthToken, alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>>
+pub type neo4j::driver::auth::BearerProviderReturn = core::result::Result<(neo4j::driver::auth::AuthToken, core::option::Option<std::time::Instant>), alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>>
+pub type neo4j::driver::auth::ManagerGetAuthReturn = core::result::Result<alloc::sync::Arc<neo4j::driver::auth::AuthToken>, alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>>
+pub type neo4j::driver::auth::ManagerHandleErrReturn = core::result::Result<bool, alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>>
+pub mod neo4j::driver::notification
+#[non_exhaustive] pub enum neo4j::driver::notification::DisabledCategory
+pub neo4j::driver::notification::DisabledCategory::Deprecation
+pub neo4j::driver::notification::DisabledCategory::Generic
+pub neo4j::driver::notification::DisabledCategory::Hint
+pub neo4j::driver::notification::DisabledCategory::Performance
+pub neo4j::driver::notification::DisabledCategory::Schema
+pub neo4j::driver::notification::DisabledCategory::Security
+pub neo4j::driver::notification::DisabledCategory::Topology
+pub neo4j::driver::notification::DisabledCategory::Unrecognized
+pub neo4j::driver::notification::DisabledCategory::Unsupported
+impl core::clone::Clone for neo4j::driver::notification::DisabledCategory
+pub fn neo4j::driver::notification::DisabledCategory::clone(&self) -> neo4j::driver::notification::DisabledCategory
+impl core::cmp::Eq for neo4j::driver::notification::DisabledCategory
+impl core::cmp::PartialEq for neo4j::driver::notification::DisabledCategory
+pub fn neo4j::driver::notification::DisabledCategory::eq(&self, other: &neo4j::driver::notification::DisabledCategory) -> bool
+impl core::fmt::Debug for neo4j::driver::notification::DisabledCategory
+pub fn neo4j::driver::notification::DisabledCategory::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::driver::notification::DisabledCategory
+impl core::marker::StructuralPartialEq for neo4j::driver::notification::DisabledCategory
+impl core::marker::Freeze for neo4j::driver::notification::DisabledCategory
+impl core::marker::Send for neo4j::driver::notification::DisabledCategory
+impl core::marker::Sync for neo4j::driver::notification::DisabledCategory
+impl core::marker::Unpin for neo4j::driver::notification::DisabledCategory
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::notification::DisabledCategory
+impl core::panic::unwind_safe::UnwindSafe for neo4j::driver::notification::DisabledCategory
+#[non_exhaustive] pub enum neo4j::driver::notification::MinimumSeverity
+pub neo4j::driver::notification::MinimumSeverity::Disabled
+pub neo4j::driver::notification::MinimumSeverity::Information
+pub neo4j::driver::notification::MinimumSeverity::Warning
+impl core::clone::Clone for neo4j::driver::notification::MinimumSeverity
+pub fn neo4j::driver::notification::MinimumSeverity::clone(&self) -> neo4j::driver::notification::MinimumSeverity
+impl core::cmp::Eq for neo4j::driver::notification::MinimumSeverity
+impl core::cmp::PartialEq for neo4j::driver::notification::MinimumSeverity
+pub fn neo4j::driver::notification::MinimumSeverity::eq(&self, other: &neo4j::driver::notification::MinimumSeverity) -> bool
+impl core::fmt::Debug for neo4j::driver::notification::MinimumSeverity
+pub fn neo4j::driver::notification::MinimumSeverity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::driver::notification::MinimumSeverity
+impl core::marker::StructuralPartialEq for neo4j::driver::notification::MinimumSeverity
+impl core::marker::Freeze for neo4j::driver::notification::MinimumSeverity
+impl core::marker::Send for neo4j::driver::notification::MinimumSeverity
+impl core::marker::Sync for neo4j::driver::notification::MinimumSeverity
+impl core::marker::Unpin for neo4j::driver::notification::MinimumSeverity
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::notification::MinimumSeverity
+impl core::panic::unwind_safe::UnwindSafe for neo4j::driver::notification::MinimumSeverity
+pub struct neo4j::driver::notification::NotificationFilter
+impl neo4j::driver::notification::NotificationFilter
+pub fn neo4j::driver::notification::NotificationFilter::new() -> Self
+pub fn neo4j::driver::notification::NotificationFilter::new_disable_all() -> Self
+pub fn neo4j::driver::notification::NotificationFilter::with_default_disabled_categories(self) -> Self
+pub fn neo4j::driver::notification::NotificationFilter::with_default_disabled_classifications(self) -> Self
+pub fn neo4j::driver::notification::NotificationFilter::with_default_minimum_severity(self) -> Self
+pub fn neo4j::driver::notification::NotificationFilter::with_disabled_categories(self, disabled_categories: alloc::vec::Vec<neo4j::driver::notification::DisabledCategory>) -> Self
+pub fn neo4j::driver::notification::NotificationFilter::with_disabled_classifications(self, disabled_classifications: alloc::vec::Vec<neo4j::driver::notification::DisabledClassification>) -> Self
+pub fn neo4j::driver::notification::NotificationFilter::with_minimum_severity(self, minimum_severity: neo4j::driver::notification::MinimumSeverity) -> Self
+impl core::clone::Clone for neo4j::driver::notification::NotificationFilter
+pub fn neo4j::driver::notification::NotificationFilter::clone(&self) -> neo4j::driver::notification::NotificationFilter
+impl core::cmp::Eq for neo4j::driver::notification::NotificationFilter
+impl core::cmp::PartialEq for neo4j::driver::notification::NotificationFilter
+pub fn neo4j::driver::notification::NotificationFilter::eq(&self, other: &neo4j::driver::notification::NotificationFilter) -> bool
+impl core::default::Default for neo4j::driver::notification::NotificationFilter
+pub fn neo4j::driver::notification::NotificationFilter::default() -> neo4j::driver::notification::NotificationFilter
+impl core::fmt::Debug for neo4j::driver::notification::NotificationFilter
+pub fn neo4j::driver::notification::NotificationFilter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for neo4j::driver::notification::NotificationFilter
+impl core::marker::Freeze for neo4j::driver::notification::NotificationFilter
+impl core::marker::Send for neo4j::driver::notification::NotificationFilter
+impl core::marker::Sync for neo4j::driver::notification::NotificationFilter
+impl core::marker::Unpin for neo4j::driver::notification::NotificationFilter
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::notification::NotificationFilter
+impl core::panic::unwind_safe::UnwindSafe for neo4j::driver::notification::NotificationFilter
+pub type neo4j::driver::notification::DisabledClassification = neo4j::driver::notification::DisabledCategory
+pub mod neo4j::driver::record_stream
+pub enum neo4j::driver::record_stream::GetSingleRecordError
+pub neo4j::driver::record_stream::GetSingleRecordError::NoRecords
+pub neo4j::driver::record_stream::GetSingleRecordError::TooManyRecords
+impl core::convert::From<neo4j::driver::record_stream::GetSingleRecordError> for neo4j::Neo4jError
+pub fn neo4j::Neo4jError::from(err: neo4j::driver::record_stream::GetSingleRecordError) -> Self
+impl core::error::Error for neo4j::driver::record_stream::GetSingleRecordError
+impl core::fmt::Debug for neo4j::driver::record_stream::GetSingleRecordError
+pub fn neo4j::driver::record_stream::GetSingleRecordError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::driver::record_stream::GetSingleRecordError
+pub fn neo4j::driver::record_stream::GetSingleRecordError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::driver::record_stream::GetSingleRecordError
+impl core::marker::Send for neo4j::driver::record_stream::GetSingleRecordError
+impl core::marker::Sync for neo4j::driver::record_stream::GetSingleRecordError
+impl core::marker::Unpin for neo4j::driver::record_stream::GetSingleRecordError
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::record_stream::GetSingleRecordError
+impl core::panic::unwind_safe::UnwindSafe for neo4j::driver::record_stream::GetSingleRecordError
+pub struct neo4j::driver::record_stream::RecordStream<'driver>
+impl<'driver> neo4j::driver::record_stream::RecordStream<'driver>
+pub fn neo4j::driver::record_stream::RecordStream<'driver>::consume(&mut self) -> neo4j::Result<core::option::Option<neo4j::summary::Summary>>
+pub fn neo4j::driver::record_stream::RecordStream<'driver>::keys(&self) -> alloc::vec::Vec<alloc::sync::Arc<alloc::string::String>>
+pub fn neo4j::driver::record_stream::RecordStream<'driver>::single(&mut self) -> core::result::Result<neo4j::Result<neo4j::driver::Record>, neo4j::driver::record_stream::GetSingleRecordError>
+pub fn neo4j::driver::record_stream::RecordStream<'driver>::try_as_eager_result(&mut self) -> neo4j::Result<core::option::Option<neo4j::driver::EagerResult>>
+impl core::iter::traits::iterator::Iterator for neo4j::driver::record_stream::RecordStream<'_>
+pub type neo4j::driver::record_stream::RecordStream<'_>::Item = core::result::Result<neo4j::driver::Record, neo4j::Neo4jError>
+pub fn neo4j::driver::record_stream::RecordStream<'_>::next(&mut self) -> core::option::Option<Self::Item>
+impl core::iter::traits::marker::FusedIterator for neo4j::driver::record_stream::RecordStream<'_>
+impl<'driver> core::fmt::Debug for neo4j::driver::record_stream::RecordStream<'driver>
+pub fn neo4j::driver::record_stream::RecordStream<'driver>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'driver> core::marker::Freeze for neo4j::driver::record_stream::RecordStream<'driver>
+impl<'driver> !core::marker::Send for neo4j::driver::record_stream::RecordStream<'driver>
+impl<'driver> !core::marker::Sync for neo4j::driver::record_stream::RecordStream<'driver>
+impl<'driver> core::marker::Unpin for neo4j::driver::record_stream::RecordStream<'driver>
+impl<'driver> !core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::record_stream::RecordStream<'driver>
+impl<'driver> !core::panic::unwind_safe::UnwindSafe for neo4j::driver::record_stream::RecordStream<'driver>
+pub mod neo4j::driver::transaction
+pub struct neo4j::driver::transaction::Transaction<'driver, 'tx>
+impl<'driver, 'tx> neo4j::transaction::Transaction<'driver, 'tx>
+pub fn neo4j::transaction::Transaction<'driver, 'tx>::commit(self) -> neo4j::Result<()>
+pub fn neo4j::transaction::Transaction<'driver, 'tx>::query<Q: core::convert::AsRef<str>>(&'tx self, query: Q) -> neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>>
+pub fn neo4j::transaction::Transaction<'driver, 'tx>::rollback(self) -> neo4j::Result<()>
+impl<'driver, 'tx> core::fmt::Debug for neo4j::transaction::Transaction<'driver, 'tx>
+pub fn neo4j::transaction::Transaction<'driver, 'tx>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'driver, 'tx> !core::marker::Freeze for neo4j::transaction::Transaction<'driver, 'tx>
+impl<'driver, 'tx> !core::marker::Send for neo4j::transaction::Transaction<'driver, 'tx>
+impl<'driver, 'tx> !core::marker::Sync for neo4j::transaction::Transaction<'driver, 'tx>
+impl<'driver, 'tx> core::marker::Unpin for neo4j::transaction::Transaction<'driver, 'tx>
+impl<'driver, 'tx> !core::panic::unwind_safe::RefUnwindSafe for neo4j::transaction::Transaction<'driver, 'tx>
+impl<'driver, 'tx> !core::panic::unwind_safe::UnwindSafe for neo4j::transaction::Transaction<'driver, 'tx>
+pub struct neo4j::driver::transaction::TransactionQueryBuilder<'driver, 'tx, Q: core::convert::AsRef<str>, K: core::borrow::Borrow<str> + core::fmt::Debug, M: core::borrow::Borrow<std::collections::hash::map::HashMap<K, neo4j::ValueSend>>>
+impl<'driver, 'tx, Q: core::convert::AsRef<str>, K: core::borrow::Borrow<str> + core::fmt::Debug, M: core::borrow::Borrow<std::collections::hash::map::HashMap<K, neo4j::ValueSend>>> neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>
+pub fn neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>::run(self) -> neo4j::Result<neo4j::transaction::TransactionRecordStream<'driver, 'tx>>
+pub fn neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>::with_parameters<K_: core::borrow::Borrow<str> + core::fmt::Debug, M_: core::borrow::Borrow<std::collections::hash::map::HashMap<K_, neo4j::ValueSend>>>(self, parameters: M_) -> neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K_, M_>
+pub fn neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>::without_parameters(self) -> neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>>
+impl<Q: core::convert::AsRef<str>, K: core::borrow::Borrow<str> + core::fmt::Debug, M: core::borrow::Borrow<std::collections::hash::map::HashMap<K, neo4j::ValueSend>>> core::fmt::Debug for neo4j::transaction::TransactionQueryBuilder<'_, '_, Q, K, M>
+pub fn neo4j::transaction::TransactionQueryBuilder<'_, '_, Q, K, M>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'driver, 'tx, Q, K, M> core::marker::Freeze for neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M> where Q: core::marker::Freeze, M: core::marker::Freeze
+impl<'driver, 'tx, Q, K, M> !core::marker::Send for neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>
+impl<'driver, 'tx, Q, K, M> !core::marker::Sync for neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>
+impl<'driver, 'tx, Q, K, M> core::marker::Unpin for neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M> where Q: core::marker::Unpin, M: core::marker::Unpin, K: core::marker::Unpin
+impl<'driver, 'tx, Q, K, M> !core::panic::unwind_safe::RefUnwindSafe for neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>
+impl<'driver, 'tx, Q, K, M> !core::panic::unwind_safe::UnwindSafe for neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>
+pub struct neo4j::driver::transaction::TransactionRecordStream<'driver, 'tx>(_, _)
+impl<'driver> neo4j::transaction::TransactionRecordStream<'driver, '_>
+pub fn neo4j::transaction::TransactionRecordStream<'driver, '_>::consume(self) -> neo4j::Result<core::option::Option<neo4j::summary::Summary>>
+pub fn neo4j::transaction::TransactionRecordStream<'driver, '_>::keys(&self) -> alloc::vec::Vec<alloc::sync::Arc<alloc::string::String>>
+pub fn neo4j::transaction::TransactionRecordStream<'driver, '_>::single(&mut self) -> core::result::Result<neo4j::Result<neo4j::driver::Record>, neo4j::driver::record_stream::GetSingleRecordError>
+pub fn neo4j::transaction::TransactionRecordStream<'driver, '_>::try_as_eager_result(&mut self) -> neo4j::Result<core::option::Option<neo4j::driver::EagerResult>>
+impl core::iter::traits::iterator::Iterator for neo4j::transaction::TransactionRecordStream<'_, '_>
+pub type neo4j::transaction::TransactionRecordStream<'_, '_>::Item = core::result::Result<neo4j::driver::Record, neo4j::Neo4jError>
+pub fn neo4j::transaction::TransactionRecordStream<'_, '_>::next(&mut self) -> core::option::Option<Self::Item>
+impl core::ops::drop::Drop for neo4j::transaction::TransactionRecordStream<'_, '_>
+pub fn neo4j::transaction::TransactionRecordStream<'_, '_>::drop(&mut self)
+impl<'driver, 'tx> core::fmt::Debug for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+pub fn neo4j::transaction::TransactionRecordStream<'driver, 'tx>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'driver, 'tx> core::marker::Freeze for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+impl<'driver, 'tx> !core::marker::Send for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+impl<'driver, 'tx> !core::marker::Sync for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+impl<'driver, 'tx> core::marker::Unpin for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+impl<'driver, 'tx> !core::panic::unwind_safe::RefUnwindSafe for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+impl<'driver, 'tx> !core::panic::unwind_safe::UnwindSafe for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+pub struct neo4j::driver::transaction::TransactionTimeout
+impl neo4j::transaction::TransactionTimeout
+pub fn neo4j::transaction::TransactionTimeout::from_millis(timeout: i64) -> core::option::Option<Self>
+pub fn neo4j::transaction::TransactionTimeout::none() -> Self
+impl core::clone::Clone for neo4j::transaction::TransactionTimeout
+pub fn neo4j::transaction::TransactionTimeout::clone(&self) -> neo4j::transaction::TransactionTimeout
+impl core::default::Default for neo4j::transaction::TransactionTimeout
+pub fn neo4j::transaction::TransactionTimeout::default() -> Self
+impl core::fmt::Debug for neo4j::transaction::TransactionTimeout
+pub fn neo4j::transaction::TransactionTimeout::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::transaction::TransactionTimeout
+impl core::marker::Freeze for neo4j::transaction::TransactionTimeout
+impl core::marker::Send for neo4j::transaction::TransactionTimeout
+impl core::marker::Sync for neo4j::transaction::TransactionTimeout
+impl core::marker::Unpin for neo4j::transaction::TransactionTimeout
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::transaction::TransactionTimeout
+impl core::panic::unwind_safe::UnwindSafe for neo4j::transaction::TransactionTimeout
+pub enum neo4j::driver::KeepAliveConfig
+pub neo4j::driver::KeepAliveConfig::CustomTime(core::time::Duration)
+pub neo4j::driver::KeepAliveConfig::Default
+impl core::clone::Clone for neo4j::driver::KeepAliveConfig
+pub fn neo4j::driver::KeepAliveConfig::clone(&self) -> neo4j::driver::KeepAliveConfig
+impl core::cmp::Eq for neo4j::driver::KeepAliveConfig
+impl core::cmp::PartialEq for neo4j::driver::KeepAliveConfig
+pub fn neo4j::driver::KeepAliveConfig::eq(&self, other: &neo4j::driver::KeepAliveConfig) -> bool
+impl core::fmt::Debug for neo4j::driver::KeepAliveConfig
+pub fn neo4j::driver::KeepAliveConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for neo4j::driver::KeepAliveConfig
+pub fn neo4j::driver::KeepAliveConfig::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for neo4j::driver::KeepAliveConfig
+impl core::marker::StructuralPartialEq for neo4j::driver::KeepAliveConfig
+impl core::marker::Freeze for neo4j::driver::KeepAliveConfig
+impl core::marker::Send for neo4j::driver::KeepAliveConfig
+impl core::marker::Sync for neo4j::driver::KeepAliveConfig
+impl core::marker::Unpin for neo4j::driver::KeepAliveConfig
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::KeepAliveConfig
+impl core::panic::unwind_safe::UnwindSafe for neo4j::driver::KeepAliveConfig
+pub enum neo4j::driver::RoutingControl
+pub neo4j::driver::RoutingControl::Read
+pub neo4j::driver::RoutingControl::Write
+impl core::clone::Clone for neo4j::driver::RoutingControl
+pub fn neo4j::driver::RoutingControl::clone(&self) -> neo4j::driver::RoutingControl
+impl core::fmt::Debug for neo4j::driver::RoutingControl
+pub fn neo4j::driver::RoutingControl::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::driver::RoutingControl
+impl core::marker::Freeze for neo4j::driver::RoutingControl
+impl core::marker::Send for neo4j::driver::RoutingControl
+impl core::marker::Sync for neo4j::driver::RoutingControl
+impl core::marker::Unpin for neo4j::driver::RoutingControl
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::RoutingControl
+impl core::panic::unwind_safe::UnwindSafe for neo4j::driver::RoutingControl
+pub enum neo4j::driver::ScalarError
+pub neo4j::driver::ScalarError::MoreThanOneRecord
+pub neo4j::driver::ScalarError::MoreThanOneValue
+pub neo4j::driver::ScalarError::NoRecord
+pub neo4j::driver::ScalarError::NoValue
+impl core::error::Error for neo4j::driver::ScalarError
+impl core::fmt::Debug for neo4j::driver::ScalarError
+pub fn neo4j::driver::ScalarError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::driver::ScalarError
+pub fn neo4j::driver::ScalarError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::driver::ScalarError
+impl core::marker::Send for neo4j::driver::ScalarError
+impl core::marker::Sync for neo4j::driver::ScalarError
+impl core::marker::Unpin for neo4j::driver::ScalarError
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::ScalarError
+impl core::panic::unwind_safe::UnwindSafe for neo4j::driver::ScalarError
+pub struct neo4j::driver::ConfigureFetchSizeError<Builder>
+pub neo4j::driver::ConfigureFetchSizeError::builder: Builder
+impl<Builder: core::fmt::Debug> core::fmt::Debug for neo4j::driver::ConfigureFetchSizeError<Builder>
+pub fn neo4j::driver::ConfigureFetchSizeError<Builder>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<Builder> core::error::Error for neo4j::driver::ConfigureFetchSizeError<Builder> where Self: core::fmt::Debug + core::fmt::Display
+impl<Builder> core::fmt::Display for neo4j::driver::ConfigureFetchSizeError<Builder>
+pub fn neo4j::driver::ConfigureFetchSizeError<Builder>::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<Builder> core::marker::Freeze for neo4j::driver::ConfigureFetchSizeError<Builder> where Builder: core::marker::Freeze
+impl<Builder> core::marker::Send for neo4j::driver::ConfigureFetchSizeError<Builder> where Builder: core::marker::Send
+impl<Builder> core::marker::Sync for neo4j::driver::ConfigureFetchSizeError<Builder> where Builder: core::marker::Sync
+impl<Builder> core::marker::Unpin for neo4j::driver::ConfigureFetchSizeError<Builder> where Builder: core::marker::Unpin
+impl<Builder> core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::ConfigureFetchSizeError<Builder> where Builder: core::panic::unwind_safe::RefUnwindSafe
+impl<Builder> core::panic::unwind_safe::UnwindSafe for neo4j::driver::ConfigureFetchSizeError<Builder> where Builder: core::panic::unwind_safe::UnwindSafe
+pub struct neo4j::driver::ConnectionConfig
+impl neo4j::driver::ConnectionConfig
+pub fn neo4j::driver::ConnectionConfig::new(address: neo4j::address::Address) -> Self
+pub fn neo4j::driver::ConnectionConfig::with_address(self, address: neo4j::address::Address) -> Self
+pub fn neo4j::driver::ConnectionConfig::with_encryption_custom_tls_config(self, tls_config: rustls::client::client_conn::ClientConfig) -> Self
+pub fn neo4j::driver::ConnectionConfig::with_encryption_disabled(self) -> Self
+pub fn neo4j::driver::ConnectionConfig::with_encryption_trust_any_certificate(self) -> Self
+pub fn neo4j::driver::ConnectionConfig::with_encryption_trust_custom_cas<P: core::convert::AsRef<std::path::Path>>(self, paths: &[P]) -> core::result::Result<Self, neo4j::driver::TlsConfigError>
+pub fn neo4j::driver::ConnectionConfig::with_encryption_trust_default_cas(self) -> core::result::Result<Self, neo4j::driver::TlsConfigError>
+pub fn neo4j::driver::ConnectionConfig::with_routing(self, routing: bool) -> Self
+pub fn neo4j::driver::ConnectionConfig::with_routing_context(self, routing_context: std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String>) -> core::result::Result<Self, neo4j::driver::InvalidRoutingContextError<Self>>
+impl core::convert::TryFrom<&str> for neo4j::driver::ConnectionConfig
+pub type neo4j::driver::ConnectionConfig::Error = neo4j::driver::ConnectionConfigParseError
+pub fn neo4j::driver::ConnectionConfig::try_from(value: &str) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::driver::ConnectionConfig
+pub fn neo4j::driver::ConnectionConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::str::traits::FromStr for neo4j::driver::ConnectionConfig
+pub type neo4j::driver::ConnectionConfig::Err = neo4j::driver::ConnectionConfigParseError
+pub fn neo4j::driver::ConnectionConfig::from_str(s: &str) -> core::result::Result<Self, Self::Err>
+impl core::marker::Freeze for neo4j::driver::ConnectionConfig
+impl core::marker::Send for neo4j::driver::ConnectionConfig
+impl core::marker::Sync for neo4j::driver::ConnectionConfig
+impl core::marker::Unpin for neo4j::driver::ConnectionConfig
+impl !core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::ConnectionConfig
+impl !core::panic::unwind_safe::UnwindSafe for neo4j::driver::ConnectionConfig
+pub struct neo4j::driver::ConnectionConfigParseError(_)
+impl core::convert::From<alloc::string::String> for neo4j::driver::ConnectionConfigParseError
+pub fn neo4j::driver::ConnectionConfigParseError::from(e: alloc::string::String) -> Self
+impl core::convert::From<neo4j::driver::TlsConfigError> for neo4j::driver::ConnectionConfigParseError
+pub fn neo4j::driver::ConnectionConfigParseError::from(e: neo4j::driver::TlsConfigError) -> Self
+impl core::error::Error for neo4j::driver::ConnectionConfigParseError
+impl core::fmt::Debug for neo4j::driver::ConnectionConfigParseError
+pub fn neo4j::driver::ConnectionConfigParseError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::driver::ConnectionConfigParseError
+pub fn neo4j::driver::ConnectionConfigParseError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::driver::ConnectionConfigParseError
+impl core::marker::Send for neo4j::driver::ConnectionConfigParseError
+impl core::marker::Sync for neo4j::driver::ConnectionConfigParseError
+impl core::marker::Unpin for neo4j::driver::ConnectionConfigParseError
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::ConnectionConfigParseError
+impl core::panic::unwind_safe::UnwindSafe for neo4j::driver::ConnectionConfigParseError
+pub struct neo4j::driver::Driver
+impl neo4j::driver::Driver
+pub fn neo4j::driver::Driver::execute_query<Q: core::convert::AsRef<str>>(&self, query: Q) -> neo4j::driver::ExecuteQueryBuilder<'_, Q, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>, fn(&mut neo4j::driver::record_stream::RecordStream<'_>) -> neo4j::Result<neo4j::driver::EagerResult>>
+pub fn neo4j::driver::Driver::execute_query_bookmark_manager(&self) -> alloc::sync::Arc<dyn neo4j::bookmarks::BookmarkManager>
+pub fn neo4j::driver::Driver::get_server_info(&self) -> neo4j::Result<neo4j::summary::ServerInfo>
+pub fn neo4j::driver::Driver::is_encrypted(&self) -> bool
+pub fn neo4j::driver::Driver::new(connection_config: neo4j::driver::ConnectionConfig, config: neo4j::driver::DriverConfig) -> Self
+pub fn neo4j::driver::Driver::session(&self, config: neo4j::session::SessionConfig) -> neo4j::session::Session<'_>
+pub fn neo4j::driver::Driver::supports_multi_db(&self) -> neo4j::Result<bool>
+pub fn neo4j::driver::Driver::supports_session_auth(&self) -> neo4j::Result<bool>
+pub fn neo4j::driver::Driver::verify_authentication(&self, auth: alloc::sync::Arc<neo4j::driver::auth::AuthToken>) -> neo4j::Result<bool>
+pub fn neo4j::driver::Driver::verify_connectivity(&self) -> neo4j::Result<()>
+impl core::fmt::Debug for neo4j::driver::Driver
+pub fn neo4j::driver::Driver::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl !core::marker::Freeze for neo4j::driver::Driver
+impl core::marker::Send for neo4j::driver::Driver
+impl core::marker::Sync for neo4j::driver::Driver
+impl core::marker::Unpin for neo4j::driver::Driver
+impl !core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::Driver
+impl !core::panic::unwind_safe::UnwindSafe for neo4j::driver::Driver
+pub struct neo4j::driver::DriverConfig
+impl neo4j::driver::DriverConfig
+pub fn neo4j::driver::DriverConfig::new() -> Self
+pub fn neo4j::driver::DriverConfig::with_auth(self, auth: alloc::sync::Arc<neo4j::driver::auth::AuthToken>) -> Self
+pub fn neo4j::driver::DriverConfig::with_auth_manager(self, manager: alloc::sync::Arc<dyn neo4j::driver::auth::AuthManager>) -> Self
+pub fn neo4j::driver::DriverConfig::with_connection_acquisition_timeout(self, timeout: core::time::Duration) -> Self
+pub fn neo4j::driver::DriverConfig::with_connection_timeout(self, timeout: core::time::Duration) -> Self
+pub fn neo4j::driver::DriverConfig::with_default_connection_acquisition_timeout(self) -> Self
+pub fn neo4j::driver::DriverConfig::with_default_connection_timeout(self) -> Self
+pub fn neo4j::driver::DriverConfig::with_default_fetch_size(self) -> Self
+pub fn neo4j::driver::DriverConfig::with_default_max_connection_lifetime(self) -> Self
+pub fn neo4j::driver::DriverConfig::with_default_notification_filter(self) -> Self
+pub fn neo4j::driver::DriverConfig::with_fetch_all(self) -> Self
+pub fn neo4j::driver::DriverConfig::with_fetch_size(self, fetch_size: u64) -> core::result::Result<Self, neo4j::driver::ConfigureFetchSizeError<Self>>
+pub fn neo4j::driver::DriverConfig::with_idle_time_before_connection_test(self, idle_time: core::time::Duration) -> Self
+pub fn neo4j::driver::DriverConfig::with_keep_alive(self, keep_alive: neo4j::driver::KeepAliveConfig) -> Self
+pub fn neo4j::driver::DriverConfig::with_max_connection_lifetime(self, max_connection_lifetime: core::time::Duration) -> Self
+pub fn neo4j::driver::DriverConfig::with_max_connection_pool_size(self, max_connection_pool_size: usize) -> Self
+pub fn neo4j::driver::DriverConfig::with_notification_filter(self, notification_filter: neo4j::driver::notification::NotificationFilter) -> Self
+pub fn neo4j::driver::DriverConfig::with_resolver(self, resolver: alloc::boxed::Box<dyn neo4j::address::AddressResolver>) -> Self
+pub fn neo4j::driver::DriverConfig::with_telemetry(self, telemetry: bool) -> Self
+pub fn neo4j::driver::DriverConfig::with_user_agent(self, user_agent: alloc::string::String) -> Self
+pub fn neo4j::driver::DriverConfig::without_connection_acquisition_timeout(self) -> Self
+pub fn neo4j::driver::DriverConfig::without_connection_timeout(self) -> Self
+pub fn neo4j::driver::DriverConfig::without_idle_time_before_connection_test(self) -> Self
+pub fn neo4j::driver::DriverConfig::without_keep_alive(self) -> Self
+pub fn neo4j::driver::DriverConfig::without_max_connection_lifetime(self) -> Self
+pub fn neo4j::driver::DriverConfig::without_resolver(self) -> Self
+impl core::default::Default for neo4j::driver::DriverConfig
+pub fn neo4j::driver::DriverConfig::default() -> Self
+impl core::fmt::Debug for neo4j::driver::DriverConfig
+pub fn neo4j::driver::DriverConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::driver::DriverConfig
+impl core::marker::Send for neo4j::driver::DriverConfig
+impl core::marker::Sync for neo4j::driver::DriverConfig
+impl core::marker::Unpin for neo4j::driver::DriverConfig
+impl !core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::DriverConfig
+impl !core::panic::unwind_safe::UnwindSafe for neo4j::driver::DriverConfig
+pub struct neo4j::driver::EagerResult
+pub neo4j::driver::EagerResult::keys: alloc::vec::Vec<alloc::sync::Arc<alloc::string::String>>
+pub neo4j::driver::EagerResult::records: alloc::vec::Vec<neo4j::driver::Record>
+pub neo4j::driver::EagerResult::summary: neo4j::summary::Summary
+impl neo4j::driver::EagerResult
+pub fn neo4j::driver::EagerResult::into_scalar(self) -> core::result::Result<neo4j::ValueReceive, neo4j::driver::ScalarError>
+pub fn neo4j::driver::EagerResult::into_single(self) -> core::result::Result<neo4j::driver::Record, neo4j::driver::ScalarError>
+pub fn neo4j::driver::EagerResult::into_values(self) -> impl core::iter::traits::iterator::Iterator<Item = impl core::iter::traits::iterator::Iterator<Item = neo4j::ValueReceive>>
+impl core::fmt::Debug for neo4j::driver::EagerResult
+pub fn neo4j::driver::EagerResult::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::driver::EagerResult
+impl core::marker::Send for neo4j::driver::EagerResult
+impl core::marker::Sync for neo4j::driver::EagerResult
+impl core::marker::Unpin for neo4j::driver::EagerResult
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::EagerResult
+impl core::panic::unwind_safe::UnwindSafe for neo4j::driver::EagerResult
+pub struct neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>
+impl<'driver, Q: core::convert::AsRef<str>, KP: core::borrow::Borrow<str> + core::fmt::Debug, P: core::borrow::Borrow<std::collections::hash::map::HashMap<KP, neo4j::ValueSend>>, KM: core::borrow::Borrow<str> + core::fmt::Debug, M: core::borrow::Borrow<std::collections::hash::map::HashMap<KM, neo4j::ValueSend>>, R, FRes: core::ops::function::FnMut(&mut neo4j::driver::record_stream::RecordStream<'_>) -> neo4j::Result<R>> neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::run(self) -> neo4j::Result<R>
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::run_with_retry<RP: neo4j::retry::RetryPolicy>(self, retry_policy: RP) -> core::result::Result<R, <RP as neo4j::retry::RetryPolicy>::Error>
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_bookmark_manager(self, manager: alloc::sync::Arc<dyn neo4j::bookmarks::BookmarkManager>) -> Self
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_database(self, database: alloc::sync::Arc<alloc::string::String>) -> Self
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_default_bookmark_manager(self) -> Self
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_default_database(self) -> Self
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_default_notification_filter(self) -> Self
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_default_receiver(self) -> neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, fn(&mut neo4j::driver::record_stream::RecordStream<'_>) -> neo4j::Result<neo4j::driver::EagerResult>>
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_impersonated_user(self, user: alloc::sync::Arc<alloc::string::String>) -> Self
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_notification_filter(self, notification_filter: neo4j::driver::notification::NotificationFilter) -> Self
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_parameters<KP_: core::borrow::Borrow<str> + core::fmt::Debug, P_: core::borrow::Borrow<std::collections::hash::map::HashMap<KP_, neo4j::ValueSend>>>(self, param: P_) -> neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP_, P_, KM, M, FRes>
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_receiver<R_, FRes_: core::ops::function::FnMut(&mut neo4j::driver::record_stream::RecordStream<'_>) -> neo4j::Result<R_>>(self, receiver: FRes_) -> neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes_>
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_routing_control(self, mode: neo4j::driver::RoutingControl) -> Self
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_session_auth(self, auth: alloc::sync::Arc<neo4j::driver::auth::AuthToken>) -> Self
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_transaction_meta<KM_: core::borrow::Borrow<str> + core::fmt::Debug, M_: core::borrow::Borrow<std::collections::hash::map::HashMap<KM_, neo4j::ValueSend>>>(self, meta: M_) -> neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM_, M_, FRes>
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::with_transaction_timeout(self, timeout: neo4j::transaction::TransactionTimeout) -> Self
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::without_bookmark_manager(self) -> Self
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::without_impersonated_user(self) -> Self
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::without_parameters(self) -> neo4j::driver::ExecuteQueryBuilder<'driver, Q, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>, KM, M, FRes>
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::without_session_auth(self) -> Self
+pub fn neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>::without_transaction_meta(self) -> neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>, FRes>
+impl<Q: core::convert::AsRef<str>, KP: core::borrow::Borrow<str> + core::fmt::Debug, P: core::borrow::Borrow<std::collections::hash::map::HashMap<KP, neo4j::ValueSend>>, KM: core::borrow::Borrow<str> + core::fmt::Debug, M: core::borrow::Borrow<std::collections::hash::map::HashMap<KM, neo4j::ValueSend>>, FRes> core::fmt::Debug for neo4j::driver::ExecuteQueryBuilder<'_, Q, KP, P, KM, M, FRes>
+pub fn neo4j::driver::ExecuteQueryBuilder<'_, Q, KP, P, KM, M, FRes>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'driver, Q, KP, P, KM, M, FRes> core::marker::Freeze for neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes> where Q: core::marker::Freeze, P: core::marker::Freeze, M: core::marker::Freeze, FRes: core::marker::Freeze
+impl<'driver, Q, KP, P, KM, M, FRes> core::marker::Send for neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes> where Q: core::marker::Send, P: core::marker::Send, M: core::marker::Send, FRes: core::marker::Send, KP: core::marker::Send, KM: core::marker::Send
+impl<'driver, Q, KP, P, KM, M, FRes> core::marker::Sync for neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes> where Q: core::marker::Sync, P: core::marker::Sync, M: core::marker::Sync, FRes: core::marker::Sync, KP: core::marker::Sync, KM: core::marker::Sync
+impl<'driver, Q, KP, P, KM, M, FRes> core::marker::Unpin for neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes> where Q: core::marker::Unpin, P: core::marker::Unpin, M: core::marker::Unpin, FRes: core::marker::Unpin, KP: core::marker::Unpin, KM: core::marker::Unpin
+impl<'driver, Q, KP, P, KM, M, FRes> !core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>
+impl<'driver, Q, KP, P, KM, M, FRes> !core::panic::unwind_safe::UnwindSafe for neo4j::driver::ExecuteQueryBuilder<'driver, Q, KP, P, KM, M, FRes>
+pub struct neo4j::driver::InvalidRoutingContextError<Builder>
+pub neo4j::driver::InvalidRoutingContextError::builder: Builder
+impl<Builder: core::fmt::Debug> core::fmt::Debug for neo4j::driver::InvalidRoutingContextError<Builder>
+pub fn neo4j::driver::InvalidRoutingContextError<Builder>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<Builder> core::error::Error for neo4j::driver::InvalidRoutingContextError<Builder> where Self: core::fmt::Debug + core::fmt::Display
+impl<Builder> core::fmt::Display for neo4j::driver::InvalidRoutingContextError<Builder>
+pub fn neo4j::driver::InvalidRoutingContextError<Builder>::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<Builder> core::marker::Freeze for neo4j::driver::InvalidRoutingContextError<Builder> where Builder: core::marker::Freeze
+impl<Builder> core::marker::Send for neo4j::driver::InvalidRoutingContextError<Builder> where Builder: core::marker::Send
+impl<Builder> core::marker::Sync for neo4j::driver::InvalidRoutingContextError<Builder> where Builder: core::marker::Sync
+impl<Builder> core::marker::Unpin for neo4j::driver::InvalidRoutingContextError<Builder> where Builder: core::marker::Unpin
+impl<Builder> core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::InvalidRoutingContextError<Builder> where Builder: core::panic::unwind_safe::RefUnwindSafe
+impl<Builder> core::panic::unwind_safe::UnwindSafe for neo4j::driver::InvalidRoutingContextError<Builder> where Builder: core::panic::unwind_safe::UnwindSafe
+pub struct neo4j::driver::Record
+impl neo4j::driver::Record
+pub fn neo4j::driver::Record::entries(&self) -> impl core::iter::traits::iterator::Iterator<Item = (alloc::sync::Arc<alloc::string::String>, &neo4j::ValueReceive)>
+pub fn neo4j::driver::Record::into_entries(self) -> impl core::iter::traits::iterator::Iterator<Item = (alloc::sync::Arc<alloc::string::String>, neo4j::ValueReceive)>
+pub fn neo4j::driver::Record::into_values(self) -> impl core::iter::traits::iterator::Iterator<Item = neo4j::ValueReceive>
+pub fn neo4j::driver::Record::keys(&self) -> impl core::iter::traits::iterator::Iterator<Item = alloc::sync::Arc<alloc::string::String>> + '_
+pub fn neo4j::driver::Record::take_value(&mut self, key: &str) -> core::option::Option<neo4j::ValueReceive>
+pub fn neo4j::driver::Record::value(&self, key: &str) -> core::option::Option<&neo4j::ValueReceive>
+pub fn neo4j::driver::Record::values(&self) -> impl core::iter::traits::iterator::Iterator<Item = &neo4j::ValueReceive>
+impl core::fmt::Debug for neo4j::driver::Record
+pub fn neo4j::driver::Record::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::driver::Record
+impl core::marker::Send for neo4j::driver::Record
+impl core::marker::Sync for neo4j::driver::Record
+impl core::marker::Unpin for neo4j::driver::Record
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::Record
+impl core::panic::unwind_safe::UnwindSafe for neo4j::driver::Record
+#[non_exhaustive] pub struct neo4j::driver::TlsConfigError
+pub neo4j::driver::TlsConfigError::config: neo4j::driver::ConnectionConfig
+pub neo4j::driver::TlsConfigError::message: alloc::string::String
+impl core::convert::From<neo4j::driver::TlsConfigError> for neo4j::driver::ConnectionConfigParseError
+pub fn neo4j::driver::ConnectionConfigParseError::from(e: neo4j::driver::TlsConfigError) -> Self
+impl core::error::Error for neo4j::driver::TlsConfigError
+impl core::fmt::Debug for neo4j::driver::TlsConfigError
+pub fn neo4j::driver::TlsConfigError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::driver::TlsConfigError
+pub fn neo4j::driver::TlsConfigError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::driver::TlsConfigError
+impl core::marker::Send for neo4j::driver::TlsConfigError
+impl core::marker::Sync for neo4j::driver::TlsConfigError
+impl core::marker::Unpin for neo4j::driver::TlsConfigError
+impl !core::panic::unwind_safe::RefUnwindSafe for neo4j::driver::TlsConfigError
+impl !core::panic::unwind_safe::UnwindSafe for neo4j::driver::TlsConfigError
+pub mod neo4j::error
+#[non_exhaustive] pub enum neo4j::error::GqlErrorClassification
+pub neo4j::error::GqlErrorClassification::ClientError
+pub neo4j::error::GqlErrorClassification::DatabaseError
+pub neo4j::error::GqlErrorClassification::TransientError
+pub neo4j::error::GqlErrorClassification::Unknown
+impl core::clone::Clone for neo4j::error::GqlErrorClassification
+pub fn neo4j::error::GqlErrorClassification::clone(&self) -> neo4j::error::GqlErrorClassification
+impl core::fmt::Debug for neo4j::error::GqlErrorClassification
+pub fn neo4j::error::GqlErrorClassification::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::error::GqlErrorClassification
+impl core::marker::Freeze for neo4j::error::GqlErrorClassification
+impl core::marker::Send for neo4j::error::GqlErrorClassification
+impl core::marker::Sync for neo4j::error::GqlErrorClassification
+impl core::marker::Unpin for neo4j::error::GqlErrorClassification
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::error::GqlErrorClassification
+impl core::panic::unwind_safe::UnwindSafe for neo4j::error::GqlErrorClassification
+#[non_exhaustive] pub enum neo4j::error::UserCallbackError
+pub neo4j::error::UserCallbackError::AuthManager(alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>)
+pub neo4j::error::UserCallbackError::BookmarkManagerGet(alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>)
+pub neo4j::error::UserCallbackError::BookmarkManagerUpdate(alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>)
+pub neo4j::error::UserCallbackError::Resolver(alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>)
+impl neo4j::error::UserCallbackError
+pub fn neo4j::error::UserCallbackError::into_user_error(self) -> alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>
+pub fn neo4j::error::UserCallbackError::user_error(&self) -> &dyn core::error::Error
+impl core::error::Error for neo4j::error::UserCallbackError
+impl core::fmt::Debug for neo4j::error::UserCallbackError
+pub fn neo4j::error::UserCallbackError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::error::UserCallbackError
+pub fn neo4j::error::UserCallbackError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::error::UserCallbackError
+impl core::marker::Send for neo4j::error::UserCallbackError
+impl core::marker::Sync for neo4j::error::UserCallbackError
+impl core::marker::Unpin for neo4j::error::UserCallbackError
+impl !core::panic::unwind_safe::RefUnwindSafe for neo4j::error::UserCallbackError
+impl !core::panic::unwind_safe::UnwindSafe for neo4j::error::UserCallbackError
+#[non_exhaustive] pub struct neo4j::error::GqlErrorCause
+pub neo4j::error::GqlErrorCause::cause: core::option::Option<alloc::boxed::Box<neo4j::error::GqlErrorCause>>
+pub neo4j::error::GqlErrorCause::diagnostic_record: std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>
+pub neo4j::error::GqlErrorCause::gql_classification: neo4j::error::GqlErrorClassification
+pub neo4j::error::GqlErrorCause::gql_raw_classification: core::option::Option<alloc::string::String>
+pub neo4j::error::GqlErrorCause::gql_status: alloc::string::String
+pub neo4j::error::GqlErrorCause::gql_status_description: alloc::string::String
+pub neo4j::error::GqlErrorCause::message: alloc::string::String
+impl core::clone::Clone for neo4j::error::GqlErrorCause
+pub fn neo4j::error::GqlErrorCause::clone(&self) -> neo4j::error::GqlErrorCause
+impl core::fmt::Debug for neo4j::error::GqlErrorCause
+pub fn neo4j::error::GqlErrorCause::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::error::GqlErrorCause
+pub fn neo4j::error::GqlErrorCause::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::error::GqlErrorCause
+impl core::marker::Send for neo4j::error::GqlErrorCause
+impl core::marker::Sync for neo4j::error::GqlErrorCause
+impl core::marker::Unpin for neo4j::error::GqlErrorCause
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::error::GqlErrorCause
+impl core::panic::unwind_safe::UnwindSafe for neo4j::error::GqlErrorCause
+#[non_exhaustive] pub struct neo4j::error::ServerError
+pub neo4j::error::ServerError::cause: core::option::Option<alloc::boxed::Box<neo4j::error::GqlErrorCause>>
+pub neo4j::error::ServerError::code: alloc::string::String
+pub neo4j::error::ServerError::diagnostic_record: std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>
+pub neo4j::error::ServerError::gql_classification: neo4j::error::GqlErrorClassification
+pub neo4j::error::ServerError::gql_raw_classification: core::option::Option<alloc::string::String>
+pub neo4j::error::ServerError::gql_status: alloc::string::String
+pub neo4j::error::ServerError::gql_status_description: alloc::string::String
+pub neo4j::error::ServerError::message: alloc::string::String
+impl neo4j::error::ServerError
+pub fn neo4j::error::ServerError::category(&self) -> &str
+pub fn neo4j::error::ServerError::classification(&self) -> &str
+pub fn neo4j::error::ServerError::code(&self) -> &str
+pub fn neo4j::error::ServerError::message(&self) -> &str
+pub fn neo4j::error::ServerError::title(&self) -> &str
+impl core::clone::Clone for neo4j::error::ServerError
+pub fn neo4j::error::ServerError::clone(&self) -> neo4j::error::ServerError
+impl core::fmt::Debug for neo4j::error::ServerError
+pub fn neo4j::error::ServerError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::error::ServerError
+pub fn neo4j::error::ServerError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::error::ServerError
+impl core::marker::Send for neo4j::error::ServerError
+impl core::marker::Sync for neo4j::error::ServerError
+impl core::marker::Unpin for neo4j::error::ServerError
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::error::ServerError
+impl core::panic::unwind_safe::UnwindSafe for neo4j::error::ServerError
+pub mod neo4j::retry
+pub enum neo4j::retry::RetryError
+pub neo4j::retry::RetryError::Neo4jError(neo4j::Neo4jError)
+pub neo4j::retry::RetryError::Timeout(neo4j::retry::TimeoutError)
+impl core::convert::From<neo4j::Neo4jError> for neo4j::retry::RetryError
+pub fn neo4j::retry::RetryError::from(source: neo4j::Neo4jError) -> Self
+impl core::convert::From<neo4j::retry::TimeoutError> for neo4j::retry::RetryError
+pub fn neo4j::retry::RetryError::from(source: neo4j::retry::TimeoutError) -> Self
+impl core::error::Error for neo4j::retry::RetryError
+pub fn neo4j::retry::RetryError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for neo4j::retry::RetryError
+pub fn neo4j::retry::RetryError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::retry::RetryError
+pub fn neo4j::retry::RetryError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::retry::RetryError
+impl core::marker::Send for neo4j::retry::RetryError
+impl core::marker::Sync for neo4j::retry::RetryError
+impl core::marker::Unpin for neo4j::retry::RetryError
+impl !core::panic::unwind_safe::RefUnwindSafe for neo4j::retry::RetryError
+impl !core::panic::unwind_safe::UnwindSafe for neo4j::retry::RetryError
+pub struct neo4j::retry::ExponentialBackoff
+impl neo4j::retry::ExponentialBackoff
+pub fn neo4j::retry::ExponentialBackoff::new() -> Self
+pub fn neo4j::retry::ExponentialBackoff::with_max_retry_time(self, max_retry_time: core::time::Duration) -> Self
+impl core::clone::Clone for neo4j::retry::ExponentialBackoff
+pub fn neo4j::retry::ExponentialBackoff::clone(&self) -> neo4j::retry::ExponentialBackoff
+impl core::default::Default for neo4j::retry::ExponentialBackoff
+pub fn neo4j::retry::ExponentialBackoff::default() -> Self
+impl core::fmt::Debug for neo4j::retry::ExponentialBackoff
+pub fn neo4j::retry::ExponentialBackoff::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::retry::ExponentialBackoff
+impl neo4j::retry::RetryPolicy for &neo4j::retry::ExponentialBackoff
+pub type &neo4j::retry::ExponentialBackoff::Error = neo4j::retry::RetryError
+pub fn &neo4j::retry::ExponentialBackoff::execute<R>(&self, work: impl core::ops::function::FnMut() -> neo4j::Result<R>) -> core::result::Result<R, Self::Error>
+impl neo4j::retry::RetryPolicy for neo4j::retry::ExponentialBackoff
+pub type neo4j::retry::ExponentialBackoff::Error = <&'static neo4j::retry::ExponentialBackoff as neo4j::retry::RetryPolicy>::Error
+pub fn neo4j::retry::ExponentialBackoff::execute<R>(&self, work: impl core::ops::function::FnMut() -> neo4j::Result<R>) -> core::result::Result<R, Self::Error>
+impl core::marker::Freeze for neo4j::retry::ExponentialBackoff
+impl core::marker::Send for neo4j::retry::ExponentialBackoff
+impl core::marker::Sync for neo4j::retry::ExponentialBackoff
+impl core::marker::Unpin for neo4j::retry::ExponentialBackoff
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::retry::ExponentialBackoff
+impl core::panic::unwind_safe::UnwindSafe for neo4j::retry::ExponentialBackoff
+pub struct neo4j::retry::TimeoutError
+pub neo4j::retry::TimeoutError::errors: alloc::vec::Vec<neo4j::Neo4jError>
+impl core::convert::From<neo4j::retry::TimeoutError> for alloc::vec::Vec<neo4j::Neo4jError>
+pub fn alloc::vec::Vec<neo4j::Neo4jError>::from(value: neo4j::retry::TimeoutError) -> Self
+impl core::convert::From<neo4j::retry::TimeoutError> for neo4j::retry::RetryError
+pub fn neo4j::retry::RetryError::from(source: neo4j::retry::TimeoutError) -> Self
+impl core::error::Error for neo4j::retry::TimeoutError
+impl core::fmt::Debug for neo4j::retry::TimeoutError
+pub fn neo4j::retry::TimeoutError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::retry::TimeoutError
+pub fn neo4j::retry::TimeoutError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::retry::TimeoutError
+impl core::marker::Send for neo4j::retry::TimeoutError
+impl core::marker::Sync for neo4j::retry::TimeoutError
+impl core::marker::Unpin for neo4j::retry::TimeoutError
+impl !core::panic::unwind_safe::RefUnwindSafe for neo4j::retry::TimeoutError
+impl !core::panic::unwind_safe::UnwindSafe for neo4j::retry::TimeoutError
+pub trait neo4j::retry::RetryPolicy
+pub type neo4j::retry::RetryPolicy::Error
+pub fn neo4j::retry::RetryPolicy::execute<R>(&self, work: impl core::ops::function::FnMut() -> neo4j::Result<R>) -> core::result::Result<R, Self::Error>
+impl neo4j::retry::RetryPolicy for &neo4j::retry::ExponentialBackoff
+pub type &neo4j::retry::ExponentialBackoff::Error = neo4j::retry::RetryError
+pub fn &neo4j::retry::ExponentialBackoff::execute<R>(&self, work: impl core::ops::function::FnMut() -> neo4j::Result<R>) -> core::result::Result<R, Self::Error>
+impl neo4j::retry::RetryPolicy for neo4j::retry::ExponentialBackoff
+pub type neo4j::retry::ExponentialBackoff::Error = <&'static neo4j::retry::ExponentialBackoff as neo4j::retry::RetryPolicy>::Error
+pub fn neo4j::retry::ExponentialBackoff::execute<R>(&self, work: impl core::ops::function::FnMut() -> neo4j::Result<R>) -> core::result::Result<R, Self::Error>
+pub mod neo4j::session
+pub struct neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes>
+impl<'driver, 'session, Q: core::convert::AsRef<str>, KP: core::borrow::Borrow<str> + core::fmt::Debug, P: core::borrow::Borrow<std::collections::hash::map::HashMap<KP, neo4j::ValueSend>>, KM: core::borrow::Borrow<str> + core::fmt::Debug, M: core::borrow::Borrow<std::collections::hash::map::HashMap<KM, neo4j::ValueSend>>, R, FRes: core::ops::function::FnOnce(&mut neo4j::driver::record_stream::RecordStream<'_>) -> neo4j::Result<R>> neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes>
+pub fn neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes>::run(self) -> neo4j::Result<R>
+pub fn neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes>::with_default_receiver(self) -> neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, fn(&mut neo4j::driver::record_stream::RecordStream<'_>) -> neo4j::Result<neo4j::driver::EagerResult>>
+pub fn neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes>::with_parameters<KP_: core::borrow::Borrow<str> + core::fmt::Debug, P_: core::borrow::Borrow<std::collections::hash::map::HashMap<KP_, neo4j::ValueSend>>>(self, param: P_) -> neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP_, P_, KM, M, FRes>
+pub fn neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes>::with_receiver<R_, FRes_: core::ops::function::FnOnce(&mut neo4j::driver::record_stream::RecordStream<'_>) -> neo4j::Result<R_>>(self, receiver: FRes_) -> neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes_>
+pub fn neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes>::with_routing_control(self, mode: neo4j::driver::RoutingControl) -> Self
+pub fn neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes>::with_transaction_meta<KM_: core::borrow::Borrow<str> + core::fmt::Debug, M_: core::borrow::Borrow<std::collections::hash::map::HashMap<KM_, neo4j::ValueSend>>>(self, meta: M_) -> neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM_, M_, FRes>
+pub fn neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes>::with_transaction_timeout(self, timeout: neo4j::transaction::TransactionTimeout) -> Self
+pub fn neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes>::without_parameters(self) -> neo4j::session::AutoCommitBuilder<'driver, 'session, Q, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>, KM, M, FRes>
+pub fn neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes>::without_transaction_meta(self) -> neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>, FRes>
+impl<Q: core::convert::AsRef<str>, KP: core::borrow::Borrow<str> + core::fmt::Debug, P: core::borrow::Borrow<std::collections::hash::map::HashMap<KP, neo4j::ValueSend>>, KM: core::borrow::Borrow<str> + core::fmt::Debug, M: core::borrow::Borrow<std::collections::hash::map::HashMap<KM, neo4j::ValueSend>>, FRes> core::fmt::Debug for neo4j::session::AutoCommitBuilder<'_, '_, Q, KP, P, KM, M, FRes>
+pub fn neo4j::session::AutoCommitBuilder<'_, '_, Q, KP, P, KM, M, FRes>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'driver, 'session, Q, KP, P, KM, M, FRes> core::marker::Freeze for neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes> where Q: core::marker::Freeze, P: core::marker::Freeze, M: core::marker::Freeze, FRes: core::marker::Freeze
+impl<'driver, 'session, Q, KP, P, KM, M, FRes> core::marker::Send for neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes> where Q: core::marker::Send, P: core::marker::Send, M: core::marker::Send, FRes: core::marker::Send, KP: core::marker::Send, KM: core::marker::Send
+impl<'driver, 'session, Q, KP, P, KM, M, FRes> core::marker::Sync for neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes> where Q: core::marker::Sync, P: core::marker::Sync, M: core::marker::Sync, FRes: core::marker::Sync, KP: core::marker::Sync, KM: core::marker::Sync
+impl<'driver, 'session, Q, KP, P, KM, M, FRes> core::marker::Unpin for neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes> where Q: core::marker::Unpin, P: core::marker::Unpin, M: core::marker::Unpin, FRes: core::marker::Unpin, KP: core::marker::Unpin, KM: core::marker::Unpin
+impl<'driver, 'session, Q, KP, P, KM, M, FRes> !core::panic::unwind_safe::RefUnwindSafe for neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes>
+impl<'driver, 'session, Q, KP, P, KM, M, FRes> !core::panic::unwind_safe::UnwindSafe for neo4j::session::AutoCommitBuilder<'driver, 'session, Q, KP, P, KM, M, FRes>
+pub struct neo4j::session::Session<'driver>
+impl<'driver> neo4j::session::Session<'driver>
+pub fn neo4j::session::Session<'driver>::auto_commit<'session, Q: core::convert::AsRef<str>>(&'session mut self, query: Q) -> neo4j::session::AutoCommitBuilder<'driver, 'session, Q, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>, fn(&mut neo4j::driver::record_stream::RecordStream<'_>) -> neo4j::Result<neo4j::driver::EagerResult>>
+pub fn neo4j::session::Session<'driver>::last_bookmarks(&self) -> alloc::sync::Arc<neo4j::bookmarks::Bookmarks>
+pub fn neo4j::session::Session<'driver>::transaction<'session>(&'session mut self) -> neo4j::session::TransactionBuilder<'driver, 'session, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>>
+impl<'driver> core::fmt::Debug for neo4j::session::Session<'driver>
+pub fn neo4j::session::Session<'driver>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'driver> !core::marker::Freeze for neo4j::session::Session<'driver>
+impl<'driver> core::marker::Send for neo4j::session::Session<'driver>
+impl<'driver> core::marker::Sync for neo4j::session::Session<'driver>
+impl<'driver> core::marker::Unpin for neo4j::session::Session<'driver>
+impl<'driver> !core::panic::unwind_safe::RefUnwindSafe for neo4j::session::Session<'driver>
+impl<'driver> !core::panic::unwind_safe::UnwindSafe for neo4j::session::Session<'driver>
+pub struct neo4j::session::SessionConfig
+impl neo4j::session::SessionConfig
+pub fn neo4j::session::SessionConfig::new() -> neo4j::session::SessionConfig
+pub fn neo4j::session::SessionConfig::with_bookmark_manager(self, manager: alloc::sync::Arc<dyn neo4j::bookmarks::BookmarkManager>) -> Self
+pub fn neo4j::session::SessionConfig::with_bookmarks(self, bookmarks: alloc::sync::Arc<neo4j::bookmarks::Bookmarks>) -> Self
+pub fn neo4j::session::SessionConfig::with_database(self, database: alloc::sync::Arc<alloc::string::String>) -> Self
+pub fn neo4j::session::SessionConfig::with_default_database(self) -> Self
+pub fn neo4j::session::SessionConfig::with_default_fetch_size(self) -> Self
+pub fn neo4j::session::SessionConfig::with_default_notification_filter(self) -> Self
+pub fn neo4j::session::SessionConfig::with_fetch_all(self) -> Self
+pub fn neo4j::session::SessionConfig::with_fetch_size(self, fetch_size: u64) -> core::result::Result<Self, neo4j::driver::ConfigureFetchSizeError<Self>>
+pub fn neo4j::session::SessionConfig::with_impersonated_user(self, user: alloc::sync::Arc<alloc::string::String>) -> Self
+pub fn neo4j::session::SessionConfig::with_notification_filter(self, notification_filter: neo4j::driver::notification::NotificationFilter) -> Self
+pub fn neo4j::session::SessionConfig::with_session_auth(self, auth: alloc::sync::Arc<neo4j::driver::auth::AuthToken>) -> Self
+pub fn neo4j::session::SessionConfig::without_bookmark_manager(self) -> Self
+pub fn neo4j::session::SessionConfig::without_bookmarks(self) -> Self
+pub fn neo4j::session::SessionConfig::without_impersonated_user(self) -> Self
+pub fn neo4j::session::SessionConfig::without_session_auth(self) -> Self
+impl core::clone::Clone for neo4j::session::SessionConfig
+pub fn neo4j::session::SessionConfig::clone(&self) -> neo4j::session::SessionConfig
+impl core::convert::AsRef<neo4j::session::SessionConfig> for neo4j::session::SessionConfig
+pub fn neo4j::session::SessionConfig::as_ref(&self) -> &neo4j::session::SessionConfig
+impl core::default::Default for neo4j::session::SessionConfig
+pub fn neo4j::session::SessionConfig::default() -> neo4j::session::SessionConfig
+impl core::fmt::Debug for neo4j::session::SessionConfig
+pub fn neo4j::session::SessionConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::session::SessionConfig
+impl core::marker::Send for neo4j::session::SessionConfig
+impl core::marker::Sync for neo4j::session::SessionConfig
+impl core::marker::Unpin for neo4j::session::SessionConfig
+impl !core::panic::unwind_safe::RefUnwindSafe for neo4j::session::SessionConfig
+impl !core::panic::unwind_safe::UnwindSafe for neo4j::session::SessionConfig
+pub struct neo4j::session::TransactionBuilder<'driver, 'session, KM, M>
+impl<'driver, 'session, KM: core::borrow::Borrow<str> + core::fmt::Debug, M: core::borrow::Borrow<std::collections::hash::map::HashMap<KM, neo4j::ValueSend>>> neo4j::session::TransactionBuilder<'driver, 'session, KM, M>
+pub fn neo4j::session::TransactionBuilder<'driver, 'session, KM, M>::run<R>(self, receiver: impl core::ops::function::FnOnce(neo4j::transaction::Transaction<'_, '_>) -> neo4j::Result<R>) -> neo4j::Result<R>
+pub fn neo4j::session::TransactionBuilder<'driver, 'session, KM, M>::run_with_retry<R, P: neo4j::retry::RetryPolicy>(self, retry_policy: P, receiver: impl core::ops::function::FnMut(neo4j::transaction::Transaction<'_, '_>) -> neo4j::Result<R>) -> core::result::Result<R, <P as neo4j::retry::RetryPolicy>::Error>
+pub fn neo4j::session::TransactionBuilder<'driver, 'session, KM, M>::with_routing_control(self, mode: neo4j::driver::RoutingControl) -> Self
+pub fn neo4j::session::TransactionBuilder<'driver, 'session, KM, M>::with_transaction_meta<KM_: core::borrow::Borrow<str> + core::fmt::Debug, M_: core::borrow::Borrow<std::collections::hash::map::HashMap<KM_, neo4j::ValueSend>>>(self, meta: M_) -> neo4j::session::TransactionBuilder<'driver, 'session, KM_, M_>
+pub fn neo4j::session::TransactionBuilder<'driver, 'session, KM, M>::with_transaction_timeout(self, timeout: neo4j::transaction::TransactionTimeout) -> Self
+pub fn neo4j::session::TransactionBuilder<'driver, 'session, KM, M>::without_transaction_meta(self) -> neo4j::session::TransactionBuilder<'driver, 'session, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>>
+impl<KM, M: core::fmt::Debug> core::fmt::Debug for neo4j::session::TransactionBuilder<'_, '_, KM, M>
+pub fn neo4j::session::TransactionBuilder<'_, '_, KM, M>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'driver, 'session, KM, M> core::marker::Freeze for neo4j::session::TransactionBuilder<'driver, 'session, KM, M> where M: core::marker::Freeze
+impl<'driver, 'session, KM, M> core::marker::Send for neo4j::session::TransactionBuilder<'driver, 'session, KM, M> where M: core::marker::Send, KM: core::marker::Send
+impl<'driver, 'session, KM, M> core::marker::Sync for neo4j::session::TransactionBuilder<'driver, 'session, KM, M> where M: core::marker::Sync, KM: core::marker::Sync
+impl<'driver, 'session, KM, M> core::marker::Unpin for neo4j::session::TransactionBuilder<'driver, 'session, KM, M> where M: core::marker::Unpin, KM: core::marker::Unpin
+impl<'driver, 'session, KM, M> !core::panic::unwind_safe::RefUnwindSafe for neo4j::session::TransactionBuilder<'driver, 'session, KM, M>
+impl<'driver, 'session, KM, M> !core::panic::unwind_safe::UnwindSafe for neo4j::session::TransactionBuilder<'driver, 'session, KM, M>
+pub mod neo4j::summary
+#[non_exhaustive] pub enum neo4j::summary::Category
+pub neo4j::summary::Category::Deprecation
+pub neo4j::summary::Category::Generic
+pub neo4j::summary::Category::Hint
+pub neo4j::summary::Category::Performance
+pub neo4j::summary::Category::Schema
+pub neo4j::summary::Category::Security
+pub neo4j::summary::Category::Topology
+pub neo4j::summary::Category::Unknown
+pub neo4j::summary::Category::Unrecognized
+pub neo4j::summary::Category::Unsupported
+impl core::clone::Clone for neo4j::summary::Category
+pub fn neo4j::summary::Category::clone(&self) -> neo4j::summary::Category
+impl core::cmp::Eq for neo4j::summary::Category
+impl core::cmp::PartialEq for neo4j::summary::Category
+pub fn neo4j::summary::Category::eq(&self, other: &neo4j::summary::Category) -> bool
+impl core::fmt::Debug for neo4j::summary::Category
+pub fn neo4j::summary::Category::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::summary::Category
+impl core::marker::StructuralPartialEq for neo4j::summary::Category
+impl core::marker::Freeze for neo4j::summary::Category
+impl core::marker::Send for neo4j::summary::Category
+impl core::marker::Sync for neo4j::summary::Category
+impl core::marker::Unpin for neo4j::summary::Category
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::summary::Category
+impl core::panic::unwind_safe::UnwindSafe for neo4j::summary::Category
+#[non_exhaustive] pub enum neo4j::summary::Severity
+pub neo4j::summary::Severity::Information
+pub neo4j::summary::Severity::Unknown
+pub neo4j::summary::Severity::Warning
+impl core::clone::Clone for neo4j::summary::Severity
+pub fn neo4j::summary::Severity::clone(&self) -> neo4j::summary::Severity
+impl core::cmp::Eq for neo4j::summary::Severity
+impl core::cmp::PartialEq for neo4j::summary::Severity
+pub fn neo4j::summary::Severity::eq(&self, other: &neo4j::summary::Severity) -> bool
+impl core::fmt::Debug for neo4j::summary::Severity
+pub fn neo4j::summary::Severity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::summary::Severity
+impl core::marker::StructuralPartialEq for neo4j::summary::Severity
+impl core::marker::Freeze for neo4j::summary::Severity
+impl core::marker::Send for neo4j::summary::Severity
+impl core::marker::Sync for neo4j::summary::Severity
+impl core::marker::Unpin for neo4j::summary::Severity
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::summary::Severity
+impl core::panic::unwind_safe::UnwindSafe for neo4j::summary::Severity
+#[non_exhaustive] pub enum neo4j::summary::SummaryQueryType
+pub neo4j::summary::SummaryQueryType::Read
+pub neo4j::summary::SummaryQueryType::ReadWrite
+pub neo4j::summary::SummaryQueryType::Schema
+pub neo4j::summary::SummaryQueryType::Write
+impl core::clone::Clone for neo4j::summary::SummaryQueryType
+pub fn neo4j::summary::SummaryQueryType::clone(&self) -> neo4j::summary::SummaryQueryType
+impl core::default::Default for neo4j::summary::SummaryQueryType
+pub fn neo4j::summary::SummaryQueryType::default() -> neo4j::summary::SummaryQueryType
+impl core::fmt::Debug for neo4j::summary::SummaryQueryType
+pub fn neo4j::summary::SummaryQueryType::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::summary::SummaryQueryType
+impl core::marker::Send for neo4j::summary::SummaryQueryType
+impl core::marker::Sync for neo4j::summary::SummaryQueryType
+impl core::marker::Unpin for neo4j::summary::SummaryQueryType
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::summary::SummaryQueryType
+impl core::panic::unwind_safe::UnwindSafe for neo4j::summary::SummaryQueryType
+#[non_exhaustive] pub struct neo4j::summary::Counters
+pub neo4j::summary::Counters::constraints_added: i64
+pub neo4j::summary::Counters::constraints_removed: i64
+pub neo4j::summary::Counters::contains_system_updates: bool
+pub neo4j::summary::Counters::contains_updates: bool
+pub neo4j::summary::Counters::indexes_added: i64
+pub neo4j::summary::Counters::indexes_removed: i64
+pub neo4j::summary::Counters::labels_added: i64
+pub neo4j::summary::Counters::labels_removed: i64
+pub neo4j::summary::Counters::nodes_created: i64
+pub neo4j::summary::Counters::nodes_deleted: i64
+pub neo4j::summary::Counters::properties_set: i64
+pub neo4j::summary::Counters::relationships_created: i64
+pub neo4j::summary::Counters::relationships_deleted: i64
+pub neo4j::summary::Counters::system_updates: i64
+impl core::clone::Clone for neo4j::summary::Counters
+pub fn neo4j::summary::Counters::clone(&self) -> neo4j::summary::Counters
+impl core::default::Default for neo4j::summary::Counters
+pub fn neo4j::summary::Counters::default() -> neo4j::summary::Counters
+impl core::fmt::Debug for neo4j::summary::Counters
+pub fn neo4j::summary::Counters::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::summary::Counters
+impl core::marker::Send for neo4j::summary::Counters
+impl core::marker::Sync for neo4j::summary::Counters
+impl core::marker::Unpin for neo4j::summary::Counters
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::summary::Counters
+impl core::panic::unwind_safe::UnwindSafe for neo4j::summary::Counters
+#[non_exhaustive] pub struct neo4j::summary::GqlStatusObject
+pub neo4j::summary::GqlStatusObject::classification: neo4j::summary::Classification
+pub neo4j::summary::GqlStatusObject::diagnostic_record: std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>
+pub neo4j::summary::GqlStatusObject::gql_status: alloc::string::String
+pub neo4j::summary::GqlStatusObject::is_notification: bool
+pub neo4j::summary::GqlStatusObject::position: core::option::Option<neo4j::summary::Position>
+pub neo4j::summary::GqlStatusObject::raw_classification: core::option::Option<alloc::string::String>
+pub neo4j::summary::GqlStatusObject::raw_severity: core::option::Option<alloc::string::String>
+pub neo4j::summary::GqlStatusObject::severity: neo4j::summary::Severity
+pub neo4j::summary::GqlStatusObject::status_description: alloc::string::String
+impl core::clone::Clone for neo4j::summary::GqlStatusObject
+pub fn neo4j::summary::GqlStatusObject::clone(&self) -> neo4j::summary::GqlStatusObject
+impl core::fmt::Debug for neo4j::summary::GqlStatusObject
+pub fn neo4j::summary::GqlStatusObject::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::summary::GqlStatusObject
+impl core::marker::Send for neo4j::summary::GqlStatusObject
+impl core::marker::Sync for neo4j::summary::GqlStatusObject
+impl core::marker::Unpin for neo4j::summary::GqlStatusObject
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::summary::GqlStatusObject
+impl core::panic::unwind_safe::UnwindSafe for neo4j::summary::GqlStatusObject
+#[non_exhaustive] pub struct neo4j::summary::Notification
+pub neo4j::summary::Notification::category: neo4j::summary::Category
+pub neo4j::summary::Notification::code: alloc::string::String
+pub neo4j::summary::Notification::description: alloc::string::String
+pub neo4j::summary::Notification::position: core::option::Option<neo4j::summary::Position>
+pub neo4j::summary::Notification::raw_category: alloc::string::String
+pub neo4j::summary::Notification::raw_severity: alloc::string::String
+pub neo4j::summary::Notification::severity: neo4j::summary::Severity
+pub neo4j::summary::Notification::title: alloc::string::String
+impl core::clone::Clone for neo4j::summary::Notification
+pub fn neo4j::summary::Notification::clone(&self) -> neo4j::summary::Notification
+impl core::fmt::Debug for neo4j::summary::Notification
+pub fn neo4j::summary::Notification::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::summary::Notification
+impl core::marker::Send for neo4j::summary::Notification
+impl core::marker::Sync for neo4j::summary::Notification
+impl core::marker::Unpin for neo4j::summary::Notification
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::summary::Notification
+impl core::panic::unwind_safe::UnwindSafe for neo4j::summary::Notification
+#[non_exhaustive] pub struct neo4j::summary::Plan
+pub neo4j::summary::Plan::args: std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>
+pub neo4j::summary::Plan::children: alloc::vec::Vec<neo4j::summary::Plan>
+pub neo4j::summary::Plan::identifiers: alloc::vec::Vec<alloc::string::String>
+pub neo4j::summary::Plan::op_type: alloc::string::String
+impl core::clone::Clone for neo4j::summary::Plan
+pub fn neo4j::summary::Plan::clone(&self) -> neo4j::summary::Plan
+impl core::fmt::Debug for neo4j::summary::Plan
+pub fn neo4j::summary::Plan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::summary::Plan
+impl core::marker::Send for neo4j::summary::Plan
+impl core::marker::Sync for neo4j::summary::Plan
+impl core::marker::Unpin for neo4j::summary::Plan
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::summary::Plan
+impl core::panic::unwind_safe::UnwindSafe for neo4j::summary::Plan
+pub struct neo4j::summary::Position
+pub neo4j::summary::Position::column: i64
+pub neo4j::summary::Position::line: i64
+pub neo4j::summary::Position::offset: i64
+impl core::clone::Clone for neo4j::summary::Position
+pub fn neo4j::summary::Position::clone(&self) -> neo4j::summary::Position
+impl core::fmt::Debug for neo4j::summary::Position
+pub fn neo4j::summary::Position::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::summary::Position
+impl core::marker::Freeze for neo4j::summary::Position
+impl core::marker::Send for neo4j::summary::Position
+impl core::marker::Sync for neo4j::summary::Position
+impl core::marker::Unpin for neo4j::summary::Position
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::summary::Position
+impl core::panic::unwind_safe::UnwindSafe for neo4j::summary::Position
+#[non_exhaustive] pub struct neo4j::summary::Profile
+pub neo4j::summary::Profile::args: std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>
+pub neo4j::summary::Profile::children: alloc::vec::Vec<neo4j::summary::Profile>
+pub neo4j::summary::Profile::db_hits: i64
+pub neo4j::summary::Profile::has_page_cache_stats: bool
+pub neo4j::summary::Profile::identifiers: alloc::vec::Vec<alloc::string::String>
+pub neo4j::summary::Profile::op_type: alloc::string::String
+pub neo4j::summary::Profile::page_cache_hit_ratio: f64
+pub neo4j::summary::Profile::page_cache_hits: i64
+pub neo4j::summary::Profile::page_cache_misses: i64
+pub neo4j::summary::Profile::rows: i64
+pub neo4j::summary::Profile::time: i64
+impl core::clone::Clone for neo4j::summary::Profile
+pub fn neo4j::summary::Profile::clone(&self) -> neo4j::summary::Profile
+impl core::fmt::Debug for neo4j::summary::Profile
+pub fn neo4j::summary::Profile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::summary::Profile
+impl core::marker::Send for neo4j::summary::Profile
+impl core::marker::Sync for neo4j::summary::Profile
+impl core::marker::Unpin for neo4j::summary::Profile
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::summary::Profile
+impl core::panic::unwind_safe::UnwindSafe for neo4j::summary::Profile
+pub struct neo4j::summary::ServerInfo
+pub neo4j::summary::ServerInfo::address: alloc::sync::Arc<neo4j::address::Address>
+pub neo4j::summary::ServerInfo::protocol_version: (u8, u8)
+pub neo4j::summary::ServerInfo::server_agent: alloc::sync::Arc<alloc::string::String>
+impl core::clone::Clone for neo4j::summary::ServerInfo
+pub fn neo4j::summary::ServerInfo::clone(&self) -> neo4j::summary::ServerInfo
+impl core::fmt::Debug for neo4j::summary::ServerInfo
+pub fn neo4j::summary::ServerInfo::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::summary::ServerInfo
+impl core::marker::Send for neo4j::summary::ServerInfo
+impl core::marker::Sync for neo4j::summary::ServerInfo
+impl core::marker::Unpin for neo4j::summary::ServerInfo
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::summary::ServerInfo
+impl core::panic::unwind_safe::UnwindSafe for neo4j::summary::ServerInfo
+#[non_exhaustive] pub struct neo4j::summary::Summary
+pub neo4j::summary::Summary::counters: neo4j::summary::Counters
+pub neo4j::summary::Summary::database: core::option::Option<alloc::string::String>
+pub neo4j::summary::Summary::gql_status_objects: alloc::vec::Vec<neo4j::summary::GqlStatusObject>
+pub neo4j::summary::Summary::notifications: alloc::vec::Vec<neo4j::summary::Notification>
+pub neo4j::summary::Summary::plan: core::option::Option<neo4j::summary::Plan>
+pub neo4j::summary::Summary::profile: core::option::Option<neo4j::summary::Profile>
+pub neo4j::summary::Summary::query_type: core::option::Option<neo4j::summary::SummaryQueryType>
+pub neo4j::summary::Summary::result_available_after: core::option::Option<core::time::Duration>
+pub neo4j::summary::Summary::result_consumed_after: core::option::Option<core::time::Duration>
+pub neo4j::summary::Summary::server_info: neo4j::summary::ServerInfo
+impl core::clone::Clone for neo4j::summary::Summary
+pub fn neo4j::summary::Summary::clone(&self) -> neo4j::summary::Summary
+impl core::fmt::Debug for neo4j::summary::Summary
+pub fn neo4j::summary::Summary::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::summary::Summary
+impl core::marker::Send for neo4j::summary::Summary
+impl core::marker::Sync for neo4j::summary::Summary
+impl core::marker::Unpin for neo4j::summary::Summary
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::summary::Summary
+impl core::panic::unwind_safe::UnwindSafe for neo4j::summary::Summary
+pub type neo4j::summary::Classification = neo4j::summary::Category
+pub mod neo4j::transaction
+pub struct neo4j::transaction::Transaction<'driver, 'tx>
+impl<'driver, 'tx> neo4j::transaction::Transaction<'driver, 'tx>
+pub fn neo4j::transaction::Transaction<'driver, 'tx>::commit(self) -> neo4j::Result<()>
+pub fn neo4j::transaction::Transaction<'driver, 'tx>::query<Q: core::convert::AsRef<str>>(&'tx self, query: Q) -> neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>>
+pub fn neo4j::transaction::Transaction<'driver, 'tx>::rollback(self) -> neo4j::Result<()>
+impl<'driver, 'tx> core::fmt::Debug for neo4j::transaction::Transaction<'driver, 'tx>
+pub fn neo4j::transaction::Transaction<'driver, 'tx>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'driver, 'tx> !core::marker::Freeze for neo4j::transaction::Transaction<'driver, 'tx>
+impl<'driver, 'tx> !core::marker::Send for neo4j::transaction::Transaction<'driver, 'tx>
+impl<'driver, 'tx> !core::marker::Sync for neo4j::transaction::Transaction<'driver, 'tx>
+impl<'driver, 'tx> core::marker::Unpin for neo4j::transaction::Transaction<'driver, 'tx>
+impl<'driver, 'tx> !core::panic::unwind_safe::RefUnwindSafe for neo4j::transaction::Transaction<'driver, 'tx>
+impl<'driver, 'tx> !core::panic::unwind_safe::UnwindSafe for neo4j::transaction::Transaction<'driver, 'tx>
+pub struct neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q: core::convert::AsRef<str>, K: core::borrow::Borrow<str> + core::fmt::Debug, M: core::borrow::Borrow<std::collections::hash::map::HashMap<K, neo4j::ValueSend>>>
+impl<'driver, 'tx, Q: core::convert::AsRef<str>, K: core::borrow::Borrow<str> + core::fmt::Debug, M: core::borrow::Borrow<std::collections::hash::map::HashMap<K, neo4j::ValueSend>>> neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>
+pub fn neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>::run(self) -> neo4j::Result<neo4j::transaction::TransactionRecordStream<'driver, 'tx>>
+pub fn neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>::with_parameters<K_: core::borrow::Borrow<str> + core::fmt::Debug, M_: core::borrow::Borrow<std::collections::hash::map::HashMap<K_, neo4j::ValueSend>>>(self, parameters: M_) -> neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K_, M_>
+pub fn neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>::without_parameters(self) -> neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, alloc::string::String, std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>>
+impl<Q: core::convert::AsRef<str>, K: core::borrow::Borrow<str> + core::fmt::Debug, M: core::borrow::Borrow<std::collections::hash::map::HashMap<K, neo4j::ValueSend>>> core::fmt::Debug for neo4j::transaction::TransactionQueryBuilder<'_, '_, Q, K, M>
+pub fn neo4j::transaction::TransactionQueryBuilder<'_, '_, Q, K, M>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'driver, 'tx, Q, K, M> core::marker::Freeze for neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M> where Q: core::marker::Freeze, M: core::marker::Freeze
+impl<'driver, 'tx, Q, K, M> !core::marker::Send for neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>
+impl<'driver, 'tx, Q, K, M> !core::marker::Sync for neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>
+impl<'driver, 'tx, Q, K, M> core::marker::Unpin for neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M> where Q: core::marker::Unpin, M: core::marker::Unpin, K: core::marker::Unpin
+impl<'driver, 'tx, Q, K, M> !core::panic::unwind_safe::RefUnwindSafe for neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>
+impl<'driver, 'tx, Q, K, M> !core::panic::unwind_safe::UnwindSafe for neo4j::transaction::TransactionQueryBuilder<'driver, 'tx, Q, K, M>
+pub struct neo4j::transaction::TransactionRecordStream<'driver, 'tx>(_, _)
+impl<'driver> neo4j::transaction::TransactionRecordStream<'driver, '_>
+pub fn neo4j::transaction::TransactionRecordStream<'driver, '_>::consume(self) -> neo4j::Result<core::option::Option<neo4j::summary::Summary>>
+pub fn neo4j::transaction::TransactionRecordStream<'driver, '_>::keys(&self) -> alloc::vec::Vec<alloc::sync::Arc<alloc::string::String>>
+pub fn neo4j::transaction::TransactionRecordStream<'driver, '_>::single(&mut self) -> core::result::Result<neo4j::Result<neo4j::driver::Record>, neo4j::driver::record_stream::GetSingleRecordError>
+pub fn neo4j::transaction::TransactionRecordStream<'driver, '_>::try_as_eager_result(&mut self) -> neo4j::Result<core::option::Option<neo4j::driver::EagerResult>>
+impl core::iter::traits::iterator::Iterator for neo4j::transaction::TransactionRecordStream<'_, '_>
+pub type neo4j::transaction::TransactionRecordStream<'_, '_>::Item = core::result::Result<neo4j::driver::Record, neo4j::Neo4jError>
+pub fn neo4j::transaction::TransactionRecordStream<'_, '_>::next(&mut self) -> core::option::Option<Self::Item>
+impl core::ops::drop::Drop for neo4j::transaction::TransactionRecordStream<'_, '_>
+pub fn neo4j::transaction::TransactionRecordStream<'_, '_>::drop(&mut self)
+impl<'driver, 'tx> core::fmt::Debug for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+pub fn neo4j::transaction::TransactionRecordStream<'driver, 'tx>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'driver, 'tx> core::marker::Freeze for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+impl<'driver, 'tx> !core::marker::Send for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+impl<'driver, 'tx> !core::marker::Sync for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+impl<'driver, 'tx> core::marker::Unpin for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+impl<'driver, 'tx> !core::panic::unwind_safe::RefUnwindSafe for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+impl<'driver, 'tx> !core::panic::unwind_safe::UnwindSafe for neo4j::transaction::TransactionRecordStream<'driver, 'tx>
+pub struct neo4j::transaction::TransactionTimeout
+impl neo4j::transaction::TransactionTimeout
+pub fn neo4j::transaction::TransactionTimeout::from_millis(timeout: i64) -> core::option::Option<Self>
+pub fn neo4j::transaction::TransactionTimeout::none() -> Self
+impl core::clone::Clone for neo4j::transaction::TransactionTimeout
+pub fn neo4j::transaction::TransactionTimeout::clone(&self) -> neo4j::transaction::TransactionTimeout
+impl core::default::Default for neo4j::transaction::TransactionTimeout
+pub fn neo4j::transaction::TransactionTimeout::default() -> Self
+impl core::fmt::Debug for neo4j::transaction::TransactionTimeout
+pub fn neo4j::transaction::TransactionTimeout::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::transaction::TransactionTimeout
+impl core::marker::Freeze for neo4j::transaction::TransactionTimeout
+impl core::marker::Send for neo4j::transaction::TransactionTimeout
+impl core::marker::Sync for neo4j::transaction::TransactionTimeout
+impl core::marker::Unpin for neo4j::transaction::TransactionTimeout
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::transaction::TransactionTimeout
+impl core::panic::unwind_safe::UnwindSafe for neo4j::transaction::TransactionTimeout
+pub mod neo4j::value
+pub mod neo4j::value::graph
+#[non_exhaustive] pub enum neo4j::value::graph::PathInvariantError
+#[non_exhaustive] pub neo4j::value::graph::PathInvariantError::EmptyNodes
+#[non_exhaustive] pub neo4j::value::graph::PathInvariantError::EvenIndexOutOfRange
+pub neo4j::value::graph::PathInvariantError::EvenIndexOutOfRange::index: usize
+pub neo4j::value::graph::PathInvariantError::EvenIndexOutOfRange::relationships_len: usize
+pub neo4j::value::graph::PathInvariantError::EvenIndexOutOfRange::value: isize
+#[non_exhaustive] pub neo4j::value::graph::PathInvariantError::OddIndexOutOfRange
+pub neo4j::value::graph::PathInvariantError::OddIndexOutOfRange::index: usize
+pub neo4j::value::graph::PathInvariantError::OddIndexOutOfRange::nodes_len: usize
+pub neo4j::value::graph::PathInvariantError::OddIndexOutOfRange::value: isize
+#[non_exhaustive] pub neo4j::value::graph::PathInvariantError::TooManyNodes
+#[non_exhaustive] pub neo4j::value::graph::PathInvariantError::TooManyRelationships
+#[non_exhaustive] pub neo4j::value::graph::PathInvariantError::UnevenIndicesCount
+impl core::clone::Clone for neo4j::value::graph::PathInvariantError
+pub fn neo4j::value::graph::PathInvariantError::clone(&self) -> neo4j::value::graph::PathInvariantError
+impl core::cmp::Eq for neo4j::value::graph::PathInvariantError
+impl core::cmp::PartialEq for neo4j::value::graph::PathInvariantError
+pub fn neo4j::value::graph::PathInvariantError::eq(&self, other: &neo4j::value::graph::PathInvariantError) -> bool
+impl core::error::Error for neo4j::value::graph::PathInvariantError
+impl core::fmt::Debug for neo4j::value::graph::PathInvariantError
+pub fn neo4j::value::graph::PathInvariantError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::value::graph::PathInvariantError
+pub fn neo4j::value::graph::PathInvariantError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for neo4j::value::graph::PathInvariantError
+impl core::marker::Freeze for neo4j::value::graph::PathInvariantError
+impl core::marker::Send for neo4j::value::graph::PathInvariantError
+impl core::marker::Sync for neo4j::value::graph::PathInvariantError
+impl core::marker::Unpin for neo4j::value::graph::PathInvariantError
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::graph::PathInvariantError
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::graph::PathInvariantError
+pub enum neo4j::value::graph::RelationshipDirection
+pub neo4j::value::graph::RelationshipDirection::From
+pub neo4j::value::graph::RelationshipDirection::To
+impl core::clone::Clone for neo4j::value::graph::RelationshipDirection
+pub fn neo4j::value::graph::RelationshipDirection::clone(&self) -> neo4j::value::graph::RelationshipDirection
+impl core::cmp::Eq for neo4j::value::graph::RelationshipDirection
+impl core::cmp::PartialEq for neo4j::value::graph::RelationshipDirection
+pub fn neo4j::value::graph::RelationshipDirection::eq(&self, other: &neo4j::value::graph::RelationshipDirection) -> bool
+impl core::fmt::Debug for neo4j::value::graph::RelationshipDirection
+pub fn neo4j::value::graph::RelationshipDirection::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::value::graph::RelationshipDirection
+pub fn neo4j::value::graph::RelationshipDirection::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for neo4j::value::graph::RelationshipDirection
+pub fn neo4j::value::graph::RelationshipDirection::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for neo4j::value::graph::RelationshipDirection
+impl core::marker::Freeze for neo4j::value::graph::RelationshipDirection
+impl core::marker::Send for neo4j::value::graph::RelationshipDirection
+impl core::marker::Sync for neo4j::value::graph::RelationshipDirection
+impl core::marker::Unpin for neo4j::value::graph::RelationshipDirection
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::graph::RelationshipDirection
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::graph::RelationshipDirection
+#[non_exhaustive] pub struct neo4j::value::graph::Node
+pub neo4j::value::graph::Node::element_id: alloc::string::String
+pub neo4j::value::graph::Node::id: i64
+pub neo4j::value::graph::Node::labels: alloc::vec::Vec<alloc::string::String>
+pub neo4j::value::graph::Node::properties: std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>
+impl core::clone::Clone for neo4j::value::graph::Node
+pub fn neo4j::value::graph::Node::clone(&self) -> neo4j::value::graph::Node
+impl core::cmp::PartialEq for neo4j::value::graph::Node
+pub fn neo4j::value::graph::Node::eq(&self, other: &neo4j::value::graph::Node) -> bool
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::graph::Node
+pub type neo4j::value::graph::Node::Error = neo4j::ValueReceive
+pub fn neo4j::value::graph::Node::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::value::graph::Node
+pub fn neo4j::value::graph::Node::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::value::graph::Node
+pub fn neo4j::value::graph::Node::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for neo4j::value::graph::Node
+impl core::marker::Freeze for neo4j::value::graph::Node
+impl core::marker::Send for neo4j::value::graph::Node
+impl core::marker::Sync for neo4j::value::graph::Node
+impl core::marker::Unpin for neo4j::value::graph::Node
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::graph::Node
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::graph::Node
+pub struct neo4j::value::graph::Path
+pub neo4j::value::graph::Path::indices: alloc::vec::Vec<isize>
+pub neo4j::value::graph::Path::nodes: alloc::vec::Vec<neo4j::value::graph::Node>
+pub neo4j::value::graph::Path::relationships: alloc::vec::Vec<neo4j::value::graph::UnboundRelationship>
+impl neo4j::value::graph::Path
+pub fn neo4j::value::graph::Path::traverse(&self) -> (&neo4j::value::graph::Node, alloc::vec::Vec<(neo4j::value::graph::RelationshipDirection, &neo4j::value::graph::UnboundRelationship, &neo4j::value::graph::Node)>)
+pub fn neo4j::value::graph::Path::verify_invariants(&self) -> core::result::Result<(), neo4j::value::graph::PathInvariantError>
+impl core::clone::Clone for neo4j::value::graph::Path
+pub fn neo4j::value::graph::Path::clone(&self) -> neo4j::value::graph::Path
+impl core::cmp::PartialEq for neo4j::value::graph::Path
+pub fn neo4j::value::graph::Path::eq(&self, other: &neo4j::value::graph::Path) -> bool
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::graph::Path
+pub type neo4j::value::graph::Path::Error = neo4j::ValueReceive
+pub fn neo4j::value::graph::Path::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::value::graph::Path
+pub fn neo4j::value::graph::Path::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::value::graph::Path
+pub fn neo4j::value::graph::Path::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for neo4j::value::graph::Path
+impl core::marker::Freeze for neo4j::value::graph::Path
+impl core::marker::Send for neo4j::value::graph::Path
+impl core::marker::Sync for neo4j::value::graph::Path
+impl core::marker::Unpin for neo4j::value::graph::Path
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::graph::Path
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::graph::Path
+pub struct neo4j::value::graph::Relationship
+pub neo4j::value::graph::Relationship::element_id: alloc::string::String
+pub neo4j::value::graph::Relationship::end_node_element_id: alloc::string::String
+pub neo4j::value::graph::Relationship::end_node_id: i64
+pub neo4j::value::graph::Relationship::id: i64
+pub neo4j::value::graph::Relationship::properties: std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>
+pub neo4j::value::graph::Relationship::start_node_element_id: alloc::string::String
+pub neo4j::value::graph::Relationship::start_node_id: i64
+pub neo4j::value::graph::Relationship::type_: alloc::string::String
+impl core::clone::Clone for neo4j::value::graph::Relationship
+pub fn neo4j::value::graph::Relationship::clone(&self) -> neo4j::value::graph::Relationship
+impl core::cmp::PartialEq for neo4j::value::graph::Relationship
+pub fn neo4j::value::graph::Relationship::eq(&self, other: &neo4j::value::graph::Relationship) -> bool
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::graph::Relationship
+pub type neo4j::value::graph::Relationship::Error = neo4j::ValueReceive
+pub fn neo4j::value::graph::Relationship::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::value::graph::Relationship
+pub fn neo4j::value::graph::Relationship::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::value::graph::Relationship
+pub fn neo4j::value::graph::Relationship::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for neo4j::value::graph::Relationship
+impl core::marker::Freeze for neo4j::value::graph::Relationship
+impl core::marker::Send for neo4j::value::graph::Relationship
+impl core::marker::Sync for neo4j::value::graph::Relationship
+impl core::marker::Unpin for neo4j::value::graph::Relationship
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::graph::Relationship
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::graph::Relationship
+pub struct neo4j::value::graph::UnboundRelationship
+pub neo4j::value::graph::UnboundRelationship::element_id: alloc::string::String
+pub neo4j::value::graph::UnboundRelationship::id: i64
+pub neo4j::value::graph::UnboundRelationship::properties: std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>
+pub neo4j::value::graph::UnboundRelationship::type_: alloc::string::String
+impl core::clone::Clone for neo4j::value::graph::UnboundRelationship
+pub fn neo4j::value::graph::UnboundRelationship::clone(&self) -> neo4j::value::graph::UnboundRelationship
+impl core::cmp::PartialEq for neo4j::value::graph::UnboundRelationship
+pub fn neo4j::value::graph::UnboundRelationship::eq(&self, other: &neo4j::value::graph::UnboundRelationship) -> bool
+impl core::fmt::Debug for neo4j::value::graph::UnboundRelationship
+pub fn neo4j::value::graph::UnboundRelationship::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for neo4j::value::graph::UnboundRelationship
+impl core::marker::Freeze for neo4j::value::graph::UnboundRelationship
+impl core::marker::Send for neo4j::value::graph::UnboundRelationship
+impl core::marker::Sync for neo4j::value::graph::UnboundRelationship
+impl core::marker::Unpin for neo4j::value::graph::UnboundRelationship
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::graph::UnboundRelationship
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::graph::UnboundRelationship
+pub mod neo4j::value::spatial
+pub struct neo4j::value::spatial::Cartesian2D
+impl neo4j::value::spatial::Cartesian2D
+pub fn neo4j::value::spatial::Cartesian2D::new(x: f64, y: f64) -> Self
+pub fn neo4j::value::spatial::Cartesian2D::srid(&self) -> i64
+pub fn neo4j::value::spatial::Cartesian2D::x(&self) -> f64
+pub fn neo4j::value::spatial::Cartesian2D::y(&self) -> f64
+impl core::clone::Clone for neo4j::value::spatial::Cartesian2D
+pub fn neo4j::value::spatial::Cartesian2D::clone(&self) -> neo4j::value::spatial::Cartesian2D
+impl core::cmp::PartialEq for neo4j::value::spatial::Cartesian2D
+pub fn neo4j::value::spatial::Cartesian2D::eq(&self, other: &neo4j::value::spatial::Cartesian2D) -> bool
+impl core::convert::From<neo4j::value::spatial::Cartesian2D> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::spatial::Cartesian2D) -> Self
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::spatial::Cartesian2D
+pub type neo4j::value::spatial::Cartesian2D::Error = neo4j::ValueReceive
+pub fn neo4j::value::spatial::Cartesian2D::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::spatial::Cartesian2D
+pub type neo4j::value::spatial::Cartesian2D::Error = neo4j::ValueSend
+pub fn neo4j::value::spatial::Cartesian2D::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::value::spatial::Cartesian2D
+pub fn neo4j::value::spatial::Cartesian2D::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::value::spatial::Cartesian2D
+pub fn neo4j::value::spatial::Cartesian2D::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::value::spatial::Cartesian2D
+impl core::marker::StructuralPartialEq for neo4j::value::spatial::Cartesian2D
+impl core::marker::Freeze for neo4j::value::spatial::Cartesian2D
+impl core::marker::Send for neo4j::value::spatial::Cartesian2D
+impl core::marker::Sync for neo4j::value::spatial::Cartesian2D
+impl core::marker::Unpin for neo4j::value::spatial::Cartesian2D
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::spatial::Cartesian2D
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::spatial::Cartesian2D
+pub struct neo4j::value::spatial::Cartesian3D
+impl neo4j::value::spatial::Cartesian3D
+pub fn neo4j::value::spatial::Cartesian3D::new(x: f64, y: f64, z: f64) -> Self
+pub fn neo4j::value::spatial::Cartesian3D::srid(&self) -> i64
+pub fn neo4j::value::spatial::Cartesian3D::x(&self) -> f64
+pub fn neo4j::value::spatial::Cartesian3D::y(&self) -> f64
+pub fn neo4j::value::spatial::Cartesian3D::z(&self) -> f64
+impl core::clone::Clone for neo4j::value::spatial::Cartesian3D
+pub fn neo4j::value::spatial::Cartesian3D::clone(&self) -> neo4j::value::spatial::Cartesian3D
+impl core::cmp::PartialEq for neo4j::value::spatial::Cartesian3D
+pub fn neo4j::value::spatial::Cartesian3D::eq(&self, other: &neo4j::value::spatial::Cartesian3D) -> bool
+impl core::convert::From<neo4j::value::spatial::Cartesian3D> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::spatial::Cartesian3D) -> Self
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::spatial::Cartesian3D
+pub type neo4j::value::spatial::Cartesian3D::Error = neo4j::ValueReceive
+pub fn neo4j::value::spatial::Cartesian3D::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::spatial::Cartesian3D
+pub type neo4j::value::spatial::Cartesian3D::Error = neo4j::ValueSend
+pub fn neo4j::value::spatial::Cartesian3D::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::value::spatial::Cartesian3D
+pub fn neo4j::value::spatial::Cartesian3D::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::value::spatial::Cartesian3D
+pub fn neo4j::value::spatial::Cartesian3D::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::value::spatial::Cartesian3D
+impl core::marker::StructuralPartialEq for neo4j::value::spatial::Cartesian3D
+impl core::marker::Freeze for neo4j::value::spatial::Cartesian3D
+impl core::marker::Send for neo4j::value::spatial::Cartesian3D
+impl core::marker::Sync for neo4j::value::spatial::Cartesian3D
+impl core::marker::Unpin for neo4j::value::spatial::Cartesian3D
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::spatial::Cartesian3D
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::spatial::Cartesian3D
+pub struct neo4j::value::spatial::WGS84_2D
+impl neo4j::value::spatial::WGS84_2D
+pub fn neo4j::value::spatial::WGS84_2D::latitude(&self) -> f64
+pub fn neo4j::value::spatial::WGS84_2D::longitude(&self) -> f64
+pub fn neo4j::value::spatial::WGS84_2D::new(longitude: f64, latitude: f64) -> Self
+pub fn neo4j::value::spatial::WGS84_2D::srid(&self) -> i64
+impl core::clone::Clone for neo4j::value::spatial::WGS84_2D
+pub fn neo4j::value::spatial::WGS84_2D::clone(&self) -> neo4j::value::spatial::WGS84_2D
+impl core::cmp::PartialEq for neo4j::value::spatial::WGS84_2D
+pub fn neo4j::value::spatial::WGS84_2D::eq(&self, other: &neo4j::value::spatial::WGS84_2D) -> bool
+impl core::convert::From<neo4j::value::spatial::WGS84_2D> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::spatial::WGS84_2D) -> Self
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::spatial::WGS84_2D
+pub type neo4j::value::spatial::WGS84_2D::Error = neo4j::ValueReceive
+pub fn neo4j::value::spatial::WGS84_2D::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::spatial::WGS84_2D
+pub type neo4j::value::spatial::WGS84_2D::Error = neo4j::ValueSend
+pub fn neo4j::value::spatial::WGS84_2D::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::value::spatial::WGS84_2D
+pub fn neo4j::value::spatial::WGS84_2D::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::value::spatial::WGS84_2D
+pub fn neo4j::value::spatial::WGS84_2D::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::value::spatial::WGS84_2D
+impl core::marker::StructuralPartialEq for neo4j::value::spatial::WGS84_2D
+impl core::marker::Freeze for neo4j::value::spatial::WGS84_2D
+impl core::marker::Send for neo4j::value::spatial::WGS84_2D
+impl core::marker::Sync for neo4j::value::spatial::WGS84_2D
+impl core::marker::Unpin for neo4j::value::spatial::WGS84_2D
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::spatial::WGS84_2D
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::spatial::WGS84_2D
+pub struct neo4j::value::spatial::WGS84_3D
+impl neo4j::value::spatial::WGS84_3D
+pub fn neo4j::value::spatial::WGS84_3D::altitude(&self) -> f64
+pub fn neo4j::value::spatial::WGS84_3D::latitude(&self) -> f64
+pub fn neo4j::value::spatial::WGS84_3D::longitude(&self) -> f64
+pub fn neo4j::value::spatial::WGS84_3D::new(longitude: f64, latitude: f64, height: f64) -> Self
+pub fn neo4j::value::spatial::WGS84_3D::srid(&self) -> i64
+impl core::clone::Clone for neo4j::value::spatial::WGS84_3D
+pub fn neo4j::value::spatial::WGS84_3D::clone(&self) -> neo4j::value::spatial::WGS84_3D
+impl core::cmp::PartialEq for neo4j::value::spatial::WGS84_3D
+pub fn neo4j::value::spatial::WGS84_3D::eq(&self, other: &neo4j::value::spatial::WGS84_3D) -> bool
+impl core::convert::From<neo4j::value::spatial::WGS84_3D> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::spatial::WGS84_3D) -> Self
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::spatial::WGS84_3D
+pub type neo4j::value::spatial::WGS84_3D::Error = neo4j::ValueReceive
+pub fn neo4j::value::spatial::WGS84_3D::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::spatial::WGS84_3D
+pub type neo4j::value::spatial::WGS84_3D::Error = neo4j::ValueSend
+pub fn neo4j::value::spatial::WGS84_3D::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::value::spatial::WGS84_3D
+pub fn neo4j::value::spatial::WGS84_3D::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::value::spatial::WGS84_3D
+pub fn neo4j::value::spatial::WGS84_3D::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for neo4j::value::spatial::WGS84_3D
+impl core::marker::StructuralPartialEq for neo4j::value::spatial::WGS84_3D
+impl core::marker::Freeze for neo4j::value::spatial::WGS84_3D
+impl core::marker::Send for neo4j::value::spatial::WGS84_3D
+impl core::marker::Sync for neo4j::value::spatial::WGS84_3D
+impl core::marker::Unpin for neo4j::value::spatial::WGS84_3D
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::spatial::WGS84_3D
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::spatial::WGS84_3D
+pub mod neo4j::value::time
+pub struct neo4j::value::time::Duration
+impl neo4j::value::time::Duration
+pub fn neo4j::value::time::Duration::days(&self) -> i64
+pub fn neo4j::value::time::Duration::months(&self) -> i64
+pub fn neo4j::value::time::Duration::nanoseconds(&self) -> i32
+pub fn neo4j::value::time::Duration::new(months: i64, days: i64, seconds: i64, nanoseconds: i32) -> core::option::Option<Self>
+pub fn neo4j::value::time::Duration::seconds(&self) -> i64
+impl core::clone::Clone for neo4j::value::time::Duration
+pub fn neo4j::value::time::Duration::clone(&self) -> neo4j::value::time::Duration
+impl core::cmp::Eq for neo4j::value::time::Duration
+impl core::cmp::PartialEq for neo4j::value::time::Duration
+pub fn neo4j::value::time::Duration::eq(&self, other: &neo4j::value::time::Duration) -> bool
+impl core::convert::From<neo4j::value::time::Duration> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::Duration) -> Self
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::Duration
+pub type neo4j::value::time::Duration::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::Duration::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::Duration
+pub type neo4j::value::time::Duration::Error = neo4j::ValueSend
+pub fn neo4j::value::time::Duration::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::value::time::Duration
+pub fn neo4j::value::time::Duration::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for neo4j::value::time::Duration
+pub fn neo4j::value::time::Duration::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for neo4j::value::time::Duration
+impl core::marker::StructuralPartialEq for neo4j::value::time::Duration
+impl core::marker::Freeze for neo4j::value::time::Duration
+impl core::marker::Send for neo4j::value::time::Duration
+impl core::marker::Sync for neo4j::value::time::Duration
+impl core::marker::Unpin for neo4j::value::time::Duration
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::time::Duration
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::time::Duration
+pub struct neo4j::value::time::Time
+pub neo4j::value::time::Time::offset: neo4j::value::time::FixedOffset
+pub neo4j::value::time::Time::time: chrono::naive::time::NaiveTime
+impl core::clone::Clone for neo4j::value::time::Time
+pub fn neo4j::value::time::Time::clone(&self) -> neo4j::value::time::Time
+impl core::cmp::Eq for neo4j::value::time::Time
+impl core::cmp::PartialEq for neo4j::value::time::Time
+pub fn neo4j::value::time::Time::eq(&self, other: &neo4j::value::time::Time) -> bool
+impl core::convert::From<neo4j::value::time::Time> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::Time) -> Self
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::Time
+pub type neo4j::value::time::Time::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::Time::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::Time
+pub type neo4j::value::time::Time::Error = neo4j::ValueSend
+pub fn neo4j::value::time::Time::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::value::time::Time
+pub fn neo4j::value::time::Time::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for neo4j::value::time::Time
+pub fn neo4j::value::time::Time::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for neo4j::value::time::Time
+impl core::marker::StructuralPartialEq for neo4j::value::time::Time
+impl core::marker::Freeze for neo4j::value::time::Time
+impl core::marker::Send for neo4j::value::time::Time
+impl core::marker::Sync for neo4j::value::time::Time
+impl core::marker::Unpin for neo4j::value::time::Time
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::time::Time
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::time::Time
+pub type neo4j::value::time::Date = chrono::naive::date::NaiveDate
+pub type neo4j::value::time::DateTime = chrono::datetime::DateTime<neo4j::value::time::Tz>
+pub type neo4j::value::time::DateTimeFixed = chrono::datetime::DateTime<neo4j::value::time::FixedOffset>
+pub type neo4j::value::time::FixedOffset = chrono::offset::fixed::FixedOffset
+pub type neo4j::value::time::LocalDateTime = chrono::naive::datetime::NaiveDateTime
+pub type neo4j::value::time::LocalTime = chrono::naive::time::NaiveTime
+pub type neo4j::value::time::Tz = chrono_tz::timezones::Tz
+#[non_exhaustive] pub enum neo4j::value::ValueReceive
+pub neo4j::value::ValueReceive::Boolean(bool)
+pub neo4j::value::ValueReceive::BrokenValue(neo4j::value::BrokenValue)
+pub neo4j::value::ValueReceive::Bytes(alloc::vec::Vec<u8>)
+pub neo4j::value::ValueReceive::Cartesian2D(neo4j::value::spatial::Cartesian2D)
+pub neo4j::value::ValueReceive::Cartesian3D(neo4j::value::spatial::Cartesian3D)
+pub neo4j::value::ValueReceive::Date(neo4j::value::time::Date)
+pub neo4j::value::ValueReceive::DateTime(neo4j::value::time::DateTime)
+pub neo4j::value::ValueReceive::DateTimeFixed(neo4j::value::time::DateTimeFixed)
+pub neo4j::value::ValueReceive::Duration(neo4j::value::time::Duration)
+pub neo4j::value::ValueReceive::Float(f64)
+pub neo4j::value::ValueReceive::Integer(i64)
+pub neo4j::value::ValueReceive::List(alloc::vec::Vec<neo4j::ValueReceive>)
+pub neo4j::value::ValueReceive::LocalDateTime(neo4j::value::time::LocalDateTime)
+pub neo4j::value::ValueReceive::LocalTime(neo4j::value::time::LocalTime)
+pub neo4j::value::ValueReceive::Map(std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>)
+pub neo4j::value::ValueReceive::Node(neo4j::value::graph::Node)
+pub neo4j::value::ValueReceive::Null
+pub neo4j::value::ValueReceive::Path(neo4j::value::graph::Path)
+pub neo4j::value::ValueReceive::Relationship(neo4j::value::graph::Relationship)
+pub neo4j::value::ValueReceive::String(alloc::string::String)
+pub neo4j::value::ValueReceive::Time(neo4j::value::time::Time)
+pub neo4j::value::ValueReceive::WGS84_2D(neo4j::value::spatial::WGS84_2D)
+pub neo4j::value::ValueReceive::WGS84_3D(neo4j::value::spatial::WGS84_3D)
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_bool(&self) -> core::option::Option<bool>
+pub fn neo4j::ValueReceive::as_bool_mut(&mut self) -> core::option::Option<&mut bool>
+pub fn neo4j::ValueReceive::is_bool(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_bool(self) -> core::result::Result<bool, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_bytes(&self) -> core::option::Option<&alloc::vec::Vec<u8>>
+pub fn neo4j::ValueReceive::as_bytes_mut(&mut self) -> core::option::Option<&mut alloc::vec::Vec<u8>>
+pub fn neo4j::ValueReceive::is_bytes(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_bytes(self) -> core::result::Result<alloc::vec::Vec<u8>, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_cartesian_2d(&self) -> core::option::Option<&neo4j::value::spatial::Cartesian2D>
+pub fn neo4j::ValueReceive::as_cartesian_2d_mut(&mut self) -> core::option::Option<&mut neo4j::value::spatial::Cartesian2D>
+pub fn neo4j::ValueReceive::is_cartesian_2d(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_cartesian_2d(self) -> core::result::Result<neo4j::value::spatial::Cartesian2D, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_cartesian_3d(&self) -> core::option::Option<&neo4j::value::spatial::Cartesian3D>
+pub fn neo4j::ValueReceive::as_cartesian_3d_mut(&mut self) -> core::option::Option<&mut neo4j::value::spatial::Cartesian3D>
+pub fn neo4j::ValueReceive::is_cartesian_3d(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_cartesian_3d(self) -> core::result::Result<neo4j::value::spatial::Cartesian3D, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_date(&self) -> core::option::Option<&neo4j::value::time::Date>
+pub fn neo4j::ValueReceive::as_date_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::Date>
+pub fn neo4j::ValueReceive::is_date(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_date(self) -> core::result::Result<neo4j::value::time::Date, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_date_time(&self) -> core::option::Option<&neo4j::value::time::DateTime>
+pub fn neo4j::ValueReceive::as_date_time_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::DateTime>
+pub fn neo4j::ValueReceive::is_date_time(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_date_time(self) -> core::result::Result<neo4j::value::time::DateTime, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_date_time_fixed(&self) -> core::option::Option<&neo4j::value::time::DateTimeFixed>
+pub fn neo4j::ValueReceive::as_date_time_fixed_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::DateTimeFixed>
+pub fn neo4j::ValueReceive::is_date_time_fixed(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_date_time_fixed(self) -> core::result::Result<neo4j::value::time::DateTimeFixed, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_duration(&self) -> core::option::Option<&neo4j::value::time::Duration>
+pub fn neo4j::ValueReceive::as_duration_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::Duration>
+pub fn neo4j::ValueReceive::is_duration(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_duration(self) -> core::result::Result<neo4j::value::time::Duration, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_float(&self) -> core::option::Option<f64>
+pub fn neo4j::ValueReceive::as_float_mut(&mut self) -> core::option::Option<&mut f64>
+pub fn neo4j::ValueReceive::is_float(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_float(self) -> core::result::Result<f64, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_int(&self) -> core::option::Option<i64>
+pub fn neo4j::ValueReceive::as_int_mut(&mut self) -> core::option::Option<&mut i64>
+pub fn neo4j::ValueReceive::is_int(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_int(self) -> core::result::Result<i64, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_list(&self) -> core::option::Option<&alloc::vec::Vec<neo4j::ValueReceive>>
+pub fn neo4j::ValueReceive::as_list_mut(&mut self) -> core::option::Option<&mut alloc::vec::Vec<neo4j::ValueReceive>>
+pub fn neo4j::ValueReceive::is_list(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_list(self) -> core::result::Result<alloc::vec::Vec<neo4j::ValueReceive>, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_local_date_time(&self) -> core::option::Option<&neo4j::value::time::LocalDateTime>
+pub fn neo4j::ValueReceive::as_local_date_time_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::LocalDateTime>
+pub fn neo4j::ValueReceive::is_local_date_time(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_local_date_time(self) -> core::result::Result<neo4j::value::time::LocalDateTime, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_local_time(&self) -> core::option::Option<&neo4j::value::time::LocalTime>
+pub fn neo4j::ValueReceive::as_local_time_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::LocalTime>
+pub fn neo4j::ValueReceive::is_local_time(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_local_time(self) -> core::result::Result<neo4j::value::time::LocalTime, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_map(&self) -> core::option::Option<&std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>>
+pub fn neo4j::ValueReceive::as_map_mut(&mut self) -> core::option::Option<&mut std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>>
+pub fn neo4j::ValueReceive::is_map(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_map(self) -> core::result::Result<std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_node(&self) -> core::option::Option<&neo4j::value::graph::Node>
+pub fn neo4j::ValueReceive::as_node_mut(&mut self) -> core::option::Option<&mut neo4j::value::graph::Node>
+pub fn neo4j::ValueReceive::is_node(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_node(self) -> core::result::Result<neo4j::value::graph::Node, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_path(&self) -> core::option::Option<&neo4j::value::graph::Path>
+pub fn neo4j::ValueReceive::as_path_mut(&mut self) -> core::option::Option<&mut neo4j::value::graph::Path>
+pub fn neo4j::ValueReceive::is_path(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_path(self) -> core::result::Result<neo4j::value::graph::Path, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_relationship(&self) -> core::option::Option<&neo4j::value::graph::Relationship>
+pub fn neo4j::ValueReceive::as_relationship_mut(&mut self) -> core::option::Option<&mut neo4j::value::graph::Relationship>
+pub fn neo4j::ValueReceive::is_relationship(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_relationship(self) -> core::result::Result<neo4j::value::graph::Relationship, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_string(&self) -> core::option::Option<&alloc::string::String>
+pub fn neo4j::ValueReceive::as_string_mut(&mut self) -> core::option::Option<&mut alloc::string::String>
+pub fn neo4j::ValueReceive::is_string(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_string(self) -> core::result::Result<alloc::string::String, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_time(&self) -> core::option::Option<&neo4j::value::time::Time>
+pub fn neo4j::ValueReceive::as_time_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::Time>
+pub fn neo4j::ValueReceive::is_time(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_time(self) -> core::result::Result<neo4j::value::time::Time, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_wgs84_2d(&self) -> core::option::Option<&neo4j::value::spatial::WGS84_2D>
+pub fn neo4j::ValueReceive::as_wgs84_2d_mut(&mut self) -> core::option::Option<&mut neo4j::value::spatial::WGS84_2D>
+pub fn neo4j::ValueReceive::is_wgs84_2d(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_wgs84_2d(self) -> core::result::Result<neo4j::value::spatial::WGS84_2D, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_wgs84_3d(&self) -> core::option::Option<&neo4j::value::spatial::WGS84_3D>
+pub fn neo4j::ValueReceive::as_wgs84_3d_mut(&mut self) -> core::option::Option<&mut neo4j::value::spatial::WGS84_3D>
+pub fn neo4j::ValueReceive::is_wgs84_3d(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_wgs84_3d(self) -> core::result::Result<neo4j::value::spatial::WGS84_3D, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::is_null(&self) -> bool
+impl core::clone::Clone for neo4j::ValueReceive
+pub fn neo4j::ValueReceive::clone(&self) -> neo4j::ValueReceive
+impl core::cmp::PartialEq for neo4j::ValueReceive
+pub fn neo4j::ValueReceive::eq(&self, other: &neo4j::ValueReceive) -> bool
+impl core::convert::From<neo4j::ValueSend> for neo4j::ValueReceive
+pub fn neo4j::ValueReceive::from(v: neo4j::ValueSend) -> Self
+impl core::convert::TryFrom<neo4j::ValueReceive> for alloc::string::String
+pub type alloc::string::String::Error = neo4j::ValueReceive
+pub fn alloc::string::String::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for alloc::vec::Vec<neo4j::ValueReceive>
+pub type alloc::vec::Vec<neo4j::ValueReceive>::Error = neo4j::ValueReceive
+pub fn alloc::vec::Vec<neo4j::ValueReceive>::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for alloc::vec::Vec<u8>
+pub type alloc::vec::Vec<u8>::Error = neo4j::ValueReceive
+pub fn alloc::vec::Vec<u8>::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for bool
+pub type bool::Error = neo4j::ValueReceive
+pub fn bool::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for f64
+pub type f64::Error = neo4j::ValueReceive
+pub fn f64::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for i64
+pub type i64::Error = neo4j::ValueReceive
+pub fn i64::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::ValueSend
+pub type neo4j::ValueSend::Error = neo4j::value::ValueConversionError
+pub fn neo4j::ValueSend::try_from(v: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::graph::Node
+pub type neo4j::value::graph::Node::Error = neo4j::ValueReceive
+pub fn neo4j::value::graph::Node::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::graph::Path
+pub type neo4j::value::graph::Path::Error = neo4j::ValueReceive
+pub fn neo4j::value::graph::Path::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::graph::Relationship
+pub type neo4j::value::graph::Relationship::Error = neo4j::ValueReceive
+pub fn neo4j::value::graph::Relationship::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::spatial::Cartesian2D
+pub type neo4j::value::spatial::Cartesian2D::Error = neo4j::ValueReceive
+pub fn neo4j::value::spatial::Cartesian2D::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::spatial::Cartesian3D
+pub type neo4j::value::spatial::Cartesian3D::Error = neo4j::ValueReceive
+pub fn neo4j::value::spatial::Cartesian3D::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::spatial::WGS84_2D
+pub type neo4j::value::spatial::WGS84_2D::Error = neo4j::ValueReceive
+pub fn neo4j::value::spatial::WGS84_2D::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::spatial::WGS84_3D
+pub type neo4j::value::spatial::WGS84_3D::Error = neo4j::ValueReceive
+pub fn neo4j::value::spatial::WGS84_3D::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::Date
+pub type neo4j::value::time::Date::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::Date::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::DateTime
+pub type neo4j::value::time::DateTime::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::DateTime::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::DateTimeFixed
+pub type neo4j::value::time::DateTimeFixed::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::DateTimeFixed::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::Duration
+pub type neo4j::value::time::Duration::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::Duration::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::LocalDateTime
+pub type neo4j::value::time::LocalDateTime::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::LocalDateTime::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::LocalTime
+pub type neo4j::value::time::LocalTime::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::LocalTime::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::Time
+pub type neo4j::value::time::Time::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::Time::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>
+pub type std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>::Error = neo4j::ValueReceive
+pub fn std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::ValueReceive
+pub fn neo4j::ValueReceive::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for neo4j::ValueReceive
+impl core::marker::Freeze for neo4j::ValueReceive
+impl core::marker::Send for neo4j::ValueReceive
+impl core::marker::Sync for neo4j::ValueReceive
+impl core::marker::Unpin for neo4j::ValueReceive
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::ValueReceive
+impl core::panic::unwind_safe::UnwindSafe for neo4j::ValueReceive
+#[non_exhaustive] pub enum neo4j::value::ValueSend
+pub neo4j::value::ValueSend::Boolean(bool)
+pub neo4j::value::ValueSend::Bytes(alloc::vec::Vec<u8>)
+pub neo4j::value::ValueSend::Cartesian2D(neo4j::value::spatial::Cartesian2D)
+pub neo4j::value::ValueSend::Cartesian3D(neo4j::value::spatial::Cartesian3D)
+pub neo4j::value::ValueSend::Date(neo4j::value::time::Date)
+pub neo4j::value::ValueSend::DateTime(neo4j::value::time::DateTime)
+pub neo4j::value::ValueSend::DateTimeFixed(neo4j::value::time::DateTimeFixed)
+pub neo4j::value::ValueSend::Duration(neo4j::value::time::Duration)
+pub neo4j::value::ValueSend::Float(f64)
+pub neo4j::value::ValueSend::Integer(i64)
+pub neo4j::value::ValueSend::List(alloc::vec::Vec<neo4j::ValueSend>)
+pub neo4j::value::ValueSend::LocalDateTime(neo4j::value::time::LocalDateTime)
+pub neo4j::value::ValueSend::LocalTime(neo4j::value::time::LocalTime)
+pub neo4j::value::ValueSend::Map(std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>)
+pub neo4j::value::ValueSend::Null
+pub neo4j::value::ValueSend::String(alloc::string::String)
+pub neo4j::value::ValueSend::Time(neo4j::value::time::Time)
+pub neo4j::value::ValueSend::WGS84_2D(neo4j::value::spatial::WGS84_2D)
+pub neo4j::value::ValueSend::WGS84_3D(neo4j::value::spatial::WGS84_3D)
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_bool(&self) -> core::option::Option<bool>
+pub fn neo4j::ValueSend::is_bool(&self) -> bool
+pub fn neo4j::ValueSend::try_into_bool(self) -> core::result::Result<bool, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_bytes(&self) -> core::option::Option<&alloc::vec::Vec<u8>>
+pub fn neo4j::ValueSend::is_bytes(&self) -> bool
+pub fn neo4j::ValueSend::try_into_bytes(self) -> core::result::Result<alloc::vec::Vec<u8>, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_cartesian_2d(&self) -> core::option::Option<&neo4j::value::spatial::Cartesian2D>
+pub fn neo4j::ValueSend::is_cartesian_2d(&self) -> bool
+pub fn neo4j::ValueSend::try_into_cartesian_2d(self) -> core::result::Result<neo4j::value::spatial::Cartesian2D, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_cartesian_3d(&self) -> core::option::Option<&neo4j::value::spatial::Cartesian3D>
+pub fn neo4j::ValueSend::is_cartesian_3d(&self) -> bool
+pub fn neo4j::ValueSend::try_into_cartesian_3d(self) -> core::result::Result<neo4j::value::spatial::Cartesian3D, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_date(&self) -> core::option::Option<&neo4j::value::time::Date>
+pub fn neo4j::ValueSend::is_date(&self) -> bool
+pub fn neo4j::ValueSend::try_into_date(self) -> core::result::Result<neo4j::value::time::Date, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_date_time(&self) -> core::option::Option<&neo4j::value::time::DateTime>
+pub fn neo4j::ValueSend::is_date_time(&self) -> bool
+pub fn neo4j::ValueSend::try_into_date_time(self) -> core::result::Result<neo4j::value::time::DateTime, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_date_time_fixed(&self) -> core::option::Option<&neo4j::value::time::DateTimeFixed>
+pub fn neo4j::ValueSend::is_date_time_fixed(&self) -> bool
+pub fn neo4j::ValueSend::try_into_date_time_fixed(self) -> core::result::Result<neo4j::value::time::DateTimeFixed, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_duration(&self) -> core::option::Option<&neo4j::value::time::Duration>
+pub fn neo4j::ValueSend::is_duration(&self) -> bool
+pub fn neo4j::ValueSend::try_into_duration(self) -> core::result::Result<neo4j::value::time::Duration, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_float(&self) -> core::option::Option<f64>
+pub fn neo4j::ValueSend::is_float(&self) -> bool
+pub fn neo4j::ValueSend::try_into_float(self) -> core::result::Result<f64, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_int(&self) -> core::option::Option<i64>
+pub fn neo4j::ValueSend::is_int(&self) -> bool
+pub fn neo4j::ValueSend::try_into_int(self) -> core::result::Result<i64, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_list(&self) -> core::option::Option<&[neo4j::ValueSend]>
+pub fn neo4j::ValueSend::is_list(&self) -> bool
+pub fn neo4j::ValueSend::try_into_list(self) -> core::result::Result<alloc::vec::Vec<neo4j::ValueSend>, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_local_date_time(&self) -> core::option::Option<&neo4j::value::time::LocalDateTime>
+pub fn neo4j::ValueSend::is_local_date_time(&self) -> bool
+pub fn neo4j::ValueSend::try_into_local_date_time(self) -> core::result::Result<neo4j::value::time::LocalDateTime, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_local_time(&self) -> core::option::Option<&neo4j::value::time::LocalTime>
+pub fn neo4j::ValueSend::is_local_time(&self) -> bool
+pub fn neo4j::ValueSend::try_into_local_time(self) -> core::result::Result<neo4j::value::time::LocalTime, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_map(&self) -> core::option::Option<&std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>>
+pub fn neo4j::ValueSend::is_map(&self) -> bool
+pub fn neo4j::ValueSend::try_into_map(self) -> core::result::Result<std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_string(&self) -> core::option::Option<&alloc::string::String>
+pub fn neo4j::ValueSend::is_string(&self) -> bool
+pub fn neo4j::ValueSend::try_into_string(self) -> core::result::Result<alloc::string::String, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_time(&self) -> core::option::Option<&neo4j::value::time::Time>
+pub fn neo4j::ValueSend::is_time(&self) -> bool
+pub fn neo4j::ValueSend::try_into_time(self) -> core::result::Result<neo4j::value::time::Time, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_wgs84_2d(&self) -> core::option::Option<&neo4j::value::spatial::WGS84_2D>
+pub fn neo4j::ValueSend::is_wgs84_2d(&self) -> bool
+pub fn neo4j::ValueSend::try_into_wgs84_2d(self) -> core::result::Result<neo4j::value::spatial::WGS84_2D, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_wgs84_3d(&self) -> core::option::Option<&neo4j::value::spatial::WGS84_3D>
+pub fn neo4j::ValueSend::is_wgs84_3d(&self) -> bool
+pub fn neo4j::ValueSend::try_into_wgs84_3d(self) -> core::result::Result<neo4j::value::spatial::WGS84_3D, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::is_null(&self) -> bool
+impl core::clone::Clone for neo4j::ValueSend
+pub fn neo4j::ValueSend::clone(&self) -> neo4j::ValueSend
+impl core::cmp::PartialEq for neo4j::ValueSend
+pub fn neo4j::ValueSend::eq(&self, other: &neo4j::ValueSend) -> bool
+impl core::convert::From<&str> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: &str) -> Self
+impl core::convert::From<alloc::string::String> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: alloc::string::String) -> Self
+impl core::convert::From<bool> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: bool) -> Self
+impl core::convert::From<chrono::datetime::DateTime<chrono::offset::fixed::FixedOffset>> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::DateTimeFixed) -> Self
+impl core::convert::From<chrono::datetime::DateTime<chrono_tz::timezones::Tz>> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::DateTime) -> Self
+impl core::convert::From<chrono::naive::date::NaiveDate> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::Date) -> Self
+impl core::convert::From<chrono::naive::datetime::NaiveDateTime> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::LocalDateTime) -> Self
+impl core::convert::From<chrono::naive::time::NaiveTime> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::LocalTime) -> Self
+impl core::convert::From<f32> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: f32) -> Self
+impl core::convert::From<f64> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: f64) -> Self
+impl core::convert::From<i16> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: i16) -> Self
+impl core::convert::From<i32> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: i32) -> Self
+impl core::convert::From<i64> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: i64) -> Self
+impl core::convert::From<i8> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: i8) -> Self
+impl core::convert::From<neo4j::ValueSend> for neo4j::ValueReceive
+pub fn neo4j::ValueReceive::from(v: neo4j::ValueSend) -> Self
+impl core::convert::From<neo4j::value::spatial::Cartesian2D> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::spatial::Cartesian2D) -> Self
+impl core::convert::From<neo4j::value::spatial::Cartesian3D> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::spatial::Cartesian3D) -> Self
+impl core::convert::From<neo4j::value::spatial::WGS84_2D> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::spatial::WGS84_2D) -> Self
+impl core::convert::From<neo4j::value::spatial::WGS84_3D> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::spatial::WGS84_3D) -> Self
+impl core::convert::From<neo4j::value::time::Duration> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::Duration) -> Self
+impl core::convert::From<neo4j::value::time::Time> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::Time) -> Self
+impl core::convert::From<u16> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: u16) -> Self
+impl core::convert::From<u32> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: u32) -> Self
+impl core::convert::From<u8> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: u8) -> Self
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::ValueSend
+pub type neo4j::ValueSend::Error = neo4j::value::ValueConversionError
+pub fn neo4j::ValueSend::try_from(v: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for alloc::string::String
+pub type alloc::string::String::Error = neo4j::ValueSend
+pub fn alloc::string::String::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for alloc::vec::Vec<neo4j::ValueSend>
+pub type alloc::vec::Vec<neo4j::ValueSend>::Error = neo4j::ValueSend
+pub fn alloc::vec::Vec<neo4j::ValueSend>::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for alloc::vec::Vec<u8>
+pub type alloc::vec::Vec<u8>::Error = neo4j::ValueSend
+pub fn alloc::vec::Vec<u8>::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for bool
+pub type bool::Error = neo4j::ValueSend
+pub fn bool::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for f64
+pub type f64::Error = neo4j::ValueSend
+pub fn f64::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for i64
+pub type i64::Error = neo4j::ValueSend
+pub fn i64::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::spatial::Cartesian2D
+pub type neo4j::value::spatial::Cartesian2D::Error = neo4j::ValueSend
+pub fn neo4j::value::spatial::Cartesian2D::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::spatial::Cartesian3D
+pub type neo4j::value::spatial::Cartesian3D::Error = neo4j::ValueSend
+pub fn neo4j::value::spatial::Cartesian3D::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::spatial::WGS84_2D
+pub type neo4j::value::spatial::WGS84_2D::Error = neo4j::ValueSend
+pub fn neo4j::value::spatial::WGS84_2D::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::spatial::WGS84_3D
+pub type neo4j::value::spatial::WGS84_3D::Error = neo4j::ValueSend
+pub fn neo4j::value::spatial::WGS84_3D::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::Date
+pub type neo4j::value::time::Date::Error = neo4j::ValueSend
+pub fn neo4j::value::time::Date::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::DateTime
+pub type neo4j::value::time::DateTime::Error = neo4j::ValueSend
+pub fn neo4j::value::time::DateTime::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::DateTimeFixed
+pub type neo4j::value::time::DateTimeFixed::Error = neo4j::ValueSend
+pub fn neo4j::value::time::DateTimeFixed::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::Duration
+pub type neo4j::value::time::Duration::Error = neo4j::ValueSend
+pub fn neo4j::value::time::Duration::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::LocalDateTime
+pub type neo4j::value::time::LocalDateTime::Error = neo4j::ValueSend
+pub fn neo4j::value::time::LocalDateTime::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::LocalTime
+pub type neo4j::value::time::LocalTime::Error = neo4j::ValueSend
+pub fn neo4j::value::time::LocalTime::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::Time
+pub type neo4j::value::time::Time::Error = neo4j::ValueSend
+pub fn neo4j::value::time::Time::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>
+pub type std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>::Error = neo4j::ValueSend
+pub fn std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::ValueSend
+pub fn neo4j::ValueSend::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for neo4j::ValueSend
+impl<T: core::convert::Into<neo4j::ValueSend>> core::convert::From<alloc::vec::Vec<T>> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: alloc::vec::Vec<T>) -> Self
+impl<T: core::convert::Into<neo4j::ValueSend>> core::convert::From<core::option::Option<T>> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: core::option::Option<T>) -> Self
+impl<T: core::convert::Into<neo4j::ValueSend>> core::convert::From<std::collections::hash::map::HashMap<alloc::string::String, T>> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: std::collections::hash::map::HashMap<alloc::string::String, T>) -> Self
+impl core::marker::Freeze for neo4j::ValueSend
+impl core::marker::Send for neo4j::ValueSend
+impl core::marker::Sync for neo4j::ValueSend
+impl core::marker::Unpin for neo4j::ValueSend
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::ValueSend
+impl core::panic::unwind_safe::UnwindSafe for neo4j::ValueSend
+pub struct neo4j::value::BrokenValue
+impl neo4j::value::BrokenValue
+pub fn neo4j::value::BrokenValue::reason(&self) -> &str
+impl core::clone::Clone for neo4j::value::BrokenValue
+pub fn neo4j::value::BrokenValue::clone(&self) -> neo4j::value::BrokenValue
+impl core::cmp::PartialEq for neo4j::value::BrokenValue
+pub fn neo4j::value::BrokenValue::eq(&self, _other: &Self) -> bool
+impl core::fmt::Debug for neo4j::value::BrokenValue
+pub fn neo4j::value::BrokenValue::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::value::BrokenValue
+impl core::marker::Send for neo4j::value::BrokenValue
+impl core::marker::Sync for neo4j::value::BrokenValue
+impl core::marker::Unpin for neo4j::value::BrokenValue
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::BrokenValue
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::BrokenValue
+pub struct neo4j::value::ValueConversionError
+impl core::convert::From<&'static str> for neo4j::value::ValueConversionError
+pub fn neo4j::value::ValueConversionError::from(reason: &'static str) -> Self
+impl core::error::Error for neo4j::value::ValueConversionError
+impl core::fmt::Debug for neo4j::value::ValueConversionError
+pub fn neo4j::value::ValueConversionError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::value::ValueConversionError
+pub fn neo4j::value::ValueConversionError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::value::ValueConversionError
+impl core::marker::Send for neo4j::value::ValueConversionError
+impl core::marker::Sync for neo4j::value::ValueConversionError
+impl core::marker::Unpin for neo4j::value::ValueConversionError
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::value::ValueConversionError
+impl core::panic::unwind_safe::UnwindSafe for neo4j::value::ValueConversionError
+pub macro neo4j::value!
+pub macro neo4j::value_map!
+pub enum neo4j::Neo4jError
+#[non_exhaustive] pub neo4j::Neo4jError::Disconnect
+pub neo4j::Neo4jError::Disconnect::during_commit: bool
+pub neo4j::Neo4jError::Disconnect::message: alloc::string::String
+pub neo4j::Neo4jError::Disconnect::source: core::option::Option<std::io::error::Error>
+#[non_exhaustive] pub neo4j::Neo4jError::InvalidConfig
+pub neo4j::Neo4jError::InvalidConfig::message: alloc::string::String
+#[non_exhaustive] pub neo4j::Neo4jError::ProtocolError
+pub neo4j::Neo4jError::ProtocolError::message: alloc::string::String
+#[non_exhaustive] pub neo4j::Neo4jError::ServerError
+pub neo4j::Neo4jError::ServerError::error: neo4j::error::ServerError
+#[non_exhaustive] pub neo4j::Neo4jError::Timeout
+pub neo4j::Neo4jError::Timeout::message: alloc::string::String
+#[non_exhaustive] pub neo4j::Neo4jError::UserCallback
+pub neo4j::Neo4jError::UserCallback::error: neo4j::error::UserCallbackError
+impl neo4j::Neo4jError
+pub fn neo4j::Neo4jError::is_retryable(&self) -> bool
+impl core::convert::From<neo4j::Neo4jError> for neo4j::retry::RetryError
+pub fn neo4j::retry::RetryError::from(source: neo4j::Neo4jError) -> Self
+impl core::convert::From<neo4j::driver::record_stream::GetSingleRecordError> for neo4j::Neo4jError
+pub fn neo4j::Neo4jError::from(err: neo4j::driver::record_stream::GetSingleRecordError) -> Self
+impl core::error::Error for neo4j::Neo4jError
+pub fn neo4j::Neo4jError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for neo4j::Neo4jError
+pub fn neo4j::Neo4jError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for neo4j::Neo4jError
+pub fn neo4j::Neo4jError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for neo4j::Neo4jError
+impl core::marker::Send for neo4j::Neo4jError
+impl core::marker::Sync for neo4j::Neo4jError
+impl core::marker::Unpin for neo4j::Neo4jError
+impl !core::panic::unwind_safe::RefUnwindSafe for neo4j::Neo4jError
+impl !core::panic::unwind_safe::UnwindSafe for neo4j::Neo4jError
+#[non_exhaustive] pub enum neo4j::ValueReceive
+pub neo4j::ValueReceive::Boolean(bool)
+pub neo4j::ValueReceive::BrokenValue(neo4j::value::BrokenValue)
+pub neo4j::ValueReceive::Bytes(alloc::vec::Vec<u8>)
+pub neo4j::ValueReceive::Cartesian2D(neo4j::value::spatial::Cartesian2D)
+pub neo4j::ValueReceive::Cartesian3D(neo4j::value::spatial::Cartesian3D)
+pub neo4j::ValueReceive::Date(neo4j::value::time::Date)
+pub neo4j::ValueReceive::DateTime(neo4j::value::time::DateTime)
+pub neo4j::ValueReceive::DateTimeFixed(neo4j::value::time::DateTimeFixed)
+pub neo4j::ValueReceive::Duration(neo4j::value::time::Duration)
+pub neo4j::ValueReceive::Float(f64)
+pub neo4j::ValueReceive::Integer(i64)
+pub neo4j::ValueReceive::List(alloc::vec::Vec<neo4j::ValueReceive>)
+pub neo4j::ValueReceive::LocalDateTime(neo4j::value::time::LocalDateTime)
+pub neo4j::ValueReceive::LocalTime(neo4j::value::time::LocalTime)
+pub neo4j::ValueReceive::Map(std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>)
+pub neo4j::ValueReceive::Node(neo4j::value::graph::Node)
+pub neo4j::ValueReceive::Null
+pub neo4j::ValueReceive::Path(neo4j::value::graph::Path)
+pub neo4j::ValueReceive::Relationship(neo4j::value::graph::Relationship)
+pub neo4j::ValueReceive::String(alloc::string::String)
+pub neo4j::ValueReceive::Time(neo4j::value::time::Time)
+pub neo4j::ValueReceive::WGS84_2D(neo4j::value::spatial::WGS84_2D)
+pub neo4j::ValueReceive::WGS84_3D(neo4j::value::spatial::WGS84_3D)
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_bool(&self) -> core::option::Option<bool>
+pub fn neo4j::ValueReceive::as_bool_mut(&mut self) -> core::option::Option<&mut bool>
+pub fn neo4j::ValueReceive::is_bool(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_bool(self) -> core::result::Result<bool, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_bytes(&self) -> core::option::Option<&alloc::vec::Vec<u8>>
+pub fn neo4j::ValueReceive::as_bytes_mut(&mut self) -> core::option::Option<&mut alloc::vec::Vec<u8>>
+pub fn neo4j::ValueReceive::is_bytes(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_bytes(self) -> core::result::Result<alloc::vec::Vec<u8>, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_cartesian_2d(&self) -> core::option::Option<&neo4j::value::spatial::Cartesian2D>
+pub fn neo4j::ValueReceive::as_cartesian_2d_mut(&mut self) -> core::option::Option<&mut neo4j::value::spatial::Cartesian2D>
+pub fn neo4j::ValueReceive::is_cartesian_2d(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_cartesian_2d(self) -> core::result::Result<neo4j::value::spatial::Cartesian2D, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_cartesian_3d(&self) -> core::option::Option<&neo4j::value::spatial::Cartesian3D>
+pub fn neo4j::ValueReceive::as_cartesian_3d_mut(&mut self) -> core::option::Option<&mut neo4j::value::spatial::Cartesian3D>
+pub fn neo4j::ValueReceive::is_cartesian_3d(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_cartesian_3d(self) -> core::result::Result<neo4j::value::spatial::Cartesian3D, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_date(&self) -> core::option::Option<&neo4j::value::time::Date>
+pub fn neo4j::ValueReceive::as_date_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::Date>
+pub fn neo4j::ValueReceive::is_date(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_date(self) -> core::result::Result<neo4j::value::time::Date, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_date_time(&self) -> core::option::Option<&neo4j::value::time::DateTime>
+pub fn neo4j::ValueReceive::as_date_time_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::DateTime>
+pub fn neo4j::ValueReceive::is_date_time(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_date_time(self) -> core::result::Result<neo4j::value::time::DateTime, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_date_time_fixed(&self) -> core::option::Option<&neo4j::value::time::DateTimeFixed>
+pub fn neo4j::ValueReceive::as_date_time_fixed_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::DateTimeFixed>
+pub fn neo4j::ValueReceive::is_date_time_fixed(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_date_time_fixed(self) -> core::result::Result<neo4j::value::time::DateTimeFixed, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_duration(&self) -> core::option::Option<&neo4j::value::time::Duration>
+pub fn neo4j::ValueReceive::as_duration_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::Duration>
+pub fn neo4j::ValueReceive::is_duration(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_duration(self) -> core::result::Result<neo4j::value::time::Duration, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_float(&self) -> core::option::Option<f64>
+pub fn neo4j::ValueReceive::as_float_mut(&mut self) -> core::option::Option<&mut f64>
+pub fn neo4j::ValueReceive::is_float(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_float(self) -> core::result::Result<f64, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_int(&self) -> core::option::Option<i64>
+pub fn neo4j::ValueReceive::as_int_mut(&mut self) -> core::option::Option<&mut i64>
+pub fn neo4j::ValueReceive::is_int(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_int(self) -> core::result::Result<i64, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_list(&self) -> core::option::Option<&alloc::vec::Vec<neo4j::ValueReceive>>
+pub fn neo4j::ValueReceive::as_list_mut(&mut self) -> core::option::Option<&mut alloc::vec::Vec<neo4j::ValueReceive>>
+pub fn neo4j::ValueReceive::is_list(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_list(self) -> core::result::Result<alloc::vec::Vec<neo4j::ValueReceive>, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_local_date_time(&self) -> core::option::Option<&neo4j::value::time::LocalDateTime>
+pub fn neo4j::ValueReceive::as_local_date_time_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::LocalDateTime>
+pub fn neo4j::ValueReceive::is_local_date_time(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_local_date_time(self) -> core::result::Result<neo4j::value::time::LocalDateTime, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_local_time(&self) -> core::option::Option<&neo4j::value::time::LocalTime>
+pub fn neo4j::ValueReceive::as_local_time_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::LocalTime>
+pub fn neo4j::ValueReceive::is_local_time(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_local_time(self) -> core::result::Result<neo4j::value::time::LocalTime, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_map(&self) -> core::option::Option<&std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>>
+pub fn neo4j::ValueReceive::as_map_mut(&mut self) -> core::option::Option<&mut std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>>
+pub fn neo4j::ValueReceive::is_map(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_map(self) -> core::result::Result<std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_node(&self) -> core::option::Option<&neo4j::value::graph::Node>
+pub fn neo4j::ValueReceive::as_node_mut(&mut self) -> core::option::Option<&mut neo4j::value::graph::Node>
+pub fn neo4j::ValueReceive::is_node(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_node(self) -> core::result::Result<neo4j::value::graph::Node, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_path(&self) -> core::option::Option<&neo4j::value::graph::Path>
+pub fn neo4j::ValueReceive::as_path_mut(&mut self) -> core::option::Option<&mut neo4j::value::graph::Path>
+pub fn neo4j::ValueReceive::is_path(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_path(self) -> core::result::Result<neo4j::value::graph::Path, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_relationship(&self) -> core::option::Option<&neo4j::value::graph::Relationship>
+pub fn neo4j::ValueReceive::as_relationship_mut(&mut self) -> core::option::Option<&mut neo4j::value::graph::Relationship>
+pub fn neo4j::ValueReceive::is_relationship(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_relationship(self) -> core::result::Result<neo4j::value::graph::Relationship, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_string(&self) -> core::option::Option<&alloc::string::String>
+pub fn neo4j::ValueReceive::as_string_mut(&mut self) -> core::option::Option<&mut alloc::string::String>
+pub fn neo4j::ValueReceive::is_string(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_string(self) -> core::result::Result<alloc::string::String, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_time(&self) -> core::option::Option<&neo4j::value::time::Time>
+pub fn neo4j::ValueReceive::as_time_mut(&mut self) -> core::option::Option<&mut neo4j::value::time::Time>
+pub fn neo4j::ValueReceive::is_time(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_time(self) -> core::result::Result<neo4j::value::time::Time, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_wgs84_2d(&self) -> core::option::Option<&neo4j::value::spatial::WGS84_2D>
+pub fn neo4j::ValueReceive::as_wgs84_2d_mut(&mut self) -> core::option::Option<&mut neo4j::value::spatial::WGS84_2D>
+pub fn neo4j::ValueReceive::is_wgs84_2d(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_wgs84_2d(self) -> core::result::Result<neo4j::value::spatial::WGS84_2D, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::as_wgs84_3d(&self) -> core::option::Option<&neo4j::value::spatial::WGS84_3D>
+pub fn neo4j::ValueReceive::as_wgs84_3d_mut(&mut self) -> core::option::Option<&mut neo4j::value::spatial::WGS84_3D>
+pub fn neo4j::ValueReceive::is_wgs84_3d(&self) -> bool
+pub fn neo4j::ValueReceive::try_into_wgs84_3d(self) -> core::result::Result<neo4j::value::spatial::WGS84_3D, Self>
+impl neo4j::ValueReceive
+pub fn neo4j::ValueReceive::is_null(&self) -> bool
+impl core::clone::Clone for neo4j::ValueReceive
+pub fn neo4j::ValueReceive::clone(&self) -> neo4j::ValueReceive
+impl core::cmp::PartialEq for neo4j::ValueReceive
+pub fn neo4j::ValueReceive::eq(&self, other: &neo4j::ValueReceive) -> bool
+impl core::convert::From<neo4j::ValueSend> for neo4j::ValueReceive
+pub fn neo4j::ValueReceive::from(v: neo4j::ValueSend) -> Self
+impl core::convert::TryFrom<neo4j::ValueReceive> for alloc::string::String
+pub type alloc::string::String::Error = neo4j::ValueReceive
+pub fn alloc::string::String::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for alloc::vec::Vec<neo4j::ValueReceive>
+pub type alloc::vec::Vec<neo4j::ValueReceive>::Error = neo4j::ValueReceive
+pub fn alloc::vec::Vec<neo4j::ValueReceive>::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for alloc::vec::Vec<u8>
+pub type alloc::vec::Vec<u8>::Error = neo4j::ValueReceive
+pub fn alloc::vec::Vec<u8>::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for bool
+pub type bool::Error = neo4j::ValueReceive
+pub fn bool::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for f64
+pub type f64::Error = neo4j::ValueReceive
+pub fn f64::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for i64
+pub type i64::Error = neo4j::ValueReceive
+pub fn i64::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::ValueSend
+pub type neo4j::ValueSend::Error = neo4j::value::ValueConversionError
+pub fn neo4j::ValueSend::try_from(v: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::graph::Node
+pub type neo4j::value::graph::Node::Error = neo4j::ValueReceive
+pub fn neo4j::value::graph::Node::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::graph::Path
+pub type neo4j::value::graph::Path::Error = neo4j::ValueReceive
+pub fn neo4j::value::graph::Path::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::graph::Relationship
+pub type neo4j::value::graph::Relationship::Error = neo4j::ValueReceive
+pub fn neo4j::value::graph::Relationship::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::spatial::Cartesian2D
+pub type neo4j::value::spatial::Cartesian2D::Error = neo4j::ValueReceive
+pub fn neo4j::value::spatial::Cartesian2D::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::spatial::Cartesian3D
+pub type neo4j::value::spatial::Cartesian3D::Error = neo4j::ValueReceive
+pub fn neo4j::value::spatial::Cartesian3D::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::spatial::WGS84_2D
+pub type neo4j::value::spatial::WGS84_2D::Error = neo4j::ValueReceive
+pub fn neo4j::value::spatial::WGS84_2D::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::spatial::WGS84_3D
+pub type neo4j::value::spatial::WGS84_3D::Error = neo4j::ValueReceive
+pub fn neo4j::value::spatial::WGS84_3D::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::Date
+pub type neo4j::value::time::Date::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::Date::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::DateTime
+pub type neo4j::value::time::DateTime::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::DateTime::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::DateTimeFixed
+pub type neo4j::value::time::DateTimeFixed::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::DateTimeFixed::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::Duration
+pub type neo4j::value::time::Duration::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::Duration::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::LocalDateTime
+pub type neo4j::value::time::LocalDateTime::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::LocalDateTime::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::LocalTime
+pub type neo4j::value::time::LocalTime::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::LocalTime::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::value::time::Time
+pub type neo4j::value::time::Time::Error = neo4j::ValueReceive
+pub fn neo4j::value::time::Time::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueReceive> for std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>
+pub type std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>::Error = neo4j::ValueReceive
+pub fn std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueReceive>::try_from(value: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::ValueReceive
+pub fn neo4j::ValueReceive::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for neo4j::ValueReceive
+impl core::marker::Freeze for neo4j::ValueReceive
+impl core::marker::Send for neo4j::ValueReceive
+impl core::marker::Sync for neo4j::ValueReceive
+impl core::marker::Unpin for neo4j::ValueReceive
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::ValueReceive
+impl core::panic::unwind_safe::UnwindSafe for neo4j::ValueReceive
+#[non_exhaustive] pub enum neo4j::ValueSend
+pub neo4j::ValueSend::Boolean(bool)
+pub neo4j::ValueSend::Bytes(alloc::vec::Vec<u8>)
+pub neo4j::ValueSend::Cartesian2D(neo4j::value::spatial::Cartesian2D)
+pub neo4j::ValueSend::Cartesian3D(neo4j::value::spatial::Cartesian3D)
+pub neo4j::ValueSend::Date(neo4j::value::time::Date)
+pub neo4j::ValueSend::DateTime(neo4j::value::time::DateTime)
+pub neo4j::ValueSend::DateTimeFixed(neo4j::value::time::DateTimeFixed)
+pub neo4j::ValueSend::Duration(neo4j::value::time::Duration)
+pub neo4j::ValueSend::Float(f64)
+pub neo4j::ValueSend::Integer(i64)
+pub neo4j::ValueSend::List(alloc::vec::Vec<neo4j::ValueSend>)
+pub neo4j::ValueSend::LocalDateTime(neo4j::value::time::LocalDateTime)
+pub neo4j::ValueSend::LocalTime(neo4j::value::time::LocalTime)
+pub neo4j::ValueSend::Map(std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>)
+pub neo4j::ValueSend::Null
+pub neo4j::ValueSend::String(alloc::string::String)
+pub neo4j::ValueSend::Time(neo4j::value::time::Time)
+pub neo4j::ValueSend::WGS84_2D(neo4j::value::spatial::WGS84_2D)
+pub neo4j::ValueSend::WGS84_3D(neo4j::value::spatial::WGS84_3D)
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_bool(&self) -> core::option::Option<bool>
+pub fn neo4j::ValueSend::is_bool(&self) -> bool
+pub fn neo4j::ValueSend::try_into_bool(self) -> core::result::Result<bool, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_bytes(&self) -> core::option::Option<&alloc::vec::Vec<u8>>
+pub fn neo4j::ValueSend::is_bytes(&self) -> bool
+pub fn neo4j::ValueSend::try_into_bytes(self) -> core::result::Result<alloc::vec::Vec<u8>, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_cartesian_2d(&self) -> core::option::Option<&neo4j::value::spatial::Cartesian2D>
+pub fn neo4j::ValueSend::is_cartesian_2d(&self) -> bool
+pub fn neo4j::ValueSend::try_into_cartesian_2d(self) -> core::result::Result<neo4j::value::spatial::Cartesian2D, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_cartesian_3d(&self) -> core::option::Option<&neo4j::value::spatial::Cartesian3D>
+pub fn neo4j::ValueSend::is_cartesian_3d(&self) -> bool
+pub fn neo4j::ValueSend::try_into_cartesian_3d(self) -> core::result::Result<neo4j::value::spatial::Cartesian3D, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_date(&self) -> core::option::Option<&neo4j::value::time::Date>
+pub fn neo4j::ValueSend::is_date(&self) -> bool
+pub fn neo4j::ValueSend::try_into_date(self) -> core::result::Result<neo4j::value::time::Date, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_date_time(&self) -> core::option::Option<&neo4j::value::time::DateTime>
+pub fn neo4j::ValueSend::is_date_time(&self) -> bool
+pub fn neo4j::ValueSend::try_into_date_time(self) -> core::result::Result<neo4j::value::time::DateTime, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_date_time_fixed(&self) -> core::option::Option<&neo4j::value::time::DateTimeFixed>
+pub fn neo4j::ValueSend::is_date_time_fixed(&self) -> bool
+pub fn neo4j::ValueSend::try_into_date_time_fixed(self) -> core::result::Result<neo4j::value::time::DateTimeFixed, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_duration(&self) -> core::option::Option<&neo4j::value::time::Duration>
+pub fn neo4j::ValueSend::is_duration(&self) -> bool
+pub fn neo4j::ValueSend::try_into_duration(self) -> core::result::Result<neo4j::value::time::Duration, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_float(&self) -> core::option::Option<f64>
+pub fn neo4j::ValueSend::is_float(&self) -> bool
+pub fn neo4j::ValueSend::try_into_float(self) -> core::result::Result<f64, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_int(&self) -> core::option::Option<i64>
+pub fn neo4j::ValueSend::is_int(&self) -> bool
+pub fn neo4j::ValueSend::try_into_int(self) -> core::result::Result<i64, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_list(&self) -> core::option::Option<&[neo4j::ValueSend]>
+pub fn neo4j::ValueSend::is_list(&self) -> bool
+pub fn neo4j::ValueSend::try_into_list(self) -> core::result::Result<alloc::vec::Vec<neo4j::ValueSend>, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_local_date_time(&self) -> core::option::Option<&neo4j::value::time::LocalDateTime>
+pub fn neo4j::ValueSend::is_local_date_time(&self) -> bool
+pub fn neo4j::ValueSend::try_into_local_date_time(self) -> core::result::Result<neo4j::value::time::LocalDateTime, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_local_time(&self) -> core::option::Option<&neo4j::value::time::LocalTime>
+pub fn neo4j::ValueSend::is_local_time(&self) -> bool
+pub fn neo4j::ValueSend::try_into_local_time(self) -> core::result::Result<neo4j::value::time::LocalTime, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_map(&self) -> core::option::Option<&std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>>
+pub fn neo4j::ValueSend::is_map(&self) -> bool
+pub fn neo4j::ValueSend::try_into_map(self) -> core::result::Result<std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_string(&self) -> core::option::Option<&alloc::string::String>
+pub fn neo4j::ValueSend::is_string(&self) -> bool
+pub fn neo4j::ValueSend::try_into_string(self) -> core::result::Result<alloc::string::String, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_time(&self) -> core::option::Option<&neo4j::value::time::Time>
+pub fn neo4j::ValueSend::is_time(&self) -> bool
+pub fn neo4j::ValueSend::try_into_time(self) -> core::result::Result<neo4j::value::time::Time, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_wgs84_2d(&self) -> core::option::Option<&neo4j::value::spatial::WGS84_2D>
+pub fn neo4j::ValueSend::is_wgs84_2d(&self) -> bool
+pub fn neo4j::ValueSend::try_into_wgs84_2d(self) -> core::result::Result<neo4j::value::spatial::WGS84_2D, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::as_wgs84_3d(&self) -> core::option::Option<&neo4j::value::spatial::WGS84_3D>
+pub fn neo4j::ValueSend::is_wgs84_3d(&self) -> bool
+pub fn neo4j::ValueSend::try_into_wgs84_3d(self) -> core::result::Result<neo4j::value::spatial::WGS84_3D, Self>
+impl neo4j::ValueSend
+pub fn neo4j::ValueSend::is_null(&self) -> bool
+impl core::clone::Clone for neo4j::ValueSend
+pub fn neo4j::ValueSend::clone(&self) -> neo4j::ValueSend
+impl core::cmp::PartialEq for neo4j::ValueSend
+pub fn neo4j::ValueSend::eq(&self, other: &neo4j::ValueSend) -> bool
+impl core::convert::From<&str> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: &str) -> Self
+impl core::convert::From<alloc::string::String> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: alloc::string::String) -> Self
+impl core::convert::From<bool> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: bool) -> Self
+impl core::convert::From<chrono::datetime::DateTime<chrono::offset::fixed::FixedOffset>> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::DateTimeFixed) -> Self
+impl core::convert::From<chrono::datetime::DateTime<chrono_tz::timezones::Tz>> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::DateTime) -> Self
+impl core::convert::From<chrono::naive::date::NaiveDate> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::Date) -> Self
+impl core::convert::From<chrono::naive::datetime::NaiveDateTime> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::LocalDateTime) -> Self
+impl core::convert::From<chrono::naive::time::NaiveTime> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::LocalTime) -> Self
+impl core::convert::From<f32> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: f32) -> Self
+impl core::convert::From<f64> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: f64) -> Self
+impl core::convert::From<i16> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: i16) -> Self
+impl core::convert::From<i32> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: i32) -> Self
+impl core::convert::From<i64> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: i64) -> Self
+impl core::convert::From<i8> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: i8) -> Self
+impl core::convert::From<neo4j::ValueSend> for neo4j::ValueReceive
+pub fn neo4j::ValueReceive::from(v: neo4j::ValueSend) -> Self
+impl core::convert::From<neo4j::value::spatial::Cartesian2D> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::spatial::Cartesian2D) -> Self
+impl core::convert::From<neo4j::value::spatial::Cartesian3D> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::spatial::Cartesian3D) -> Self
+impl core::convert::From<neo4j::value::spatial::WGS84_2D> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::spatial::WGS84_2D) -> Self
+impl core::convert::From<neo4j::value::spatial::WGS84_3D> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::spatial::WGS84_3D) -> Self
+impl core::convert::From<neo4j::value::time::Duration> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::Duration) -> Self
+impl core::convert::From<neo4j::value::time::Time> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: neo4j::value::time::Time) -> Self
+impl core::convert::From<u16> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: u16) -> Self
+impl core::convert::From<u32> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: u32) -> Self
+impl core::convert::From<u8> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: u8) -> Self
+impl core::convert::TryFrom<neo4j::ValueReceive> for neo4j::ValueSend
+pub type neo4j::ValueSend::Error = neo4j::value::ValueConversionError
+pub fn neo4j::ValueSend::try_from(v: neo4j::ValueReceive) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for alloc::string::String
+pub type alloc::string::String::Error = neo4j::ValueSend
+pub fn alloc::string::String::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for alloc::vec::Vec<neo4j::ValueSend>
+pub type alloc::vec::Vec<neo4j::ValueSend>::Error = neo4j::ValueSend
+pub fn alloc::vec::Vec<neo4j::ValueSend>::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for alloc::vec::Vec<u8>
+pub type alloc::vec::Vec<u8>::Error = neo4j::ValueSend
+pub fn alloc::vec::Vec<u8>::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for bool
+pub type bool::Error = neo4j::ValueSend
+pub fn bool::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for f64
+pub type f64::Error = neo4j::ValueSend
+pub fn f64::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for i64
+pub type i64::Error = neo4j::ValueSend
+pub fn i64::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::spatial::Cartesian2D
+pub type neo4j::value::spatial::Cartesian2D::Error = neo4j::ValueSend
+pub fn neo4j::value::spatial::Cartesian2D::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::spatial::Cartesian3D
+pub type neo4j::value::spatial::Cartesian3D::Error = neo4j::ValueSend
+pub fn neo4j::value::spatial::Cartesian3D::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::spatial::WGS84_2D
+pub type neo4j::value::spatial::WGS84_2D::Error = neo4j::ValueSend
+pub fn neo4j::value::spatial::WGS84_2D::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::spatial::WGS84_3D
+pub type neo4j::value::spatial::WGS84_3D::Error = neo4j::ValueSend
+pub fn neo4j::value::spatial::WGS84_3D::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::Date
+pub type neo4j::value::time::Date::Error = neo4j::ValueSend
+pub fn neo4j::value::time::Date::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::DateTime
+pub type neo4j::value::time::DateTime::Error = neo4j::ValueSend
+pub fn neo4j::value::time::DateTime::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::DateTimeFixed
+pub type neo4j::value::time::DateTimeFixed::Error = neo4j::ValueSend
+pub fn neo4j::value::time::DateTimeFixed::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::Duration
+pub type neo4j::value::time::Duration::Error = neo4j::ValueSend
+pub fn neo4j::value::time::Duration::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::LocalDateTime
+pub type neo4j::value::time::LocalDateTime::Error = neo4j::ValueSend
+pub fn neo4j::value::time::LocalDateTime::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::LocalTime
+pub type neo4j::value::time::LocalTime::Error = neo4j::ValueSend
+pub fn neo4j::value::time::LocalTime::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for neo4j::value::time::Time
+pub type neo4j::value::time::Time::Error = neo4j::ValueSend
+pub fn neo4j::value::time::Time::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::convert::TryFrom<neo4j::ValueSend> for std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>
+pub type std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>::Error = neo4j::ValueSend
+pub fn std::collections::hash::map::HashMap<alloc::string::String, neo4j::ValueSend>::try_from(value: neo4j::ValueSend) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for neo4j::ValueSend
+pub fn neo4j::ValueSend::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for neo4j::ValueSend
+impl<T: core::convert::Into<neo4j::ValueSend>> core::convert::From<alloc::vec::Vec<T>> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: alloc::vec::Vec<T>) -> Self
+impl<T: core::convert::Into<neo4j::ValueSend>> core::convert::From<core::option::Option<T>> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: core::option::Option<T>) -> Self
+impl<T: core::convert::Into<neo4j::ValueSend>> core::convert::From<std::collections::hash::map::HashMap<alloc::string::String, T>> for neo4j::ValueSend
+pub fn neo4j::ValueSend::from(value: std::collections::hash::map::HashMap<alloc::string::String, T>) -> Self
+impl core::marker::Freeze for neo4j::ValueSend
+impl core::marker::Send for neo4j::ValueSend
+impl core::marker::Sync for neo4j::ValueSend
+impl core::marker::Unpin for neo4j::ValueSend
+impl core::panic::unwind_safe::RefUnwindSafe for neo4j::ValueSend
+impl core::panic::unwind_safe::UnwindSafe for neo4j::ValueSend
+pub type neo4j::Result<T> = core::result::Result<T, neo4j::Neo4jError>

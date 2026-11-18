@@ -159,7 +159,7 @@ chain-of-thought as evidence.
 | Module-quality gate | structural quality changes allowed agent action | `module_scorecard.py` | gate disposition, verification-call count |
 | Candidate receipt | data RDF conformed to the pinned shapes/profile | `rdf_governance.py`, `candidate_stage.py` | receipt/data graph digest, SHACL outcome |
 | Lifecycle capability | a writer must hold a live matching version lease/fence | `active_pointer.py`, `lifecycle.py` | generation/epoch/fence, stale rejection |
-| Canonical projection syscall | only approved typed payload reaches DozerDB | `dataplane/seochod` | daemon span, Rust driver receipt, idempotency |
+| Canonical projection syscall | only approved typed payload reaches DozerDB | `rust/crates/seochod` | daemon span, Rust driver receipt, idempotency |
 | Typed evidence bundle | answer carries slots, triples, provenance, insufficiency | `src/seocho/query/` | coverage, missing slots, provenance recall |
 
 ## Hypotheses and Falsifiers
@@ -309,7 +309,7 @@ states supported, rejected, and inconclusive hypotheses.
 Run focused contracts before each live arm:
 
     uv run pytest -q tests/seocho/test_module_scorecard.py tests/seocho/test_ontology_lifecycle.py tests/seocho/test_projection_receipt.py tests/seocho/test_seochod_projection.py
-    cargo test --offline --manifest-path dataplane/seochod/Cargo.toml
+    cargo test --offline --manifest-path rust/Cargo.toml -p seochod
     bash scripts/ci/run_basic_ci.sh
 
 For a live arm, retain the exact command, report JSON/Markdown, JSONL trace,

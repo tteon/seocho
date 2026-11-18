@@ -15,7 +15,8 @@ It also writes purpose-specific, content-addressed agent profiles; see
 - `shapes.ttl` — derived SHACL shapes for offline validation.
 - `manifest.json` — file hashes plus the bundle SHA-256 identity.
 
-The Rust `dataplane/oxigraph_read_model` daemon loads `ontology.ttl` into an
+The Rust `rust/crates/oxigraph_read_model` daemon (package
+`seocho-oxigraph-read-model`) loads `ontology.ttl` into an
 in-memory Oxigraph store and listens only on a Unix-domain socket. It accepts
 newline-delimited JSON requests for `health` and `term`. Its output is
 ontology evidence, never a graph write or an inferred fact.

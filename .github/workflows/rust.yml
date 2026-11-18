@@ -1,0 +1,52 @@
+name: rust
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "rust/**"
+      - ".github/workflows/rust.yml"
+  pull_request:
+    paths:
+      - "rust/**"
+      - ".github/workflows/rust.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workspace:
+    name: clippy + test (rust/)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: rust
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Pinned so clippy lint sets do not drift under -D warnings.
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@1.94.1
+        with:
+          components: clippy
+
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust -> target
+
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+      # The seochod live Bolt suite (tests/bolt_it.rs) skips without
+      # SEOCHOD_IT_BOLT_URI/SEOCHOD_IT_BOLT_PASSWORD; CI runs unit tests only.
+      - name: Test
+        run: cargo test --locked --workspace

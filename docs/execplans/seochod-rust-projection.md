@@ -28,7 +28,7 @@ The first vertical slice is complete: the Rust process owns UDS and Bolt writes,
 
 ## Context and Orientation
 
-`src/seocho/index/` creates approved node and relationship dictionaries. `src/seocho/store/graph.py` is the canonical graph adapter. `dataplane/seochod/` is a local daemon, meaning a separate process communicating through a filesystem Unix socket. DozerDB is the canonical property-graph backend. An ontology signal, required slot, relation path, provenance, insufficiency, and typed evidence bundle remain Python control-plane artifacts as defined in `.PLANS.md`.
+`src/seocho/index/` creates approved node and relationship dictionaries. `src/seocho/store/graph.py` is the canonical graph adapter. `rust/crates/seochod/` is a local daemon, meaning a separate process communicating through a filesystem Unix socket. DozerDB is the canonical property-graph backend. An ontology signal, required slot, relation path, provenance, insufficiency, and typed evidence bundle remain Python control-plane artifacts as defined in `.PLANS.md`.
 
 ## SEOCHO Evidence Contract
 
@@ -50,14 +50,14 @@ Build typed projection first, make it opt-in and fail closed, validate against D
 
 From the repository root, set only local process credentials and run:
 
-    SEOCHOD_BOLT_PASSWORD=... cargo run --offline --manifest-path dataplane/seochod/Cargo.toml -- /tmp/seochod.sock
+    SEOCHOD_BOLT_PASSWORD=... SEOCHOD_ALLOW_UNGOVERNED=1 cargo run --offline --manifest-path rust/Cargo.toml -p seochod -- /tmp/seochod.sock
     SEOCHO_RUST_PROJECTOR_SOCKET=/tmp/seochod.sock uv run seocho run examples/run/quickstart.yaml --force
 
 ## Validation and Acceptance
 
 Run:
 
-    cargo test --offline --manifest-path dataplane/seochod/Cargo.toml
+    cargo test --offline --manifest-path rust/Cargo.toml -p seochod
     uv run pytest -q tests/seocho/test_seochod_projection.py
     SEOCHO_RUST_PROJECTOR_SOCKET=/tmp/seochod.sock uv run seocho run examples/run/quickstart.yaml --force --output-json
 

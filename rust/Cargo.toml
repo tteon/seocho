@@ -1,0 +1,27 @@
+[workspace]
+members = [
+    "crates/seochod",
+    "crates/oxigraph_read_model",
+]
+resolver = "2"
+# vendor/ holds patched third-party crates; they are not workspace members.
+exclude = ["vendor"]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+todo = "deny"
+dbg_macro = "deny"
+large_types_passed_by_value = "deny"
+
+# neo4j 0.2.0 with TCP_NODELAY on Bolt sockets; see vendor/neo4j-0.2.0/SEOCHO_PATCHES.md.
+[patch.crates-io]
+neo4j = { path = "vendor/neo4j-0.2.0" }

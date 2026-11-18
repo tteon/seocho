@@ -176,11 +176,66 @@ class OntologyLifecycleStore:
                 "acquired_at_ms INTEGER NOT NULL, expires_at_ms INTEGER NOT NULL)"
             )
             conn.execute("CREATE INDEX IF NOT EXISTS ontology_lease_live ON ontology_lease(workspace_id, package_id, expires_at_ms)")
+            # Durable per-(workspace, package) fencing-token high-water.  Lease
+            # rows are deleted on release, so MAX(ontology_lease.fencing_token)
+            # alone would let a later acquire reissue a released token.  This
+            # row is never deleted: every issued token is strictly greater than
+            # every token issued before it for the lifetime of the control DB.
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS ontology_fence_high_water ("
+                "workspace_id TEXT NOT NULL, package_id TEXT NOT NULL, high_water INTEGER NOT NULL, "
+                "PRIMARY KEY (workspace_id, package_id))"
+            )
+            self._migrate_fence_high_water(conn)
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS projection_idempotency ("
                 "idempotency_key TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, fingerprint TEXT NOT NULL, "
                 "state TEXT NOT NULL, response_json TEXT, created_at_ms INTEGER NOT NULL, completed_at_ms INTEGER)"
             )
+
+    @staticmethod
+    def _migrate_fence_high_water(conn: sqlite3.Connection) -> None:
+        """Seed/raise the high-water from surviving lease and pointer tokens.
+
+        Idempotent and only ever raises ``high_water``, so it is safe to run on
+        every open (existing DBs created before the high-water table existed
+        are migrated the first time they are opened by this code).
+        """
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute(
+                "INSERT INTO ontology_fence_high_water (workspace_id, package_id, high_water) "
+                "SELECT workspace_id, package_id, MAX(tok) FROM ("
+                "  SELECT workspace_id, package_id, fencing_token AS tok FROM ontology_lease"
+                "  UNION ALL"
+                "  SELECT workspace_id, package_id, COALESCE(fencing_token, 0) AS tok FROM active_ontology"
+                ") WHERE true GROUP BY workspace_id, package_id "
+                "ON CONFLICT(workspace_id, package_id) DO UPDATE SET "
+                "high_water = MAX(ontology_fence_high_water.high_water, excluded.high_water)"
+            )
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+
+    @staticmethod
+    def _next_fencing_token(conn: sqlite3.Connection, workspace_id: str, package_id: str, pointer_token: int) -> int:
+        """Mint the next token; caller must hold a write transaction on ``conn``."""
+        high_water = conn.execute(
+            "SELECT high_water FROM ontology_fence_high_water WHERE workspace_id=? AND package_id=?",
+            (workspace_id, package_id),
+        ).fetchone()
+        live_max = conn.execute(
+            "SELECT COALESCE(MAX(fencing_token), 0) FROM ontology_lease WHERE workspace_id=? AND package_id=?",
+            (workspace_id, package_id),
+        ).fetchone()[0]
+        token = max(int(high_water[0]) if high_water else 0, int(live_max), int(pointer_token or 0)) + 1
+        conn.execute(
+            "INSERT INTO ontology_fence_high_water (workspace_id, package_id, high_water) VALUES (?,?,?) "
+            "ON CONFLICT(workspace_id, package_id) DO UPDATE SET high_water=excluded.high_water",
+            (workspace_id, package_id, token),
+        )
+        return token
 
     def _conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path, isolation_level=None, timeout=10.0)
@@ -213,14 +268,20 @@ class OntologyLifecycleStore:
         with self._conn() as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
-                active = self._active_or_raise(self.pointer.read(workspace_id, package_id))
+                # Read the pointer inside this write transaction so the token we
+                # mint is ordered against a concurrent activate() as well.
+                row = conn.execute(
+                    "SELECT version, fingerprint, generation, epoch, fencing_token FROM active_ontology WHERE workspace_id=? AND package_id=?",
+                    (workspace_id, package_id),
+                ).fetchone()
+                active = self._active_or_raise(ActiveVersion(workspace_id, package_id, *row) if row else None)
                 existing = conn.execute(
                     "SELECT lease_id, owner, expires_at_ms FROM ontology_lease WHERE workspace_id=? AND package_id=? AND purpose=? AND expires_at_ms>? ORDER BY expires_at_ms DESC LIMIT 1",
                     (workspace_id, package_id, purpose, now),
                 ).fetchone()
                 if existing:
                     raise ValueError(f"live lease held by {existing[1]} until {existing[2]} (lease {existing[0]})")
-                fence = max(active.fencing_token + 1, int(conn.execute("SELECT COALESCE(MAX(fencing_token), 0) FROM ontology_lease WHERE workspace_id=? AND package_id=?", (workspace_id, package_id)).fetchone()[0]) + 1)
+                fence = self._next_fencing_token(conn, workspace_id, package_id, active.fencing_token)
                 lease = OntologyLease(str(uuid.uuid4()), workspace_id, package_id, purpose, owner, active.fingerprint, active.generation, active.epoch, fence, now, now + ttl_seconds * 1000)
                 conn.execute("INSERT INTO ontology_lease VALUES (?,?,?,?,?,?,?,?,?,?,?)", tuple(lease.to_dict().values()))
                 conn.execute("COMMIT")

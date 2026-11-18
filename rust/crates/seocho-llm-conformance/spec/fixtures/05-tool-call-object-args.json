@@ -1,0 +1,123 @@
+{
+  "captured_at": "2026-10-26T00:00:00Z",
+  "case": {
+    "case_id": "golden/05",
+    "contract_sha256": null,
+    "enforcement": null,
+    "input_class": "synthetic",
+    "profile_sha256": null,
+    "task": "tool_call(submit_facts)",
+    "wire_dialect": "tool_parameters"
+  },
+  "chain": {
+    "agent": "G0",
+    "attempt": 0,
+    "logical_call_id": "G0#05",
+    "next_step_of": null,
+    "step_kind": "initial"
+  },
+  "endpoint": {
+    "catalog_snapshot": null,
+    "host": "api.cloud.mara.com",
+    "path": "/v1/chat/completions",
+    "provider": "mara"
+  },
+  "live_outcome": null,
+  "model": "gemma-3-27b-it",
+  "oracle_outcome": null,
+  "rec_id": "sha256:e5c0db6e969f254aa639bfa560012af2da92e10c0a125da49538e6afb1096995",
+  "redaction": {
+    "applied": [
+      "auth_header_dropped"
+    ],
+    "policy": "rec-redact/1",
+    "replay_class": "full",
+    "replayable": true
+  },
+  "request": {
+    "body": {
+      "max_tokens": 1024,
+      "messages": [
+        {
+          "content": "Extract entities and relationships as JSON with keys \"nodes\" and \"relationships\".",
+          "role": "system"
+        },
+        {
+          "content": "Acme Robotics acquired Beta Sensors in March 2021. Beta Sensors is headquartered in Austin. Acme Robotics reported revenue of 120 million dollars in fiscal 2023.",
+          "role": "user"
+        }
+      ],
+      "model": "gemma-3-27b-it",
+      "temperature": 0.0,
+      "tool_choice": {
+        "function": {
+          "name": "submit_facts"
+        },
+        "type": "function"
+      },
+      "tools": [
+        {
+          "function": {
+            "description": "Submit extracted facts.",
+            "name": "submit_facts",
+            "parameters": {
+              "properties": {
+                "nodes": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "relationships": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "nodes",
+                "relationships"
+              ],
+              "type": "object"
+            }
+          },
+          "type": "function"
+        }
+      ]
+    },
+    "body_scope": "full",
+    "messages_sha256": null,
+    "occurrence": 0,
+    "req_hash": "sha256:66fb17a8f2b41316ef275fbba190a52d34130e1ef2919c59d34ec14b387d191c",
+    "req_hash_scheme": "llm_exchange.v1"
+  },
+  "response": {
+    "body_b64": null,
+    "body_fidelity": "raw",
+    "body_sha256": "sha256:e2572587221a72dc52f03ed3a6dea2cb47b3b9cf50193f72c9987bd80c030ad5",
+    "body_utf8": "{\"choices\":[{\"finish_reason\":\"tool_calls\",\"index\":0,\"logprobs\":null,\"message\":{\"content\":null,\"role\":\"assistant\",\"tool_calls\":[{\"function\":{\"arguments\":{\"nodes\":[{\"id\":\"acme\",\"label\":\"Company\",\"name\":\"Acme Robotics\"},{\"id\":\"beta\",\"label\":\"Company\",\"name\":\"Beta Sensors\"}],\"relationships\":[{\"source\":\"acme\",\"target\":\"beta\",\"type\":\"ACQUIRED\",\"year\":2021}]},\"name\":\"submit_facts\"},\"id\":\"call_golden05\",\"type\":\"function\"}]}}],\"created\":1792972800,\"id\":\"chatcmpl-golden\",\"model\":\"gemma-3-27b-it\",\"object\":\"chat.completion\",\"system_fingerprint\":\"fastcoe\",\"usage\":{\"completion_tokens\":64,\"prompt_tokens\":180,\"total_tokens\":244}}",
+    "headers": {
+      "content-type": "application/json",
+      "x-request-id": "req-golden-05"
+    },
+    "http_status": 200,
+    "transport_error": null,
+    "truncated": false
+  },
+  "schema_version": "seocho.llm_exchange.v1",
+  "source": {
+    "git_sha": null,
+    "kind": "synthetic",
+    "llm_io_version": null,
+    "origin": null,
+    "run_id": "golden-v1",
+    "served_from": null,
+    "wire": false
+  },
+  "timing": {
+    "latency_ms": 900.0,
+    "start_ns": 1792972800000000000
+  },
+  "usage": null
+}

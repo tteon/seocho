@@ -1,0 +1,118 @@
+{
+  "captured_at": "2026-10-26T00:00:00Z",
+  "case": {
+    "case_id": "golden/06",
+    "contract_sha256": null,
+    "enforcement": null,
+    "input_class": "synthetic",
+    "profile_sha256": null,
+    "task": "tool_call(submit_facts)",
+    "wire_dialect": "tool_parameters"
+  },
+  "chain": {
+    "agent": "G0",
+    "attempt": 0,
+    "logical_call_id": "G0#06",
+    "next_step_of": null,
+    "step_kind": "initial"
+  },
+  "endpoint": {
+    "catalog_snapshot": null,
+    "host": "api.cloud.mara.com",
+    "path": "/v1/chat/completions",
+    "provider": "mara"
+  },
+  "live_outcome": null,
+  "model": "gpt-oss-120b",
+  "oracle_outcome": null,
+  "rec_id": "sha256:811e3d3c1d9da5b490672689a8848307718a21bf2172620211fdc472dc9bbd14",
+  "redaction": {
+    "applied": [
+      "auth_header_dropped"
+    ],
+    "policy": "rec-redact/1",
+    "replay_class": "full",
+    "replayable": true
+  },
+  "request": {
+    "body": {
+      "max_tokens": 256,
+      "messages": [
+        {
+          "content": "Extract entities and relationships as JSON with keys \"nodes\" and \"relationships\".",
+          "role": "system"
+        },
+        {
+          "content": "Acme Robotics acquired Beta Sensors in March 2021. Beta Sensors is headquartered in Austin. Acme Robotics reported revenue of 120 million dollars in fiscal 2023.",
+          "role": "user"
+        }
+      ],
+      "model": "gpt-oss-120b",
+      "temperature": 0.0,
+      "tool_choice": "auto",
+      "tools": [
+        {
+          "function": {
+            "description": "Submit extracted facts.",
+            "name": "submit_facts",
+            "parameters": {
+              "properties": {
+                "nodes": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "relationships": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "nodes",
+                "relationships"
+              ],
+              "type": "object"
+            }
+          },
+          "type": "function"
+        }
+      ]
+    },
+    "body_scope": "full",
+    "messages_sha256": null,
+    "occurrence": 0,
+    "req_hash": "sha256:8f3e1be715316a65006c6e96e925dd4c2cf187ad16c67d03cf1d20873a607e3a",
+    "req_hash_scheme": "llm_exchange.v1"
+  },
+  "response": {
+    "body_b64": null,
+    "body_fidelity": "raw",
+    "body_sha256": "sha256:b1dbe0165d01607b064a4942782ce8006a358ea349aed5f8a5a4a6a7c3bdcf84",
+    "body_utf8": "{\"error\":\"The model output did not complete a valid function call within max_tokens=256.\",\"error_code\":null,\"error_param\":\"max_tokens\",\"error_type\":\"Invalid function calling output.\"}",
+    "headers": {
+      "content-type": "application/json",
+      "x-request-id": "req-golden-06"
+    },
+    "http_status": 400,
+    "transport_error": null,
+    "truncated": false
+  },
+  "schema_version": "seocho.llm_exchange.v1",
+  "source": {
+    "git_sha": null,
+    "kind": "synthetic",
+    "llm_io_version": null,
+    "origin": null,
+    "run_id": "golden-v1",
+    "served_from": null,
+    "wire": false
+  },
+  "timing": {
+    "latency_ms": 4100.0,
+    "start_ns": 1792972800000000000
+  },
+  "usage": null
+}

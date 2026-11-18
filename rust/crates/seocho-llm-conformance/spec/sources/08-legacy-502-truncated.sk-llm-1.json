@@ -1,0 +1,38 @@
+{
+  "agent": "A1",
+  "arm": "iso",
+  "attempt": 1,
+  "classification": "http_5xx",
+  "latency_ms": 30012.5,
+  "logical_call_id": "A1#7",
+  "occurrence": 0,
+  "req_hash": "d22b284ad07470a2051aae7f3a3e10409292a2014a4ce73e6b97cbac102d1bcc",
+  "request": {
+    "max_tokens": 1024,
+    "messages_sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+    "model": "gpt-oss-120b",
+    "response_format": {
+      "type": "json_object"
+    },
+    "temperature": 0.0
+  },
+  "response": {
+    "body": {
+      "unparsed_body": "<html><head><title>502 Bad Gateway</title></head><body><h1>502 Bad Gateway</h1><p>upstream connect error or disconnect/reset before headers.</p><!-- pad0000 pad0001 pad0002 pad0003 pad0004 pad0005 pad0006 pad0007 pad0008 pad0009 pad0010 pad0011 pad0012 pad0013 pad0014 pad0015 pad0016 pad0017 pad0018 pad0019 pad0020 pad0021 pad0022 pad0023 pad0024 pad0025 pad0026 pad0027 pad0028 pad0029 pad0030 pad0031 pad0032 pad0033 pad0034 pad0035 pad0036 pad0037 pad0038 pad0039 pad0040 pad0041 pad0042 pad0043 pad0044 pad0045 pad0046 pad0047 pad0048 pad0049 pad0050 pad0051 pad0052 pad0053 pad0054 pad0055 pad0056 pad0057 pad0058 pad0059 pad0060 pad0061 pad0062 pad0063 pad0064 pad0065 pad0066 pad0067 pad0068 pad0069 pad0070 pad0071 pad0072 pad0073 pad0074 pad0075 pad0076 pad0077 pad0078 pad0079 pad0080 pad0081 pad0082 pad0083 pad0084 pad0085 pad0086 pad0087 pad0088 pad0089 pad0090 pad0091 pad0092 pad0093 pad0094 pad0095 pad0096 pad0097 pad0098 pad0099 pad0100 pad0101 pad0102 pad0103 pad0104 pad0105 pad0106 pad0107 pad0108 pad0109 pad0110 pad0111 pad0112 pad0113 pad0114 pad0115 pad0116 pad0117 pad0118 pad0119 pad0120 pad0121 pad0122 pad0123 pad0124 pad0125 pad0126 pad0127 pad0128 pad0129 pad0130 pad0131 pad0132 pad0133 pad0134 pad0135 pad0136 pad0137 pad0138 pad0139 pad0140 pad0141 pad0142 pad0143 pad0144 pad0145 pad0146 pad0147 pad0148 pad0149 pad0150 pad0151 pad0152 pad0153 pad0154 pad0155 pad0156 pad0157 pad0158 pad0159 pad0160 pad0161 pad0162 pad0163 pad0164 pad0165 pad0166 pad0167 pad0168 pad0169 pad0170 pad0171 pad0172 pad0173 pad0174 pad0175 pad0176 pad0177 pad0178 pad0179 pad0180 pad0181 pad0182 pad0183 pad0184 pad0185 pad0186 pad0187 pad0188 pad0189 pad0190 pad0191 pad0192 pad0193 pad0194 pad0195 pad0196 pad0197 pad0198 pad0199 pad0200 pad0201 pad0202 pad0203 pad0204 pad0205 pad0206 pad0207 pad0208 pad0209 pad0210 pad0211 pad0212 pad0213 pad0214 pad0215 pad0216 pad0217 pad0218 pad0219 pad0220 pad0221 pad0222 pad0223 pad0224 pad0225 pad0226 pad0227 pad0228 pad0229 pad0230 pad0231 pad0232 pad0233 pad0234 pad0235 pad0236 pad0237 pad0238 pad0239 pad0240 pad0241 pad0242 pad0243 pad0244 pad0245 pad0246 pad0247 pad0248 pad0249 pad0250 pad0251 pad0252 pad0253 pad0254 pad0255 pad0256 pad0257 pad0258 pad0259 pad0260 pad0261 pad0262 pad0263 pad0264 pad0265 pad0266 pad0267 pad0268 pad0269 pad0270 pad0271 pad0272 pad0273 pad0274 pad0275 pad0276 pad0277 pad0278 pad0279 pad0280 pad0281 pad0282 pad0283 pad0284 pad0285 pad0286 pad0287 pad0288 pad0289 pad0290 pad0291 pad0292 pad0293 pad0294 pad0295 pad0296 pad0297 pad0298 pad0299 pad0300 pad0301 pad0302 pad0303 pad0304 pad0305 pad0306 pad0307 pad0308 pad0309 pad0310 pad0311 pad0312 pad0313 pad0314 pad0315 pad0316 pad0317 pad0318 pad0319 pad0320 pad0321 pad0322 pad0323 pad0324 pad0325 pad0326 pad0327 pad0328 pad0329 pad0330 pad0331 pad0332 pad0333 pad0334 pad0335 pad0336 pad0337 pad0338 pad0339 pad0340 pad0341 pad0342 pad0343 pad0344 pad0345 pad0346 pad0347 pad0348 pad0349 pad0350 pad0351 pad0352 pad0353 pad0354 pad0355 pad0356 pad0357 pad0358 pad0359 pad0360 pad0361 pad0362 pad0363 pad0364 pad0365 pad0366 pad0367 pad0368 pad0369 pad0370 pad0371 pad0372 pad0373 pad0374 pad0375 pad0376 pad0377 pad0378 pad0379 pad0380 pad0381 pad0382 pad0383 pad0384 pad0385 pad0386 pad0387 pad0388 pad0389 pad0390 pad0391 pad0392 pad0393 pad0394 pad0395 pad0396 pad0397 pad0398 pad0399 pad0400 pad0401 pad0402 pad0403 pad0404 pad0405 pad0406 pad0407 pad0408 pad0409 pad0410 pad0411 pad0412 pad0413 pad0414 pad0415 pad0416 pad0417 pad0418 pad0419 pad0420 pad0421 pad0422 pad0423 pad0424 pad0425 pad0426 pad0427 pad0428 pad0429 pad0430 pad0431 pad0432 pad0433 pad0434 pad0435 pad0436 pad0437 pad0438 pad0439 pad0440 pad0441 pad0442 pad0443 pad0444 pad0445 pad0446 pad0447 pad0448 pad0449 pad0450 pad0451 pad0452 pad0453 pad0454 pad0455 pad0456 pad0457 pad0458 pad0459 pad0460 pad0461 pad0462 pad0463 pad0464 pad0465 pad0466 pad0467 pad0468 pad0469 pad0470 pad0471 pad0472 pad0473 pad0474 pad0475 pad0476 pad0477 pad0478 pad0479 pad0480 pad"
+    },
+    "content_len": 0,
+    "error_class": null,
+    "finish_reason": null,
+    "http_status": 502,
+    "reasoning_fallback": false,
+    "tool_call_present": false,
+    "usage": {}
+  },
+  "role": "extractor",
+  "run_id": "golden-legacy",
+  "schema": "sk-llm/1",
+  "served_from": "live",
+  "session_id": "iso",
+  "start_ns": 1792972801000000000,
+  "task_hint": "graph_extraction"
+}

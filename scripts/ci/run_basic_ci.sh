@@ -38,7 +38,8 @@ uv run ruff check \
   tests/seocho/test_e2e_runner.py \
   tests/seocho/test_run_spec.py \
   tests/seocho/test_scaffold.py \
-  tests/seocho/test_sweep.py
+  tests/seocho/test_sweep.py \
+  rust/crates/seocho-llm-conformance/python
 
 # Incremental strict typing and broader Python lint at experiment evidence seams.
 uv run mypy --cache-dir .seocho/cache/mypy --strict --follow-imports=skip \
@@ -176,6 +177,7 @@ uv run pytest \
   tests/seocho/test_package_completeness.py \
   tests/seocho/test_client_namespaces.py \
   tests/seocho/test_env_contract.py \
+  rust/crates/seocho-llm-conformance/python/test_exchange_v1.py \
   -q
 
 git diff --check

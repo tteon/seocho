@@ -1,0 +1,59 @@
+{
+  "agent": "S2",
+  "arm": "shared",
+  "attempt": 0,
+  "classification": "timeout",
+  "latency_ms": 900001.0,
+  "logical_call_id": "S2#3",
+  "occurrence": 0,
+  "rec_id": "sha256:6a8ad894a7a6e74af50f9e54e273a647c5fd0068f959f900e3796dcc44930dc8",
+  "redaction": {
+    "applied": [
+      "auth_header_dropped"
+    ],
+    "policy": "rec-redact/1",
+    "replay_class": "full",
+    "replayable": true
+  },
+  "req_hash": "d22b284ad07470a2051aae7f3a3e10409292a2014a4ce73e6b97cbac102d1bcc",
+  "request": {
+    "max_tokens": 1024,
+    "messages": [
+      {
+        "content": "Extract entities and relationships as JSON with keys \"nodes\" and \"relationships\".",
+        "role": "system"
+      },
+      {
+        "content": "Acme Robotics acquired Beta Sensors in March 2021. Beta Sensors is headquartered in Austin. Acme Robotics reported revenue of 120 million dollars in fiscal 2023.",
+        "role": "user"
+      }
+    ],
+    "model": "gpt-oss-120b",
+    "response_format": {
+      "type": "json_object"
+    },
+    "temperature": 0.0
+  },
+  "response": {
+    "body": null,
+    "body_b64": null,
+    "body_fidelity": null,
+    "body_sha256": null,
+    "body_utf8": null,
+    "content_len": 0,
+    "error_class": "timeout",
+    "finish_reason": null,
+    "headers": {},
+    "http_status": null,
+    "reasoning_fallback": false,
+    "tool_call_present": false,
+    "usage": {}
+  },
+  "role": "extractor",
+  "run_id": "golden-raw",
+  "schema": "sk-llm/1",
+  "served_from": "live",
+  "session_id": "shared",
+  "start_ns": 1792972802000000000,
+  "task_hint": "graph_extraction"
+}

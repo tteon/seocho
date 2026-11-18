@@ -1,0 +1,99 @@
+{
+  "captured_at": "2026-10-26T00:00:02Z",
+  "case": {
+    "case_id": null,
+    "contract_sha256": null,
+    "enforcement": null,
+    "input_class": "synthetic",
+    "profile_sha256": null,
+    "task": "graph_extraction",
+    "wire_dialect": null
+  },
+  "chain": {
+    "agent": "S2",
+    "attempt": 0,
+    "logical_call_id": "S2#3",
+    "next_step_of": null,
+    "step_kind": "initial"
+  },
+  "endpoint": {
+    "catalog_snapshot": null,
+    "host": "api.cloud.mara.com",
+    "path": "/v1/chat/completions",
+    "provider": "mara"
+  },
+  "live_outcome": null,
+  "model": "gpt-oss-120b",
+  "oracle_outcome": null,
+  "rec_id": "sha256:6a8ad894a7a6e74af50f9e54e273a647c5fd0068f959f900e3796dcc44930dc8",
+  "redaction": {
+    "applied": [
+      "auth_header_dropped"
+    ],
+    "policy": "rec-redact/1",
+    "replay_class": "full",
+    "replayable": true
+  },
+  "request": {
+    "body": {
+      "max_tokens": 1024,
+      "messages": [
+        {
+          "content": "Extract entities and relationships as JSON with keys \"nodes\" and \"relationships\".",
+          "role": "system"
+        },
+        {
+          "content": "Acme Robotics acquired Beta Sensors in March 2021. Beta Sensors is headquartered in Austin. Acme Robotics reported revenue of 120 million dollars in fiscal 2023.",
+          "role": "user"
+        }
+      ],
+      "model": "gpt-oss-120b",
+      "response_format": {
+        "type": "json_object"
+      },
+      "temperature": 0.0
+    },
+    "body_scope": "subset",
+    "messages_sha256": null,
+    "occurrence": 0,
+    "req_hash": "sha256:d22b284ad07470a2051aae7f3a3e10409292a2014a4ce73e6b97cbac102d1bcc",
+    "req_hash_scheme": "sk-llm/1"
+  },
+  "response": {
+    "body_b64": null,
+    "body_fidelity": null,
+    "body_sha256": null,
+    "body_utf8": null,
+    "headers": {},
+    "http_status": null,
+    "transport_error": {
+      "class": "timeout",
+      "detail": null
+    },
+    "truncated": false
+  },
+  "schema_version": "seocho.llm_exchange.v1",
+  "source": {
+    "git_sha": null,
+    "kind": "import:sk-llm/1",
+    "llm_io_version": null,
+    "origin": {
+      "arm": "shared",
+      "file_sha256": "sha256:82cfd9d6fcb36cb314714e84181acd01a74d161162e31b2592ccd028340a24c1",
+      "format": "sk-llm/1",
+      "path": "rust/crates/seocho-llm-conformance/spec/sources/11-raw-timeout-transport-error.sk-llm-1.json",
+      "role": "extractor",
+      "session_id": "shared",
+      "source_rec_id": "sha256:6a8ad894a7a6e74af50f9e54e273a647c5fd0068f959f900e3796dcc44930dc8",
+      "source_run_id": "golden-raw"
+    },
+    "run_id": "golden-raw/shared/shared",
+    "served_from": "live",
+    "wire": true
+  },
+  "timing": {
+    "latency_ms": 900001.0,
+    "start_ns": 1792972802000000000
+  },
+  "usage": null
+}

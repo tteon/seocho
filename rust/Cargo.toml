@@ -6,6 +6,7 @@ members = [
     "crates/seocho-lifecycle-proto",
     "crates/seocho-lifecycle",
     "crates/seocho-lifecycled",
+    "crates/seocho-llm-conformance",
 ]
 resolver = "2"
 # vendor/ holds patched third-party crates; they are not workspace members.

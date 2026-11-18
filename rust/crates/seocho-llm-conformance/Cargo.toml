@@ -1,0 +1,18 @@
+[package]
+name = "seocho-llm-conformance"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "SEOCHO LLM I/O conformance: seocho.llm_exchange.v1 record spec, golden fixtures and their Rust consumability test"
+publish = false
+
+# Test-only for now: the library is empty and the fixture test uses dev-dependencies that are
+# already in the workspace lockfile. The replay/report tooling of docs/design/llm-io-contract.md
+# grows here later.
+[dev-dependencies]
+hex = "0.4"
+serde_json = "1"
+sha2 = "0.11"
+
+[lints]
+workspace = true

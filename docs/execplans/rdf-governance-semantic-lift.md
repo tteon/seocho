@@ -25,9 +25,9 @@ Semantic lift means that facts extracted from raw source material give an agent 
 ## Surprises & Discoveries
 
 - Observation: Oxigraph currently provides an in-memory RDF term read model; SHACL is offline pySHACL and optional OWL consistency is offline only. It is not an Oxigraph inference claim.
-  Evidence: `dataplane/oxigraph_read_model/` and `src/seocho/ontology/rdf_governance.py`.
+  Evidence: `rust/crates/oxigraph_read_model/` and `src/seocho/ontology/rdf_governance.py`.
 - Observation: `seochod` currently performs per-node/per-relationship Bolt writes, so Rust is not presumed faster.
-  Evidence: `dataplane/seochod/src/main.rs`.
+  Evidence: `rust/crates/seochod/src/main.rs`.
 - Observation: the current bundle digest is an aggregate of serialization byte
   hashes, while the worker pin registry is process-local and `seochod` does not
   receive generation/fence/idempotency. The current code therefore cannot prove
@@ -61,7 +61,7 @@ The initial outcome is a report-level baseline, not an adoption claim. It record
 
 ## Context and Orientation
 
-`src/seocho/e2e.py` produces the CLI's `report.json`; query records already carry coverage, support status, selected-triple count, missing slots, and latency. `src/seocho/eval/semantic_scorecard.py` aggregates those records. `src/seocho/ontology/rdf_governance.py` produces a hash-pinned receipt. `dataplane/seochod` is the Rust Unix-domain-socket daemon that projects approved LPG payloads to DozerDB. `ActiveOntologyPointer` is the existing SQLite compare-and-swap primitive; it is not yet the RDF file publication lifecycle.
+`src/seocho/e2e.py` produces the CLI's `report.json`; query records already carry coverage, support status, selected-triple count, missing slots, and latency. `src/seocho/eval/semantic_scorecard.py` aggregates those records. `src/seocho/ontology/rdf_governance.py` produces a hash-pinned receipt. `rust/crates/seochod` is the Rust Unix-domain-socket daemon that projects approved LPG payloads to DozerDB. `ActiveOntologyPointer` is the existing SQLite compare-and-swap primitive; it is not yet the RDF file publication lifecycle.
 
 An ontology bundle is a portable, content-addressed directory containing one
 declared RDF source serialization (JSON-LD, Turtle, or another supported RDF
@@ -388,7 +388,7 @@ Run focused checks:
 
     uv run pytest -q tests/seocho/test_semantic_scorecard.py tests/seocho/test_e2e_runner.py
     uv run pytest -q tests/seocho/test_projection_receipt.py tests/seocho/test_seochod_projection.py
-    cargo test --offline --manifest-path dataplane/seochod/Cargo.toml
+    cargo test --offline --manifest-path rust/Cargo.toml -p seochod
     bash scripts/ci/run_basic_ci.sh
 
 For every live arm, capture E2E report JSON/Markdown, JSONL observability trace, process RSS/CPU/FDs, socket bytes/queue depth, Bolt round trips, stage p50/p95/p99, and DozerDB version. A passing mock is not live-performance evidence.

@@ -201,7 +201,7 @@ rolled back.
 | P1 library + audit | `seocho-lifecycle-proto`, `seocho-lifecycle`, `seocho-lifecycled audit`; schema v2 and triggers; model, legacy-writer replay and golden-fixture tests; `seochod` test fixtures use the owned schema | CI green; `audit` finds zero violations on the operating control DB | no production change |
 | P2 opt-in authority | `serve`; `migrate` (backup first, DozerDB token floor or explicit attestation required, v0 DBs refused); Python `LifecycleClient`/`LeaseKeeper` behind `SEOCHO_LIFECYCLED_SOCKET`; `--fencing-token` becomes assert-only; `seochod` unchanged | existing lifecycle tests green on both backends; differential scenarios match; kill -9 chaos; per-plane latency measured | `downgrade --to-schema 1` keeps the high-water and lets sr-xsu Python resume; downgrade to v0 is refused |
 | P3 `seochod` pure client | (a) writer-socket ops in the authority; (b) `seochod` `LifecycledVerifier`, `Admitted`-only governed writes, `db_uuid` preflight; online query admission uses `read_admit` | one governed FinDER run; kill -9 during projection; `seochod` no longer opens the control DB | `SqliteReadVerifier` kept behind `SEOCHOD_CONTROL_DB` for one release |
-| P4 retirement | remove Python write SQL and DDL (read-only reads remain); fold in `retired_ontology`; retire `dataplane/seochod` in this repository | test asserts no Python lease INSERT or token mint remains | revert binaries/wheel to the previous release; schema stays v2 |
+| P4 retirement | remove Python write SQL and DDL (read-only reads remain); fold in `retired_ontology`; retire the stale `dataplane/seochod` copy in this repository (done: replaced by `rust/crates/seochod`) | test asserts no Python lease INSERT or token mint remains | revert binaries/wheel to the previous release; schema stays v2 |
 | P5 multi-host (conditional) | Postgres/etcd backend, mTLS, signed capabilities | fencing/failover chaos rerun | per-backend rollback; needs its own ADR |
 
 Python changes are made in a dedicated worktree branch and touch only files
@@ -226,8 +226,8 @@ that are clean in the owner's checkout. They do not change the public API.
   a process boundary. It provides real separation only when the appliance runs
   the processes as separate OS users.
 - A second Rust process enters the repository's operational surface. Its code
-  lives in seocho-rust. This repository gains only a thin client facade and,
-  in P4, loses its duplicate `dataplane/seochod` copy.
+  lives in the Rust workspace under `rust/`, which replaced the stale
+  `dataplane/seochod` copy; the Python side gains only a thin client facade.
 
 ## Validation
 

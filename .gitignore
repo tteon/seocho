@@ -106,7 +106,7 @@ neostore*
 *.lock
 !uv.lock
 !scripts/profiling/agent_memory_rust/Cargo.lock
-!dataplane/oxigraph_read_model/Cargo.lock
+!rust/Cargo.lock
 
 # Docker volumes and mounts
 workspace/
@@ -169,5 +169,5 @@ PR_BODY.md
 
 # Rust build output from the neo4rs driver probe
 scripts/finbench/neo4rs_probe/target/
-# Native data-plane crates are source-only; lockfiles are explicitly tracked.
-dataplane/*/target/
+# Rust workspace build output; rust/Cargo.lock is explicitly tracked above.
+rust/target/

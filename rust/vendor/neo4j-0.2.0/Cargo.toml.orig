@@ -1,0 +1,73 @@
+[package]
+name = "neo4j"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.70"
+readme = "../README.md"
+description = "Bolt driver for Neo4j."
+license = "Apache-2.0"
+keywords = ["neo4j", "driver", "network", "bolt", "client"]
+categories = ["database"]
+authors = ["Rouven Bauer"]
+repository = "https://github.com/robsdedude/neo4j-rust-driver/"
+homepage = "https://github.com/robsdedude/neo4j-rust-driver/"
+documentation = "https://docs.rs/neo4j"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+# internal features: DO NOT USE! No support, no sem-ver guarantees, no nothing.
+_internal_testkit_backend = []
+_internal_public_api = [
+    "public-api",
+    "expect-test",
+    "rustdoc-json",
+    "rustup-toolchain",
+]
+
+[dependencies]
+atomic_refcell = "0.1.13"
+chrono = "0.4.37"
+chrono-tz = "0.9.0"
+duplicate = "1.0.0"
+enum_dispatch = "0.3.13"
+itertools = "0.12.1"
+log = "0.4.21"
+mockall_double = "0.3.1"
+parking_lot = "0.12.1"
+rand = "0.8.5"
+rustls = "0.23.4"
+rustls-native-certs = "0.7.0"
+rustls-pemfile = "2.1.2"
+rustls-pki-types = "1.4.1"
+socket2 = "0.5.6"
+thiserror = "1.0.58"
+uriparse = "0.6.4"
+usize_cast = "1.1.0"
+
+rustup-toolchain = { version = "0.1.6", optional = true }
+rustdoc-json = { version = "0.9.4", optional = true }
+public-api = { version = "0.42.0", optional = true }
+expect-test = { version = "1.5.1", optional = true }
+
+[dev-dependencies]
+doc_test_utils = { path = "../doc_test_utils" }
+env_logger = "0.10.2"
+lazy_static = "1.4.0"
+mockall = "0.12.1"
+rstest = "0.18.2"
+
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "chrono::date::Date",
+    "chrono::datetime::DateTime",
+    "chrono::naive::date::NaiveDate",
+    "chrono::naive::datetime::NaiveDateTime",
+    "chrono::naive::time::NaiveTime",
+    "chrono::offset::fixed::FixedOffset",
+    "chrono::time::Time",
+
+    "chrono_tz::timezones::Tz",
+
+    "rustls::client::client_conn::ClientConfig",
+]

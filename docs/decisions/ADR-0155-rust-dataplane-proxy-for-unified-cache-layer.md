@@ -62,8 +62,10 @@ Evidence in hand:
 ## Consequences
 
 - A second toolchain (cargo) enters CI for one bounded component; the
-  repository layout gains a `dataplane/` (or sibling-repo) surface — decided
-  at implementation PR time with the layout-contract docs updated together.
+  repository layout gains a native-component surface — decided at
+  implementation PR time with the layout-contract docs updated together.
+  (Resolved: Rust components live in the `rust/` cargo workspace; see
+  `docs/REPOSITORY_LAYOUT.md`.)
 - Bolt protocol version drift becomes our responsibility on the relay leg;
   pinning DozerDB (5.26 LTS line) bounds it.
 - The `neo4j` crate is community-maintained; the fallback path (`neo4rs`)

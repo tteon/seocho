@@ -65,14 +65,14 @@ This work makes no LLM calls. DozerDB remains the canonical graph backend. Oxigr
 
 ## Plan of Work
 
-Add a Python `RdfOntologyBundle` builder that writes deterministic, content-addressed JSON-LD/Turtle/SHACL artifacts. Add an `OxigraphReadModelClient` that sends bounded JSON requests through a Unix socket. Add a small Rust binary under `dataplane/oxigraph_read_model` that loads one Turtle bundle into an Oxigraph named graph and handles health/reload/term requests. Extend the runtime manifest with an optional socket path and expose a registry lookup method without making runtime startup depend on the daemon.
+Add a Python `RdfOntologyBundle` builder that writes deterministic, content-addressed JSON-LD/Turtle/SHACL artifacts. Add an `OxigraphReadModelClient` that sends bounded JSON requests through a Unix socket. Add a small Rust binary under `rust/crates/oxigraph_read_model` that loads one Turtle bundle into an Oxigraph named graph and handles health/reload/term requests. Extend the runtime manifest with an optional socket path and expose a registry lookup method without making runtime startup depend on the daemon.
 
 ## Concrete Steps
 
 From the repository root:
 
     uv run pytest -q tests/seocho/test_ontology_rdf_bundle.py tests/seocho/test_oxigraph_read_model.py extraction/tests/test_ontology_registry_oxigraph.py
-    cargo test --manifest-path dataplane/oxigraph_read_model/Cargo.toml
+    cargo test --manifest-path rust/Cargo.toml -p seocho-oxigraph-read-model
     bash scripts/ci/run_basic_ci.sh
 
 ## Validation and Acceptance

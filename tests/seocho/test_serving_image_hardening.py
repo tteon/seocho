@@ -33,10 +33,11 @@ ENTRYPOINT = ROOT / "extraction" / "entrypoint.sh"
 def entrypoint() -> str:
     """Executable lines only — the comments in this file *describe* the flags
     that were removed, so scanning raw text finds them in the prose."""
-    return "\n".join(
-        line for line in ENTRYPOINT.read_text().splitlines()
-        if not line.lstrip().startswith("#")
-    )
+    with ENTRYPOINT.open("r", encoding="utf-8") as f:
+        return "\n".join(
+            line.rstrip("\n") for line in f
+            if not line.lstrip().startswith("#")
+        )
 
 
 def test_no_tokenless_notebook_server(entrypoint):

@@ -75,13 +75,12 @@ def check_no_dangling_references(errors: list[str]) -> None:
     for path in sorted(DOCS_DIR.rglob("*.md")):
         if path == DECISION_LOG:
             continue  # already covered, with a more specific message
-        for lineno, line in enumerate(
-            path.read_text(encoding="utf-8", errors="replace").splitlines(), 1
-        ):
-            for adr_id in ADR_ID_RE.findall(line):
-                if adr_id not in have:
-                    rel = path.relative_to(ROOT)
-                    errors.append(
+        with path.open("r", encoding="utf-8", errors="replace") as f:
+            for lineno, line in enumerate(f, 1):
+                for adr_id in ADR_ID_RE.findall(line):
+                    if adr_id not in have:
+                        rel = path.relative_to(ROOT)
+                        errors.append(
                         f"{rel}:{lineno} cites ADR-{adr_id} with no matching file "
                         f"(write the ADR, or drop the id until it exists)"
                     )

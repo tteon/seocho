@@ -47,7 +47,8 @@ def _number(value: object) -> float | None:
 
 def load_report(path: Path) -> dict[str, Any]:
     target = path / "report.json" if path.is_dir() else path
-    value = json.loads(target.read_text(encoding="utf-8"))
+    with target.open("r", encoding="utf-8") as f:
+        value = json.load(f)
     return validate_report(value, str(target))
 
 

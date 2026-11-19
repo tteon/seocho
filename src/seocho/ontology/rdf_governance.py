@@ -34,7 +34,8 @@ def verify_rdf_ontology_bundle(bundle_dir: str | Path) -> Dict[str, Any]:
     directory = Path(bundle_dir)
     manifest_path = directory / "manifest.json"
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        with manifest_path.open("r", encoding="utf-8") as f:
+            manifest = json.load(f)
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"Invalid RDF ontology bundle manifest: {exc}") from exc
     files = manifest.get("files")

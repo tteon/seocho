@@ -1,0 +1,2 @@
+- Replaced 'No memories found.' with 'No search results found.' in src/seocho/cli/__init__.py to improve clarity and respect domain terminology.
+- Replaced 'No graph targets configured.' with 'No graph targets found.' to make CLI empty state messages consistent.

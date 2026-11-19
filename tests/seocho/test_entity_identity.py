@@ -104,7 +104,7 @@ def test_composite_uniqueness_constraint_replaces_member_unique():
     stmts = onto.to_cypher_constraints()
     joined = "\n".join(stmts)
     # one composite constraint over the identity tuple
-    assert "REQUIRE (n.name, n.company, n.year) IS UNIQUE" in joined
+    assert "REQUIRE (n.`name`, n.`company`, n.`year`) IS UNIQUE" in joined
     # the per-member UNIQUE on name is NOT emitted for the identity-keyed label
     assert "constraint_FinancialMetric_name_unique" not in joined
     # Company (no identity_keys) keeps its plain name uniqueness

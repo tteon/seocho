@@ -475,8 +475,8 @@ class TestPromptContext:
 class TestCypherConstraints:
     def test_unique_constraint(self, simple_ontology):
         stmts = simple_ontology.to_cypher_constraints()
-        assert any("constraint_Person_name_unique" in s for s in stmts)
-        assert any("REQUIRE n.name IS UNIQUE" in s for s in stmts)
+        assert any("`constraint_Person_name_unique`" in s for s in stmts)
+        assert any("REQUIRE n.`name` IS UNIQUE" in s for s in stmts)
 
     def test_index_statement(self, simple_ontology):
         stmts = simple_ontology.to_cypher_constraints()

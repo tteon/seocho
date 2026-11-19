@@ -1,0 +1,1 @@
+- CLI Argument Standardisation: When updating or adding CLI arguments (e.g., `--json`), prefer concise and consistent action-oriented help text (e.g., `"Emit JSON"`) across all subcommands rather than varying descriptions like `"JSON output"` or `"Emit JSON output"` to maintain a predictable empty/help state.

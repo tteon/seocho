@@ -12,6 +12,12 @@ from seocho.client_remote import RemoteClientHelper
 from seocho.exceptions import SeochoConnectionError, SeochoHTTPError
 from seocho.http_transport import RuntimeHttpTransport
 from seocho.ontology import NodeDef, Ontology, P
+from seocho.store.graph import (
+    Neo4jGraphStore, WorkspaceFilterMissingError, WorkspaceScopeViolationError,
+)
+from unittest.mock import MagicMock
+
+import pytest
 
 
 class _FakeResponse:
@@ -64,6 +70,62 @@ def _build_client() -> Seocho:
         relationships={},
     )
     return Seocho(ontology=ontology)
+
+
+@pytest.mark.parametrize("params", [None, {"workspace_id": "other", "limit": 2}])
+def test_raw_query_pins_workspace_before_driver_execution(params: Optional[Dict[str, Any]]) -> None:
+    store = object.__new__(Neo4jGraphStore)
+    store._driver = MagicMock()
+    store._driver.session.return_value.__enter__.return_value.run.return_value = []
+    client = object.__new__(Seocho)
+    client._local_mode = True
+    client.graph_store = store
+    client.workspace_id = "tenant-a"
+    original = dict(params) if params is not None else None
+
+    assert client.query(
+        "MATCH (n) WHERE n._workspace_id = $workspace_id RETURN n.name AS name",
+        params=params,
+        database="tenantgraph",
+    ) == []
+
+    session = store._driver.session.return_value.__enter__.return_value
+    assert session.run.call_args.kwargs["parameters"]["workspace_id"] == "tenant-a"
+    assert params == original
+    store._driver.session.assert_called_once_with(
+        database="tenantgraph", default_access_mode="READ"
+    )
+
+
+def test_raw_query_rejects_unscoped_cypher_before_driver_execution() -> None:
+    store = object.__new__(Neo4jGraphStore)
+    store._driver = MagicMock()
+    client = object.__new__(Seocho)
+    client._local_mode = True
+    client.graph_store = store
+    client.workspace_id = "tenant-a"
+
+    with pytest.raises(WorkspaceFilterMissingError):
+        client.query("MATCH (n) RETURN n.name")
+    store._driver.session.assert_not_called()
+
+
+@pytest.mark.parametrize("cypher", [
+    "MATCH (guard {_workspace_id: $workspace_id}), (victim) WITH victim RETURN victim",
+    "MATCH (n {_workspace_id: $workspace_id}) RETURN n UNION MATCH (victim) RETURN victim",
+    "MATCH (guard {_workspace_id: $workspace_id}), (victim) UNWIND [victim] AS leaked RETURN leaked",
+])
+def test_raw_query_rejects_unverifiable_bindings_before_driver_execution(cypher: str) -> None:
+    store = object.__new__(Neo4jGraphStore)
+    store._driver = MagicMock()
+    client = object.__new__(Seocho)
+    client._local_mode = True
+    client.graph_store = store
+    client.workspace_id = "tenant-a"
+
+    with pytest.raises(WorkspaceScopeViolationError, match="unsupported_construct"):
+        client.query(cypher)
+    store._driver.session.assert_not_called()
 
 
 def test_client_artifact_helpers_delegate_to_shared_module() -> None:

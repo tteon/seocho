@@ -235,7 +235,7 @@ def verify_workspace_binding(cypher: str) -> None:
             raise WorkspaceScopeViolationError(cypher, "unbound_return")
 
 
-def enforce_read_workspace_scope(cypher: str) -> None:
+def enforce_read_workspace_scope(cypher: str, *, reject_rebinding: bool = False) -> None:
     """Gate a query on the governed read path.
 
     Order matters: strip comments first, then require the ``$workspace_id``
@@ -249,6 +249,8 @@ def enforce_read_workspace_scope(cypher: str) -> None:
     security review found and pairs with the driver-level READ access mode.
     """
     stripped = _strip_cypher_comments(cypher)
+    if reject_rebinding and _REBIND_CONSTRUCTS_RE.search(stripped):
+        raise WorkspaceScopeViolationError(cypher, "unsupported_construct")
     if "$workspace_id" not in stripped:
         raise WorkspaceFilterMissingError(cypher)
     normalized = " " + re.sub(r"\s+", " ", stripped.upper()) + " "

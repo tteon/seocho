@@ -1,0 +1,3 @@
+- Optimized JSON parsing in `src/seocho/eval/inference_receipts.py` to stream files directly from disk instead of loading entire files as single strings before parsing via `json.loads(path.read_text())`.
+- Streamlining `json.load(f)` avoids memory overhead with large receipt and artifact payloads in local test/eval runs.
+- Added explicit file size checks `path.stat().st_size > 0` to prevent JSONDecodeError when trying to parse empty request/response HTTP payload trace artifacts.

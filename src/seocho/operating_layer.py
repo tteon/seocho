@@ -573,6 +573,7 @@ class SeochoOS:
         placeholder the pin makes safe).
         """
         ws = getattr(policy, "workspace_property", "_workspace_id")
+        from .cypher_ident import quote_identifier
         labels = list(getattr(self.ontology, "nodes", {}).keys())
         rels = getattr(self.ontology, "relationships", {}) or {}
         pj = f'{{"workspace_id": "{self.workspace_id}", "limit": 1}}'
@@ -581,7 +582,7 @@ class SeochoOS:
         if labels:
             lines.append(
                 f"- Count a label:\n"
-                f"  MATCH (n:{labels[0]} {{{ws}: $workspace_id}}) "
+                f"  MATCH (n:{quote_identifier(labels[0])} {{{ws}: $workspace_id}}) "
                 f"RETURN count(n) AS v LIMIT $limit\n"
                 f"  params_json: {pj}")
         for _rt, rd in rels.items():
@@ -590,8 +591,8 @@ class SeochoOS:
             if src and tgt:
                 lines.append(
                     f"- Traverse a relationship (distinct):\n"
-                    f"  MATCH (a:{src} {{{ws}: $workspace_id}})-[:{_rt}]->"
-                    f"(:{tgt}) RETURN count(DISTINCT a) AS v LIMIT $limit\n"
+                    f"  MATCH (a:{quote_identifier(src)} {{{ws}: $workspace_id}})-[:{quote_identifier(_rt)}]->"
+                    f"(:{quote_identifier(tgt)}) RETURN count(DISTINCT a) AS v LIMIT $limit\n"
                     f"  params_json: {pj}")
                 break
         return "\n".join(lines)

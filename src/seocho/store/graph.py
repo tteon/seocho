@@ -145,6 +145,7 @@ class WorkspaceScopeViolationError(ValueError):
 # check while contributing nothing to scoping.
 _LINE_COMMENT_RE = re.compile(r"//[^\n]*")
 _BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+_STRING_LITERAL_RE = re.compile(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"")
 
 # Widening tautologies that neutralize a WHERE scope even when $workspace_id is
 # named elsewhere. Matched on comment-stripped, whitespace-normalized, upper-
@@ -220,7 +221,8 @@ def verify_workspace_binding(cypher: str) -> None:
     ``WorkspaceScopeViolationError``); the sound form is DB-side per-workspace
     enforcement.
     """
-    stripped = _strip_cypher_comments(cypher)
+    stripped_comments = _strip_cypher_comments(cypher)
+    stripped = _STRING_LITERAL_RE.sub(" ", stripped_comments)
     if _REBIND_CONSTRUCTS_RE.search(stripped):
         return
     ret = _RETURN_CLAUSE_RE.search(stripped)
@@ -248,7 +250,8 @@ def enforce_read_workspace_scope(cypher: str) -> None:
     ``WorkspaceScopeViolationError``); it removes the specific bypasses the
     security review found and pairs with the driver-level READ access mode.
     """
-    stripped = _strip_cypher_comments(cypher)
+    stripped_comments = _strip_cypher_comments(cypher)
+    stripped = _STRING_LITERAL_RE.sub(" ", stripped_comments)
     if "$workspace_id" not in stripped:
         raise WorkspaceFilterMissingError(cypher)
     normalized = " " + re.sub(r"\s+", " ", stripped.upper()) + " "

@@ -50,8 +50,10 @@ def load_projection_receipt_from_env() -> dict[str, Any] | None:
             "SEOCHO_RDF_GOVERNANCE_RECEIPT and SEOCHO_AGENT_ONTOLOGY_PROFILE must be set together"
         )
     try:
-        governance = json.loads(Path(receipt_path).read_text(encoding="utf-8"))
-        profile = json.loads(Path(profile_path).read_text(encoding="utf-8"))
+        with Path(receipt_path).open("r", encoding="utf-8") as f:
+            governance = json.load(f)
+        with Path(profile_path).open("r", encoding="utf-8") as f:
+            profile = json.load(f)
     except (OSError, json.JSONDecodeError) as exc:
         raise ProjectionReceiptError(f"invalid projection receipt files: {exc}") from exc
     return validate_projection_receipt(governance, profile)

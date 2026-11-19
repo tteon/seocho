@@ -1,0 +1,1 @@
+- Refactored `path.read_text().splitlines()` to lazy file iteration `for line in path.open():` in various scripts processing `.jsonl` and `.env` files to avoid loading large files completely into memory at once, reducing memory overhead.

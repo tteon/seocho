@@ -1,0 +1,3 @@
+- Use lazy iteration (`with path.open("r", encoding="utf-8") as f: for line in f:`) instead of `read_text().splitlines()` when parsing large JSONL/text files to avoid allocating the entire file as a list of strings in memory.
+- Be careful with `splitlines()` behavior of stripping newlines. When refactoring to lazy iteration, make sure to use `line.rstrip('\n')` where necessary, or let `json.loads` handle it.
+- Explicitly handle `json.JSONDecodeError` when processing unstructured or mixed logs to prevent the script from crashing.

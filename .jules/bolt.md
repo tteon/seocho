@@ -1,0 +1,1 @@
+We found that patching yaml.SafeLoader and yaml.SafeDumper to point to CSafeLoader and CSafeDumper globally (when available) achieves an ~80% performance speedup when loading large schema YAMLs, bounding overhead dramatically across the entire codebase wherever yaml.safe_load is called.

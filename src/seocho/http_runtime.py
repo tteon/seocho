@@ -94,10 +94,11 @@ def create_bundle_runtime_app(
             return "hybrid"
         return "lpg"
 
-    def _search_graph(query_text: str, *, database: str, limit: int) -> List[Dict[str, Any]]:
+    def _search_graph(query_text: str, *, database: str, limit: int, workspace_id: str) -> List[Dict[str, Any]]:
         query = """
         MATCH (n)
-        WHERE any(key IN $properties
+        WHERE n._workspace_id = $workspace_id
+          AND any(key IN $properties
             WHERE n[key] IS NOT NULL
               AND toLower(toString(n[key])) CONTAINS toLower($query))
         RETURN coalesce(n.memory_id, n._source_id, n.id, elementId(n)) AS memory_id,
@@ -114,6 +115,7 @@ def create_bundle_runtime_app(
                     "properties": list(_SEARCH_PROPERTIES),
                     "query": query_text,
                     "limit": limit,
+                    "workspace_id": workspace_id,
                 },
                 database=database,
             )
@@ -193,7 +195,7 @@ def create_bundle_runtime_app(
     def search_memories(request: BundleMemorySearchRequest) -> Dict[str, Any]:
         _ensure_workspace(request.workspace_id)
         database = _resolve_database(request.databases)
-        results = _search_graph(request.query, database=database, limit=request.limit)
+        results = _search_graph(request.query, database=database, limit=request.limit, workspace_id=request.workspace_id)
         return {
             "results": results,
             "semantic_context": {
@@ -210,7 +212,7 @@ def create_bundle_runtime_app(
     def chat(request: BundleChatRequest) -> Dict[str, Any]:
         _ensure_workspace(request.workspace_id)
         database = _resolve_database(request.databases)
-        search_results = _search_graph(request.message, database=database, limit=request.limit)
+        search_results = _search_graph(request.message, database=database, limit=request.limit, workspace_id=request.workspace_id)
         answer = runtime_client.ask(
             request.message,
             database=database,
@@ -240,7 +242,7 @@ def create_bundle_runtime_app(
         _ensure_workspace(request.workspace_id)
         database = _resolve_database(request.databases)
         route = _route_for_database(database)
-        search_results = _search_graph(request.query, database=database, limit=5)
+        search_results = _search_graph(request.query, database=database, limit=5, workspace_id=request.workspace_id)
         effective_reasoning_mode = bool(request.reasoning_mode or request.query_mode == "graph_cot")
         effective_repair_budget = max(
             int(request.repair_budget or 0),

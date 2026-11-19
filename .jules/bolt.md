@@ -1,0 +1,1 @@
+- Changed `json.loads(path.read_text())` and `yaml.safe_load(path.read_text())` to stream from open file descriptors using `json.load(f)` and `yaml.safe_load(f)` respectively in key paths to avoid memory overhead of allocating entire file contents as strings. Handled empty files with `st_size == 0` check when replacing `or "{}"` fallback logic.

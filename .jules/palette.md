@@ -1,0 +1,1 @@
+- Replaced inconsistent empty state phrasing in CLI outputs with standardized format 'No <domain item> found.' specifically changing 'No memories found.' to 'No search results found.', 'No graph targets configured.' to 'No graph targets found.', and 'No matching spans.' to 'No matching trace spans found.' to improve clarity and respect domain terminology.

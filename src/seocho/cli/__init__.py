@@ -468,7 +468,7 @@ def _print_search_results(results: Sequence[SearchResult], output_json: bool) ->
         return
 
     if not results:
-        print("No memories found.")
+        print("No search results found.")
         return
 
     for index, result in enumerate(results, start=1):
@@ -483,7 +483,7 @@ def _print_graphs(graphs: Iterable[GraphTarget], output_json: bool) -> None:
         return
 
     if not graph_list:
-        print("No graph targets configured.")
+        print("No graph targets found.")
         return
 
     for graph in graph_list:

@@ -68,6 +68,7 @@ def _is_cheap_point_lookup(cypher: str) -> bool:
         return False
     return bool(_POINT_LOOKUP_ID.search(c))
 from dataclasses import dataclass, field
+from seocho.cypher_ident import quote_identifier
 from typing import Any, Dict, List, Optional, Sequence
 
 from .budget import BudgetExceededError, TokenBudgetTracker
@@ -581,7 +582,7 @@ class SeochoOS:
         if labels:
             lines.append(
                 f"- Count a label:\n"
-                f"  MATCH (n:{labels[0]} {{{ws}: $workspace_id}}) "
+                f"  MATCH (n:{quote_identifier(labels[0])} {{{ws}: $workspace_id}}) "
                 f"RETURN count(n) AS v LIMIT $limit\n"
                 f"  params_json: {pj}")
         for _rt, rd in rels.items():
@@ -590,7 +591,7 @@ class SeochoOS:
             if src and tgt:
                 lines.append(
                     f"- Traverse a relationship (distinct):\n"
-                    f"  MATCH (a:{src} {{{ws}: $workspace_id}})-[:{_rt}]->"
+                    f"  MATCH (a:{quote_identifier(src)} {{{ws}: $workspace_id}})-[:{quote_identifier(_rt)}]->"
                     f"(:{tgt}) RETURN count(DISTINCT a) AS v LIMIT $limit\n"
                     f"  params_json: {pj}")
                 break

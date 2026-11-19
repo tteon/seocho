@@ -1,0 +1,1 @@
+* Changed CLI empty search results state from "No memories found." to "No results found." to align with other "No [entity] found." messages and avoid using internal taxonomy ("memories") for a generic CLI search.

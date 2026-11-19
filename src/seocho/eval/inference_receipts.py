@@ -19,7 +19,8 @@ def import_receipts(
     """
     rows = []
     for path in sorted(root.glob("*/receipt.json")):
-        receipt = json.loads(path.read_text())
+        with path.open('r', encoding='utf-8') as f:
+            receipt = json.load(f)
         run_id = path.parent.name
         for call in receipt.get("llm", []):
             number = int(call["call"])

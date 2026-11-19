@@ -374,7 +374,11 @@ class SharedInternTable:
         p = Path(path)
         if not p.exists():
             return 0
-        data = json.loads(p.read_text() or "{}")
+        try:
+            with p.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError:
+            data = {}
         n = 0
         if self._sqlite_path:
             import sqlite3

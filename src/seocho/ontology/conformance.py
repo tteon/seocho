@@ -27,6 +27,7 @@ driver, or a test double alike.
 from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Mapping, Set, Tuple
+from ..cypher_ident import quote_identifier
 
 RunQuery = Callable[[str], List[Dict[str, Any]]]
 
@@ -82,13 +83,13 @@ def graph_view(run_query: RunQuery, *, sample: int = 5000) -> Dict[str, Any]:
     node_props: Dict[str, List[str]] = {}
     for label in labels:
         rows = run_query(
-            f"MATCH (n:`{label}`) WITH keys(n) AS k LIMIT {int(sample)} "
+            f"MATCH (n:{quote_identifier(label)}) WITH keys(n) AS k LIMIT {int(sample)} "
             "UNWIND k AS key RETURN DISTINCT key ORDER BY key")
         node_props[label] = [r["key"] for r in rows]
     rel_props: Dict[str, List[str]] = {}
     for rt in rel_types:
         rows = run_query(
-            f"MATCH ()-[r:`{rt}`]->() WITH keys(r) AS k LIMIT {int(sample)} "
+            f"MATCH ()-[r:{quote_identifier(rt)}]->() WITH keys(r) AS k LIMIT {int(sample)} "
             "UNWIND k AS key RETURN DISTINCT key ORDER BY key")
         rel_props[rt] = [r["key"] for r in rows]
     endpoints = sorted(

@@ -37,6 +37,7 @@ import threading
 import time
 import uuid
 from typing import Any, Coroutine, Dict, List, Optional, Sequence, TypeVar
+from .cypher_ident import quote_identifier
 
 from .agent.context import SessionContext
 from .agent.contracts import normalize_execution_mode
@@ -1014,7 +1015,7 @@ class Session:
             if addr:
                 # label is validated by membership in the ontology above.
                 rows = self.query(
-                    f"MATCH (n:`{label}`) WHERE n.id = $addr "
+                    f"MATCH (n:{quote_identifier(label)}) WHERE n.id = $addr "
                     "AND n._workspace_id = $workspace_id RETURN n LIMIT 1",
                     addr=addr)
                 if rows:

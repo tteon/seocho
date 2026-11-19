@@ -214,9 +214,32 @@ def test_validate_cypher_tool_flags_missing_node_binding(
     tools = importlib.import_module("seocho.tools")
 
     tool = tools.make_validate_cypher_tool(workspace_id="ws-1")
-    payload = json.loads(tool(cypher="MATCH (n) RETURN n", params_json="{}"))
+    payload = json.loads(
+        tool(cypher="MATCH (n) RETURN n", params_json='{"node_id":"x"}')
+    )
     assert payload["ok"] is False
     assert "missing_node_binding" in payload["violations"]
+
+
+def test_validate_cypher_tool_accepts_unanchored_count_template(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Count / list_all templates carry no resolved node anchor (#683)."""
+    _stub_agents(monkeypatch)
+    tools = importlib.import_module("seocho.tools")
+
+    tool = tools.make_validate_cypher_tool(workspace_id="ws-1")
+    payload = json.loads(
+        tool(
+            cypher=(
+                "MATCH (n:Company) WHERE n.workspace_id = $workspace_id "
+                "RETURN count(n) AS total"
+            ),
+            params_json='{"workspace_id":"ws-1"}',
+        )
+    )
+    assert "missing_node_binding" not in payload["violations"]
+    assert payload["ok"] is True
 
 
 def _minimal_ontology():

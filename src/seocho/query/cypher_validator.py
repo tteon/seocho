@@ -26,7 +26,13 @@ class CypherQueryValidator:
     def validate(self, plan: CypherPlan, constraint_slice: Dict[str, Any]) -> Dict[str, Any]:
         normalized_query = " " + re.sub(r"\s+", " ", plan.query.upper()) + " "
         violations: List[str] = []
-        if "$node_id" not in plan.query:
+        # Only anchored plans must bind $node_id. Count / list_all templates and
+        # label-scoped aggregates have no resolved node, so demanding the binding
+        # rejected valid queries and pushed the agent into a futile repair cycle.
+        requires_node_binding = "node_id" in plan.params or bool(
+            constraint_slice.get("require_node_binding", False)
+        )
+        if requires_node_binding and "$node_id" not in plan.query:
             violations.append("missing_node_binding")
         if "RETURN" not in normalized_query:
             violations.append("missing_return_clause")

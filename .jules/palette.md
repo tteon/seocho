@@ -1,0 +1,1 @@
+- Fixed empty state wording for CLI output in `src/seocho/cli/traces.py` from 'No matching spans.' to 'No matching trace spans found.' to match domain terminology.

@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import time
+from seocho.cypher_ident import quote_identifier
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -337,9 +338,9 @@ def admin_database_command(
             f"{DATABASE_NAME_PATTERN!r}"
         )
     if action == "create":
-        cypher = f"CREATE DATABASE `{database}` IF NOT EXISTS"
+        cypher = f"CREATE DATABASE {quote_identifier(database)} IF NOT EXISTS"
     else:
-        cypher = f"DROP DATABASE `{database}` IF EXISTS"
+        cypher = f"DROP DATABASE {quote_identifier(database)} IF EXISTS"
     command = ["docker", "compose", "-p", SHARED_PROJECT_NAME, "exec", "-T"]
     command += ["-e", f"NEO4J_USERNAME={user or 'neo4j'}"]
     if password:

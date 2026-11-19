@@ -22,6 +22,7 @@ import logging
 import os
 import re
 import time
+from seocho.cypher_ident import quote_identifier
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -1275,7 +1276,7 @@ class Neo4jGraphStore(GraphStore):
                         # F7: LIMIT-bounded probe caps the scan at sample_limit.
                         count_rec = session.run(
                             # label passed is_valid_identifier above; interpolated raw
-                            f"MATCH (n:{label}) "
+                            f"MATCH (n:{quote_identifier(label)}) "
                             "WHERE n._workspace_id = $workspace_id "
                             "WITH n LIMIT $sample_limit "
                             "RETURN count(n) AS cnt",
@@ -1303,7 +1304,7 @@ class Neo4jGraphStore(GraphStore):
                     try:
                         count_rec = session.run(
                             # rt passed is_valid_identifier above; interpolated raw
-                            f"MATCH ()-[r:{rt}]->() "
+                            f"MATCH ()-[r:{quote_identifier(rt)}]->() "
                             "WHERE r._workspace_id = $workspace_id "
                             "WITH r LIMIT $sample_limit "
                             "RETURN count(r) AS cnt",
@@ -1567,7 +1568,7 @@ class Neo4jGraphStore(GraphStore):
                 result = session.run("SHOW DATABASES")
                 existing = {r["name"] for r in result}
                 if name not in existing:
-                    session.run(f"CREATE DATABASE {name} IF NOT EXISTS")
+                    session.run(f"CREATE DATABASE {quote_identifier(name)} IF NOT EXISTS")
                     logger.info("Created database: %s", name)
                     created = True
         except Exception as exc:
